@@ -1,0 +1,10 @@
+accelerate
+fire
+opencv-python-headless
+pillow
+scikit-image
+scipy
+torch
+torchvision
+tqdm
+pymatting
