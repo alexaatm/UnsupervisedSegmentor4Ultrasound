@@ -292,3 +292,13 @@ def ssd_patchwise_affinity_knn(image, patch_size, n_neighbors=[8, 4], distance_w
   W = np.array(W.todense().astype(np.float32))
 
   return W, patches
+
+from PIL import Image
+
+def interpolate_2Darray(input_2Darray, output_size):
+  """
+  based on : PIL Image functionality for interpolating images when resizing
+  """
+  image_from_array = Image.fromarray(input_2Darray).resize((output_size[0],output_size[1]), Image.BILINEAR)
+  array_from_image = np.array(image_from_array)
+  return array_from_image
