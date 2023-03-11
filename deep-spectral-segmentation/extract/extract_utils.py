@@ -218,3 +218,21 @@ def get_diagonal(W: scipy.sparse.csr_matrix, threshold: float = 1e-12):
     D[D < threshold] = 1.0  # Prevent division by zero.
     D = scipy.sparse.diags(D)
     return D
+
+def reshape_split(image: np.ndarray, kernel_size: tuple):
+  """
+  Computes non-overlapping patches for a given image and a given patch size.
+  Note that th eimage should be able to fit a whole number of patches of the given size.
+  # based on: https://towardsdatascience.com/efficiently-splitting-an-image-into-tiles-in-python-using-numpy-d1bf0dd7b6f7
+  """
+  h, w, ch = image.shape
+  tile_h, tile_w = kernel_size
+
+  tiled_array=image.reshape(h//tile_h, 
+                            tile_h, 
+                            w//tile_w,
+                            tile_w,
+                            ch)
+  tiled_array=tiled_array.swapaxes(1,2)
+  tiled_array=tiled_array.reshape(-1,tile_h,tile_w,ch)
+  return tiled_array
