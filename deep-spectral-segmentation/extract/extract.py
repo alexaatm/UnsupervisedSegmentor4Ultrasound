@@ -58,11 +58,11 @@ def extract_features(
     filenames = Path(images_list).read_text().splitlines()
     dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=val_transform)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=8)
-    print(f'Dataset size: {len(dataset)=}')
-    print(f'Dataloader size: {len(dataloader)=}')
+    print(f'Dataset size: {len(dataset)}')
+    print(f'Dataloader size: {len(dataloader)}')
 
     # Prepare
-    accelerator = Accelerator(fp16=True, cpu=False)
+    accelerator = Accelerator(cpu=False)
     # model, dataloader = accelerator.prepare(model, dataloader)
     model = model.to(accelerator.device)
 
@@ -837,7 +837,7 @@ def vis_segmentations(
         bboxes = None
         if bbox_file is not None:
             bboxes = torch.tensor(bboxes_list[i]['bboxes_original_resolution'])
-            assert bboxes_list[i]['id'] == image_id, f"{bboxes_list[i]['id']=} but {image_id=}"
+            assert bboxes_list[i]['id'] == image_id, f"{bboxes_list[i]['id']} but {image_id}"
             image_torch = torch.from_numpy(image).permute(2, 0, 1)
             image_with_boxes_torch = draw_bounding_boxes(image_torch, bboxes)
             image_with_boxes = image_with_boxes_torch.permute(1, 2, 0).numpy()
