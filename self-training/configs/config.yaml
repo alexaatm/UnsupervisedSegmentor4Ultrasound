@@ -1,6 +1,0 @@
-  ---
-defaults:
-    - dataset: liver2_mini
-    - train: defaults
-    - wandb: defaults
-    - hydra: defaults

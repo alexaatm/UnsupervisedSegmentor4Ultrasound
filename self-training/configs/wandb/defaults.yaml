@@ -1,8 +1,0 @@
----
-setup:
-    project: self-training
-    entity:
-    mode: online
-watch:
-    log: all
-    log_freq: 100
