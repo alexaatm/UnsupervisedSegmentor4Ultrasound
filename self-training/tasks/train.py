@@ -16,24 +16,12 @@ from omegaconf import DictConfig, OmegaConf
 import os
 import logging
 import wandb
-import sys
 
 # A logger for this file
 log = logging.getLogger(__name__)
 
-
-@hydra.main(version_base=None, config_path="./configs", config_name="defaults")
+#TODO: replace hard coded configs with configs from the Hydra dictionary
 def train_dino(cfg: DictConfig) -> None:
-    log.info(OmegaConf.to_yaml(cfg))
-    log.info("Current working directory  : {}".format(os.getcwd()))
-
-    wandb.config = OmegaConf.to_container(
-        cfg, resolve=True, throw_on_missing=True
-    )
-
-    run = wandb.init(**cfg.wandb.setup)
-
-
     # model
     backbone, input_dim = dino.get_dino_backbone("dino_vits16")
     model = dino.DINO(backbone, input_dim)
@@ -42,7 +30,6 @@ def train_dino(cfg: DictConfig) -> None:
 
 
     # data
-    # dataset = LightlyDataset("../data/liver2_mini/train")
     dataset = LightlyDataset(cfg.dataset.path)
     collate_fn = DINOCollateFunction()
 
@@ -89,17 +76,27 @@ def train_dino(cfg: DictConfig) -> None:
 
         avg_loss = total_loss / len(dataloader)
         log.info(f"epoch: {epoch:>02}, loss: {avg_loss:.5f}")
-        wandb.log({"loss": avg_loss})
+        wandb.log({"loss": avg_loss}) #assumes wandb was initialized
+    
+
+
+@hydra.main(version_base=None, config_path="./configs", config_name="defaults")
+def run_experiment(cfg: DictConfig) -> None:
+    log.info(OmegaConf.to_yaml(cfg))
+    log.info("Current working directory  : {}".format(os.getcwd()))
+
+    wandb.config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+
+    if cfg.experiment.name == "train_dino":
+        log.info(f"Experiment chosen: {cfg.experiment.name}")
+        run = wandb.init(**cfg.wandb.setup)
+        train_dino(cfg)
+    # TODO: add else if for training simclr
+    else:
+        raise ValueError(f'No experiment called: {cfg.experiment.name}')
     
     wandb.finish()
 
 
 if __name__ == "__main__":
-    # task_name = sys.argv[1]
-
-    # if task_name == 'train_dino':
-    #     log.info("Task chosen: train_dino")
-    #     train_dino()
-    # else:
-    #     raise ValueError(f'Unknown task name: {task_name}')
-    train_dino()
+    run_experiment()
