@@ -1,3 +1,0 @@
-lightly
-torch
-torchvision
