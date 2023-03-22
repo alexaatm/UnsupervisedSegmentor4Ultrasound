@@ -1,0 +1,3 @@
+dataset:
+  name: liver2_mini
+  path: ../data/liver2_mini/train
