@@ -12,6 +12,7 @@ from lightly.models.utils import update_momentum
 from lightly.utils.scheduler import cosine_schedule
 
 import pytorch_lightning as pl
+from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -82,9 +83,7 @@ def train_dino(cfg: DictConfig) -> None:
     
 # Dino Lightning Module - convenient for monitoring the training
 def train_dinoLightningModule(cfg: DictConfig) -> None:
-    # model
-    backbone, input_dim = dino.get_dino_backbone("dino_vits16")
-    model = dinoLightningModule.DINO(backbone, input_dim)
+    # TODO: add train and val datasets and dataloaders separately
 
     # data
     dataset = LightlyDataset(cfg.dataset.path)
@@ -101,16 +100,33 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
 
     print(len(dataloader))
 
+    # model
+    backbone, input_dim = dino.get_dino_backbone("dino_vits16")
+    model = dinoLightningModule.DINO(backbone, input_dim)
+
+    # wandb logging
+    wandb_logger = pl.loggers.WandbLogger()
+    wandb_logger.watch(model)
+
     # trainer
-    accelerator = "gpu" if torch.cuda.is_available() else "cpu"
-    trainer = pl.Trainer(max_epochs=cfg.train.epochs, devices=1, accelerator=accelerator)
+    trainer = pl.Trainer(
+        max_epochs=cfg.train.epochs,
+        devices=1,
+        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        callbacks=[
+            ModelCheckpoint(save_weights_only=True, mode='min', monitor='val_loss_ssl',
+                            save_top_k=3, filename='{epoch}-{step}-{val_loss_ssl:.2f}'),
+            ModelCheckpoint(every_n_epochs=10),
+            LearningRateMonitor('epoch'),
+        ],
+        logger=wandb_logger,
+        log_every_n_steps=1,
+        )
     trainer.fit(model=model, train_dataloaders=dataloader)
+    # TODO: add validation datasets and dataloaders
 
-
-
-
-
-
+    # saving the final model
+    trainer.save_checkpoint('final_model.ckpt', weights_only=True)
 
 
 @hydra.main(version_base=None, config_path="./configs", config_name="defaults")
