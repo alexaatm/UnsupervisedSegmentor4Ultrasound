@@ -12,7 +12,7 @@ from lightly.models.utils import update_momentum
 from lightly.utils.scheduler import cosine_schedule
 
 import pytorch_lightning as pl
-from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
+from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
