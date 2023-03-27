@@ -11,6 +11,8 @@ from lightly.models.modules import DINOProjectionHead
 from lightly.models.utils import deactivate_requires_grad, update_momentum
 from lightly.utils.scheduler import cosine_schedule
 
+import wandb
+
 # Note: The model and training settings do not follow the reference settings
 # from the paper. The settings are chosen such that the example can easily be
 # run on a small dataset with a single GPU.
@@ -51,7 +53,7 @@ class DINO(pl.LightningModule):
         momentum = cosine_schedule(self.current_epoch, 10, 0.996, 1)
         update_momentum(self.student_backbone, self.teacher_backbone, m=momentum)
         update_momentum(self.student_head, self.teacher_head, m=momentum)
-        views, _, _ = batch
+        views, a, b = batch
         views = [view.to(self.device) for view in views]
         global_views = views[:2]
         teacher_out = [self.forward_teacher(view) for view in global_views]

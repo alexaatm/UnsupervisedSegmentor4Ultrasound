@@ -83,10 +83,13 @@ def train_dino(cfg: DictConfig) -> None:
     
 # Dino Lightning Module - convenient for monitoring the training
 def train_dinoLightningModule(cfg: DictConfig) -> None:
+    pl.seed_everything(cfg.train.seed)
+
+
     # TODO: add train and val datasets and dataloaders separately
 
     # data
-    dataset = LightlyDataset(cfg.dataset.path)
+    dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
     collate_fn = DINOCollateFunction()
 
     dataloader = torch.utils.data.DataLoader(
@@ -108,16 +111,42 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     wandb_logger = pl.loggers.WandbLogger()
     wandb_logger.watch(model)
 
+    #
+    class LogDinoInputViewsCallback(pl.Callback):
+        def on_train_batch_end(
+                self, trainer, pl_module, outputs, batch, batch_idx):
+            """Called when the train/val batch ends."""
+
+            # `outputs` comes from `LightningModule.validation_step` or training_step
+            # which corresponds to our model predictions in this case
+
+            # Let's log augmented views from the first batch
+            if batch_idx == 0:
+                views, _, image_names = batch
+                global_views = views[:2]
+
+                # log images with `WandbLogger.log_image`
+                wandb_logger.log_image(
+                    key='views',
+                    images=views)
+
+                wandb_logger.log_image(
+                    key='global_views',
+                    images=global_views)
+
+
+
     # trainer
     trainer = pl.Trainer(
         max_epochs=cfg.train.epochs,
         devices=1,
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
         callbacks=[
-            ModelCheckpoint(save_weights_only=True, mode='min', monitor='val_loss_ssl',
-                            save_top_k=3, filename='{epoch}-{step}-{val_loss_ssl:.2f}'),
-            ModelCheckpoint(every_n_epochs=10),
+            ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
+                            save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
+            ModelCheckpoint(every_n_epochs=10, filename='{epoch}-{step}-{train_loss:.2f}'),
             LearningRateMonitor('epoch'),
+            LogDinoInputViewsCallback()
         ],
         logger=wandb_logger,
         log_every_n_steps=1,

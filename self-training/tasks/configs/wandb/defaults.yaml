@@ -5,4 +5,4 @@ setup:
     mode: online
 watch:
     log: all
-    log_freq: 100
+    log_freq: 10
