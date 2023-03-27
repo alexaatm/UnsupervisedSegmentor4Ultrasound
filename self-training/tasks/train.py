@@ -2,12 +2,10 @@
 
 
 # TODO train simclr
-
-# train dino
-from models import dino, dinoLightningModule
+from models import dino, dinoLightningModule, simclrLightningModule
 import torch
-from lightly.data import DINOCollateFunction, LightlyDataset
-from lightly.loss import DINOLoss
+from lightly.data import DINOCollateFunction, LightlyDataset, SimCLRCollateFunction
+from lightly.loss import DINOLoss, NTXentLoss
 from lightly.models.utils import update_momentum
 from lightly.utils.scheduler import cosine_schedule
 
@@ -157,6 +155,78 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     # saving the final model
     trainer.save_checkpoint('final_model.ckpt', weights_only=True)
 
+def train_simclr(cfg: DictConfig) -> None:
+    pl.seed_everything(cfg.train.seed)
+
+
+    # TODO: add train and val datasets and dataloaders separately
+
+    # data
+    dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
+    collate_fn = SimCLRCollateFunction(
+        input_size=cfg.dataset.input_size,
+        # gaussian_blur=0.0,
+    )
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=cfg.loader.batch_size,
+        collate_fn = collate_fn,
+        shuffle=True,
+        drop_last=True,
+        num_workers=cfg.loader.num_workers,
+    )
+
+    print(len(dataloader))
+
+    # model
+    model = simclrLightningModule.SimCLR()
+
+    # wandb logging
+    wandb_logger = pl.loggers.WandbLogger()
+    wandb_logger.watch(model)
+
+    #
+    class LogSimclrInputViewsCallback(pl.Callback):
+        def on_train_batch_end(
+                self, trainer, pl_module, outputs, batch, batch_idx):
+            """Called when the train/val batch ends."""
+
+            # `outputs` comes from `LightningModule.validation_step` or training_step
+            # which corresponds to our model predictions in this case
+
+            # Let's log augmented views from the first batch
+            if batch_idx == 0:
+                (x0, x1), _, _ = batch
+
+                # log images with `WandbLogger.log_image`
+                wandb_logger.log_image(
+                    key='x0, x1',
+                    images=[x0, x1])
+
+
+    # trainer
+    trainer = pl.Trainer(
+        max_epochs=cfg.train.epochs,
+        devices=1,
+        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        callbacks=[
+            ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
+                            save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
+            ModelCheckpoint(every_n_epochs=10, filename='{epoch}-{step}-{train_loss:.2f}'),
+            LearningRateMonitor('epoch'),
+            LogSimclrInputViewsCallback()
+        ],
+        logger=wandb_logger,
+        log_every_n_steps=1,
+        )
+    trainer.fit(model=model, train_dataloaders=dataloader)
+    # TODO: add validation datasets and dataloaders
+
+    # saving the final model
+    trainer.save_checkpoint('final_model.ckpt', weights_only=True)
+
+
 
 @hydra.main(version_base=None, config_path="./configs", config_name="defaults")
 def run_experiment(cfg: DictConfig) -> None:
@@ -173,7 +243,10 @@ def run_experiment(cfg: DictConfig) -> None:
         log.info(f"Experiment chosen: {cfg.experiment.name}")
         run = wandb.init(**cfg.wandb.setup)
         train_dinoLightningModule(cfg)
-    # TODO: add else if for training simclr
+    elif cfg.experiment.name == "train_simclr":
+        log.info(f"Experiment chosen: {cfg.experiment.name}")
+        run = wandb.init(**cfg.wandb.setup)
+        train_simclr(cfg)
     else:
         raise ValueError(f'No experiment called: {cfg.experiment.name}')
     

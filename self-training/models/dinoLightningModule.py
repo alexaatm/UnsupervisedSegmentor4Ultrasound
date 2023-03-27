@@ -5,13 +5,11 @@ import torch
 import torchvision
 from torch import nn
 
-from lightly.data import DINOCollateFunction, LightlyDataset
 from lightly.loss import DINOLoss
 from lightly.models.modules import DINOProjectionHead
 from lightly.models.utils import deactivate_requires_grad, update_momentum
 from lightly.utils.scheduler import cosine_schedule
 
-import wandb
 
 # Note: The model and training settings do not follow the reference settings
 # from the paper. The settings are chosen such that the example can easily be
@@ -44,7 +42,7 @@ class DINO(pl.LightningModule):
         return z
 
     def training_step(self, batch, batch_idx):
-        self._common_step(batch, mode='train')
+        return self._common_step(batch, mode='train')
     
     def validation_step(self, batch, batch_idx):
         self._common_step(batch, mode='val')
