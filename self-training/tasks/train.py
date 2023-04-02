@@ -233,19 +233,19 @@ def run_experiment(cfg: DictConfig) -> None:
     log.info(OmegaConf.to_yaml(cfg))
     log.info("Current working directory  : {}".format(os.getcwd()))
 
-    wandb.config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+    wandb_config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
 
     if cfg.experiment.name == "train_dino":
         log.info(f"Experiment chosen: {cfg.experiment.name}")
-        run = wandb.init(**cfg.wandb.setup)
+        run = wandb.init(config=wandb_config, project = cfg.wandb.setup.project, settings=wandb.Settings(start_method='thread'))
         train_dino(cfg)
     elif cfg.experiment.name == "train_dinoLightningModule":
         log.info(f"Experiment chosen: {cfg.experiment.name}")
-        run = wandb.init(**cfg.wandb.setup)
+        run = wandb.init(config=wandb_config, project = cfg.wandb.setup.project, settings=wandb.Settings(start_method='thread'))
         train_dinoLightningModule(cfg)
     elif cfg.experiment.name == "train_simclr":
         log.info(f"Experiment chosen: {cfg.experiment.name}")
-        run = wandb.init(**cfg.wandb.setup)
+        run = wandb.init(config=wandb_config, project = cfg.wandb.setup.project, settings=wandb.Settings(start_method='thread'))
         train_simclr(cfg)
     else:
         raise ValueError(f'No experiment called: {cfg.experiment.name}')
