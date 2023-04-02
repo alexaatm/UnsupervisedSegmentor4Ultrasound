@@ -180,7 +180,7 @@ def train_simclr(cfg: DictConfig) -> None:
     print(len(dataloader))
 
     # model
-    model = simclrLightningModule.SimCLR()
+    model = simclrLightningModule.SimCLR(cfg.train.epochs, cfg.train.lr)
 
     # wandb logging
     wandb_logger = pl.loggers.WandbLogger()
