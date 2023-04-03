@@ -9,5 +9,5 @@ Pillow
 matplotlib
 tqdm
 accelerate
-
+polyaxon
 polyaxon-client==0.6.1
