@@ -70,7 +70,7 @@ class DINO(pl.LightningModule):
         return optim
     
 def get_dino_backbone(dino_model_name: str):
-    backbone = torch.hub.load('facebookresearch/dino:main', dino_model_name, pretrained=False)
+    backbone = torch.hub.load('facebookresearch/dino:main', dino_model_name, pretrained=False) # Consider using ImageNet weights
     input_dim = backbone.embed_dim
     return (backbone, input_dim)
 
