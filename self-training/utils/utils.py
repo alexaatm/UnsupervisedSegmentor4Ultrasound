@@ -58,7 +58,7 @@ def get_model_from_path(model_name, ckpt_path):
 
 
         full_model = dinoLightningModule.DINO(backbone, input_dim)
-        
+        full_model.load_state_dict(state_dict, strict=False)
 
         val_transform = get_transform(model_name)
 
