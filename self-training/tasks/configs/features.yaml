@@ -1,0 +1,12 @@
+defaults:
+  - dataset: defaults
+  - loader: defaults
+  - wandb: defaults
+  - hydra: defaults
+  - experiment: defaults
+  - _self_
+
+output_dir: features
+model_name: dino_vits16
+model_checkpoint: null
+loader.batch_size: 1

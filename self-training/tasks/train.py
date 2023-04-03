@@ -102,7 +102,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     print(len(dataloader))
 
     # model
-    backbone, input_dim = dino.get_dino_backbone("dino_vits16")
+    backbone, input_dim = dinoLightningModule.get_dino_backbone("dino_vits16")
     model = dinoLightningModule.DINO(backbone, input_dim)
 
     # wandb logging
@@ -213,7 +213,7 @@ def train_simclr(cfg: DictConfig) -> None:
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(every_n_epochs=10, filename='{epoch}-{step}-{train_loss:.2f}'),
+            ModelCheckpoint(monitor='train_loss', every_n_epochs=10, filename='{epoch}-{step}-{train_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogSimclrInputViewsCallback()
         ],
