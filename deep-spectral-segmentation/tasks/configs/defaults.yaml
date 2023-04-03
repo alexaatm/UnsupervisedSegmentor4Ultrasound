@@ -1,0 +1,6 @@
+defaults:
+  - dataset: liver2_mini
+  - wandb: defaults
+  - hydra: defaults
+  - experiment: defaults
+  - loader: defaults

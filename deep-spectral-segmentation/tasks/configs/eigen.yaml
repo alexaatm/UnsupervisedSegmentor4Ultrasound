@@ -1,0 +1,14 @@
+defaults:
+  - _self_
+  - dataset: carotid-mini
+  - wandb: defaults
+  - hydra: defaults
+  - experiment: defaults
+
+features_dir: ../self-training/outputs/2023-04-03/11-49-40/features
+output_dir: eig
+
+image_color_lambda: 0.0
+image_ssd_beta: 5.0
+multiprocessing: 0
+K: 10
