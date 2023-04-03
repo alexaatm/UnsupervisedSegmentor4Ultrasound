@@ -132,3 +132,7 @@ dmypy.json
 thesis_env/
 data/
 self-training/outputs/
+.vscode/
+dino/
+notebooks/
+self-training/wandb/
