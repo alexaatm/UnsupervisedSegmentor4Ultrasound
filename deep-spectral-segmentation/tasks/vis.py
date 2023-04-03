@@ -50,7 +50,7 @@ def vis_eigen(cfg: DictConfig):
     imgplot = plt.imshow(im)
     plt.title(cfg.sample_img_id)
 
-@hydra.main(version_base=None, config_path="./configs", config_name="vis")
+@hydra.main(version_base=None, config_path="./configs", config_name="vis_carotid")
 def run_experiment(cfg: DictConfig) -> None:
     log.info(OmegaConf.to_yaml(cfg))
     log.info("Current working directory  : {}".format(os.getcwd()))
