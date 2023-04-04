@@ -3,6 +3,7 @@ from torchvision import transforms
 from pathlib import Path
 from models import dinoLightningModule, simclrLightningModule
 import sys
+import os
 
 def get_model(name: str):
     # https://github.com/lukemelas/deep-spectral-segmentation/tree/main/semantic-segmentation
@@ -69,3 +70,43 @@ def get_model_from_path(model_name, ckpt_path):
         raise ValueError(f'Cannot get model: {model_name}')
     model = model.eval()
     return model, val_transform, patch_size, num_heads
+
+def get_image_paths(directory, image_extensions):
+    """
+    Returns a list of all image paths in the given directory.
+
+    Parameters:
+        directory (str): The path to the directory containing the images.
+
+    Returns:
+        image_paths (list of str): A list of all image paths in the directory.
+    """
+    image_paths = []
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if any(ext in file.lower() for ext in image_extensions):
+                image_paths.append(os.path.join(root, file))
+    return image_paths
+
+def get_file_paths_recursive(directory, file_extensions=None):
+    """
+    Returns a list of all file paths in the given directory and its subdirectories
+    with the given file extensions. If file_extensions is None, all files are included.
+
+    Parameters:
+        directory (str): The path to the directory containing the files.
+        file_extensions (list of str): A list of file extensions to include. If None, all files are included.
+
+    Returns:
+        file_paths (list of str): A list of all file paths in the directory and its subdirectories.
+    """
+    if file_extensions is None:
+        file_extensions = []
+
+    file_paths = []
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if any(ext in file.lower() for ext in file_extensions) or len(file_extensions) == 0:
+                file_path = os.path.join(root, file)
+                file_paths.append(file_path)
+    return file_paths
