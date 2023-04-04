@@ -137,3 +137,4 @@ dino/
 notebooks/
 self-training/wandb/
 **/__pycache__/
+dino/__pycache__/
