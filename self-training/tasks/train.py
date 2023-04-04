@@ -3,6 +3,7 @@
 
 # TODO train simclr
 from models import dino, dinoLightningModule, simclrLightningModule, simclrTripletLightningModule
+from datasets import datasets
 import torch
 from lightly.data import DINOCollateFunction, LightlyDataset, SimCLRCollateFunction
 from lightly.loss import DINOLoss, NTXentLoss
@@ -234,16 +235,13 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
 
     # data
     # TODO: create a custom dataset to get a triplet (anchor, pos, neg), the code below will not do that
-    dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
-    collate_fn = SimCLRCollateFunction(
-        input_size=cfg.dataset.input_size,
-        # gaussian_blur=0.0,
-    )
+    dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
+    # collate_fn = datasets.TripletDataset.collate_fn
 
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=cfg.loader.batch_size,
-        collate_fn = collate_fn,
+        # collate_fn = collate_fn,
         shuffle=True,
         drop_last=True,
         num_workers=cfg.loader.num_workers,
@@ -266,7 +264,7 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
 
             # Let's log triplet - augmentd views from the first batch
             if batch_idx == 0:
-                (anchor, pos, neg), _, _ = batch
+                (anchor, pos, neg) = batch
 
                 # log images with `WandbLogger.log_image`
                 wandb_logger.log_image(

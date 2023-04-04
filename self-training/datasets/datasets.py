@@ -4,6 +4,7 @@ from PIL import Image
 import torch
 import random
 from utils import utils
+import torchvision.transforms as T
 
 class TripletDataset(LightlyDataset):
     def __init__(
@@ -16,6 +17,7 @@ class TripletDataset(LightlyDataset):
         super(TripletDataset, self).__init__(root, transform)
         self.n_triplets = n_triplets
         self.image_paths = utils.get_file_paths_recursive(root, extensions)
+        self.transform =  T.ToTensor()
 
     def __getitem__(self, index):
         anchor, positive, negative = self.get_random_triplet()
@@ -54,6 +56,7 @@ class TripletDataset(LightlyDataset):
 
         return (anchor_path, positive_path, negative_path)
     
+    # TODO: check if collate_fn should be defined outside of this class
     def collate_fn(self, samples: List[Tuple[Image.Image, Image.Image, Image.Image]]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         anchors = torch.stack([s[0] for s in samples])
         positives = torch.stack([s[1] for s in samples])

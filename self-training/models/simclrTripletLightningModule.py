@@ -30,7 +30,7 @@ class SimCLRTriplet(pl.LightningModule):
         return z_anchor, z_pos, z_neg
 
     def _common_step(self, batch, mode='train'):
-        (anchor, pos, neg), _, _ = batch
+        (anchor, pos, neg) = batch
         z_anchor, z_pos, z_neg = self.forward(anchor, pos, neg)
         loss = self.criterion(z_anchor, z_pos, z_neg)
         self.log(f'{mode}_loss', loss)
@@ -43,6 +43,7 @@ class SimCLRTriplet(pl.LightningModule):
         return self._common_step(batch, mode='val')
 
     def configure_optimizers(self):
+        # TODO: use Adam, as you are passing corresponding hydra config...
         optim = torch.optim.SGD(
             self.parameters(), lr=self.lr, momentum=0.9, weight_decay=5e-4
         )
