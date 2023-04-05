@@ -23,7 +23,7 @@ def get_model(name: str):
 def get_transform(name: str):
     # https://github.com/lukemelas/deep-spectral-segmentation/tree/main/semantic-segmentation
 
-    if any(x in name for x in ('dino_vits16')): #can add other models for which this transform makes sense
+    if any(x in name for x in ('dino_vits16','dino_vits8','simclr')): #can add other models for which this transform makes sense
         normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
         transform = transforms.Compose([transforms.ToTensor(), normalize])
     else:

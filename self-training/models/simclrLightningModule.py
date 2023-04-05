@@ -11,16 +11,14 @@ from lightly.models.modules import SimCLRProjectionHead
 # run on a small dataset with a single GPU.
 
 class SimCLR(pl.LightningModule):
-    def __init__(self, max_epochs=1, lr = 0.001):
+    def __init__(self, backbone, hidden_dim, max_epochs=1, lr = 0.001, optimizer="Adam"):
         super().__init__()
 
+        self.optimizer_choice=optimizer
         self.max_epochs = max_epochs
         self.lr=lr
-        resnet = torchvision.models.resnet18()
-        self.backbone = nn.Sequential(*list(resnet.children())[:-1])
-        hidden_dim = resnet.fc.in_features
-        # self.projection_head = SimCLRProjectionHead(512, 2048, 2048)
-        self.projection_head = SimCLRProjectionHead(hidden_dim, hidden_dim, 128)
+        self.backbone=backbone
+        self.projection_head = SimCLRProjectionHead(hidden_dim, hidden_dim, 512)
         self.criterion = NTXentLoss()
 
     def forward(self, x):
@@ -43,13 +41,22 @@ class SimCLR(pl.LightningModule):
         return self._common_step(batch, mode='val')
 
     def configure_optimizers(self):
-        # optim = torch.optim.SGD(self.parameters(), lr=0.001) 
-        # return optim
-        optim = torch.optim.SGD(
-            self.parameters(), lr=self.lr, momentum=0.9, weight_decay=5e-4
-        )
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optim, self.max_epochs
-        )
-
-        return [optim], [scheduler]
+        if self.optimizer_choice == "sdg":
+            optim = torch.optim.SGD(
+                self.parameters(), lr=self.lr, momentum=0.9, weight_decay=5e-4
+            )
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optim, self.max_epochs
+            )
+            return [optim], [scheduler]
+        elif self.optimizer_choice == "Adam":
+            optim = torch.optim.Adam(self.parameters(), lr=self.lr)
+            return optim
+        else:
+            raise NotImplementedError()
+        
+def get_resnet_backbone():
+    resnet = torchvision.models.resnet18()
+    backbone = nn.Sequential(*list(resnet.children())[:-1])
+    hidden_dim = resnet.fc.in_features
+    return (backbone, hidden_dim)

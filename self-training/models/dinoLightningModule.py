@@ -17,9 +17,11 @@ from lightly.utils.scheduler import cosine_schedule
 
 
 class DINO(pl.LightningModule):
-    def __init__(self, backbone, input_dim):
+    def __init__(self, backbone, input_dim, optimizer="Adam", lr = 0.001):
         super().__init__()
-    
+
+        self.optimizer_choice=optimizer
+        self.lr=lr
         self.student_backbone = backbone
         self.student_head = DINOProjectionHead(
             input_dim, 512, 64, 2048, freeze_last_layer=1
@@ -66,7 +68,10 @@ class DINO(pl.LightningModule):
         self.student_head.cancel_last_layer_gradients(current_epoch=self.current_epoch)
 
     def configure_optimizers(self):
-        optim = torch.optim.Adam(self.parameters(), lr=0.001)
+        if self.optimizer_choice=="Adam":
+            optim = torch.optim.Adam(self.parameters(), lr=self.lr)
+        else:
+            raise NotImplementedError()
         return optim
     
 def get_dino_backbone(dino_model_name: str):
