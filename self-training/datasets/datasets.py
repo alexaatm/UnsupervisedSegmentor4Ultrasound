@@ -1,7 +1,5 @@
 from lightly.data import LightlyDataset
-from typing import List, Tuple
 from PIL import Image
-import torch
 import numpy as np
 import torchvision.transforms as T
 
@@ -30,6 +28,7 @@ class TripletDataset(LightlyDataset):
         # Return the triplet of images
         return [(a_sample, a_target, a_fname), (p_sample, p_target, p_fname), (n_sample, n_target, n_fname)]
     
+    # TODO: add other approaches for striplet sampling
     def get_random_triplet(self, index):
         """
         Returns a triplet. Anchor, pos, neg are not the same.
