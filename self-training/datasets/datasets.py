@@ -1,13 +1,15 @@
-from lightly.data import LightlyDataset
+from lightly.data import LightlyDataset, BaseCollateFunction
 from PIL import Image
 import numpy as np
 import torchvision.transforms as T
+from typing import List, Tuple
+import torch
 
 class TripletDataset(LightlyDataset):
     def __init__(
         self,
         root: str,
-        transform: object = T.ToTensor(),
+        transform: object = None,
     ):
         super(TripletDataset, self).__init__(root, transform)
         
@@ -26,7 +28,7 @@ class TripletDataset(LightlyDataset):
         n_sample, n_target = self.dataset.__getitem__(n_index)
         
         # Return the triplet of images
-        return [(a_sample, a_target, a_fname), (p_sample, p_target, p_fname), (n_sample, n_target, n_fname)]
+        return ((a_sample, a_target, a_fname), (p_sample, p_target, p_fname), (n_sample, n_target, n_fname))
     
     # TODO: add other approaches for striplet sampling
     def get_random_triplet(self, index):
@@ -45,6 +47,47 @@ class TripletDataset(LightlyDataset):
             negative_index = np.random.choice(self.__len__())
 
         return (anchor_index, positive_index, negative_index)    
+
+class TripletBaseCollateFunction(BaseCollateFunction):
+    def __init__(self, transform: T.Compose):
+        super(TripletBaseCollateFunction, self).__init__(transform)
+        self.transform = transform
+
+    def forward(self, batch: List[Tuple[ \
+            Tuple[Image.Image, int, str], \
+            Tuple[Image.Image, int, str], \
+            Tuple[Image.Image, int, str]]]) -> \
+                                Tuple[ \
+            Tuple[torch.Tensor, torch.Tensor,torch.Tensor], \
+            Tuple[torch.Tensor, torch.Tensor,torch.Tensor], \
+            Tuple[torch.Tensor, torch.Tensor,torch.Tensor]]:
+        """Turns a batch of triplet tuples into a tuple of batches.
+        Args:
+            batch:
+                A batch of 3 tuples, each of tuple of images, labels, and filenames.
+        Returns:
+            A tuple of (anchors, labels, and filenames), (positives, labels, and filenames), (negatives, labels, and filenames)).
+            The images consist of batches corresponding to transformations of the input images.
+        Refernece: https://github.com/lightly-ai/lightly/blob/master/lightly/data/collate.py
+        """
+
+        # lists of samples
+        # anchors is 0th item in a tuple (a,p,n), anchor sample is 0th item in a tuple (sample, target, fname)
+        a_samples = torch.stack([self.transform(item[0][0]) for item in batch])
+        p_samples = torch.stack([self.transform(item[1][0]) for item in batch])
+        n_samples = torch.stack([self.transform(item[2][0]) for item in batch])
+
+        # lists of labels (targets)
+        a_targets = torch.LongTensor([item[0][1] for item in batch])
+        p_targets = torch.LongTensor([item[1][1] for item in batch])
+        n_targets= torch.LongTensor([item[2][1] for item in batch])
+
+        # lists of filenames
+        a_fnames = [item[0][2] for item in batch]
+        p_fnames = [item[1][2] for item in batch]
+        n_fnames = [item[2][2] for item in batch]
+
+        return (a_samples, a_targets, a_fnames), (p_samples, p_targets, p_fnames), (n_samples, n_targets, n_fnames)
 
 
 if __name__ == "__main__":
