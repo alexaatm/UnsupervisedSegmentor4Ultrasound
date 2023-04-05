@@ -31,7 +31,7 @@ class SimCLRTriplet(pl.LightningModule):
 
     def _common_step(self, batch, mode='train'):
         (anchor, pos, neg) = batch
-        z_anchor, z_pos, z_neg = self.forward(anchor, pos, neg)
+        z_anchor, z_pos, z_neg = self.forward(anchor[0], pos[0], neg[0])
         loss = self.criterion(z_anchor, z_pos, z_neg)
         self.log(f'{mode}_loss', loss)
         return loss

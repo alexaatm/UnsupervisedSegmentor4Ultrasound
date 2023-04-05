@@ -234,7 +234,6 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     # TODO: add train and val datasets and dataloaders separately
 
     # data
-    # TODO: create a custom dataset to get a triplet (anchor, pos, neg), the code below will not do that
     dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
     # collate_fn = datasets.TripletDataset.collate_fn
 
@@ -262,14 +261,14 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
                 self, trainer, pl_module, outputs, batch, batch_idx):
             """Called when the train/val batch ends."""
 
-            # Let's log triplet - augmentd views from the first batch
+            # Let's log triplet -  from the first batch
             if batch_idx == 0:
                 (anchor, pos, neg) = batch
 
                 # log images with `WandbLogger.log_image`
                 wandb_logger.log_image(
                     key='anchor, pos, neg',
-                    images=[anchor, pos, neg])
+                    images=[anchor[0], pos[0], neg[0]])
 
 
     # trainer
