@@ -4,9 +4,11 @@
 # TODO train simclr
 from models import dino, dinoLightningModule, simclrLightningModule, simclrTripletLightningModule
 from datasets import datasets
+from utils import utils
 import torch
-from lightly.data import DINOCollateFunction, LightlyDataset, SimCLRCollateFunction
-from lightly.loss import DINOLoss, NTXentLoss
+from torchvision import transforms
+from lightly.data import DINOCollateFunction, LightlyDataset, SimCLRCollateFunction, BaseCollateFunction
+from lightly.loss import DINOLoss
 from lightly.models.utils import update_momentum
 from lightly.utils.scheduler import cosine_schedule
 
@@ -22,7 +24,7 @@ import wandb
 # A logger for this file
 log = logging.getLogger(__name__)
 
-#TODO: replace hard coded configs with configs from the Hydra dictionary
+# Dino traing simple example - no saving of checkpoints, wandb moniroting...
 def train_dino(cfg: DictConfig) -> None:
     # model
     backbone, input_dim = dino.get_dino_backbone("dino_vits16")
@@ -103,7 +105,10 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     print(len(dataloader))
 
     # model
-    backbone, input_dim = dinoLightningModule.get_dino_backbone("dino_vits16")
+    if any(x in cfg.train.backbone for x in ('dino_vits16','dino_vits8')):
+        backbone, input_dim = dinoLightningModule.get_dino_backbone(cfg.train.backbone)
+    else:
+        raise NotImplementedError()
     model = dinoLightningModule.DINO(backbone, input_dim)
 
     # wandb logging
@@ -181,7 +186,16 @@ def train_simclr(cfg: DictConfig) -> None:
     print(len(dataloader))
 
     # model
-    model = simclrLightningModule.SimCLR(cfg.train.epochs, cfg.train.lr)
+    if cfg.train.backbone=="resnet":
+        backbone, hidden_dim = simclrLightningModule.get_resnet_backbone()
+    else:
+        raise NotImplementedError()
+    model = simclrLightningModule.SimCLR(
+        backbone,
+        hidden_dim, 
+        max_epochs=cfg.train.epochs, 
+        lr=cfg.train.lr,
+        optimizer=cfg.train.optimizer)
 
     # wandb logging
     wandb_logger = pl.loggers.WandbLogger()
@@ -235,12 +249,16 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
 
     # data
     dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
-    # collate_fn = datasets.TripletDataset.collate_fn
+    
+    # data processing
+    normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+    transform = transforms.Compose([transforms.ToTensor(), normalize])
+    collate_fn = datasets.TripletBaseCollateFunction(transform)
 
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=cfg.loader.batch_size,
-        # collate_fn = collate_fn,
+        collate_fn = collate_fn,
         shuffle=True,
         drop_last=True,
         num_workers=cfg.loader.num_workers,
@@ -249,7 +267,16 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     print(len(dataloader))
 
     # model
-    model = simclrTripletLightningModule.SimCLRTriplet(cfg.train.epochs, cfg.train.lr)
+    if cfg.train.backbone=="resnet":
+        backbone, hidden_dim = simclrLightningModule.get_resnet_backbone()
+    else:
+        raise NotImplementedError()
+    model = simclrTripletLightningModule.SimCLRTriplet(
+        backbone,
+        hidden_dim, 
+        max_epochs=cfg.train.epochs, 
+        lr=cfg.train.lr,
+        optimizer=cfg.train.optimizer)
 
     # wandb logging
     wandb_logger = pl.loggers.WandbLogger()
