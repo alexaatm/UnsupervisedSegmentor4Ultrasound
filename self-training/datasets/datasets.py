@@ -56,8 +56,8 @@ class TripletBaseCollateFunction(BaseCollateFunction):
     def forward(self, batch: List[Tuple[ \
             Tuple[Image.Image, int, str], \
             Tuple[Image.Image, int, str], \
-            Tuple[Image.Image, int, str]]]) -> \
-                                Tuple[ \
+            Tuple[Image.Image, int, str]]]) \
+                            -> Tuple[ \
             Tuple[torch.Tensor, torch.Tensor,torch.Tensor], \
             Tuple[torch.Tensor, torch.Tensor,torch.Tensor], \
             Tuple[torch.Tensor, torch.Tensor,torch.Tensor]]:
@@ -68,7 +68,7 @@ class TripletBaseCollateFunction(BaseCollateFunction):
         Returns:
             A tuple of (anchors, labels, and filenames), (positives, labels, and filenames), (negatives, labels, and filenames)).
             The images consist of batches corresponding to transformations of the input images.
-        Refernece: https://github.com/lightly-ai/lightly/blob/master/lightly/data/collate.py
+        Reference to basic collate function: https://github.com/lightly-ai/lightly/blob/master/lightly/data/collate.py
         """
 
         # lists of samples
