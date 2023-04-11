@@ -90,11 +90,13 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     # TODO: add train and val datasets and dataloaders separately
 
     # data
-    dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
+    train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
+    val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
+
     collate_fn = DINOCollateFunction()
 
-    dataloader = torch.utils.data.DataLoader(
-        dataset,
+    train_dataloader = torch.utils.data.DataLoader(
+        train_dataset,
         batch_size=cfg.loader.batch_size, #make smaller for dino backbone, was 64 for resnet
         collate_fn=collate_fn,
         shuffle=True,
@@ -102,7 +104,19 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         num_workers=cfg.loader.num_workers,
     )
 
-    print(len(dataloader))
+    val_dataloader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=cfg.loader.batch_size, #make smaller for dino backbone, was 64 for resnet
+        collate_fn=collate_fn,
+        shuffle=False,
+        drop_last=False,
+        num_workers=cfg.loader.num_workers,
+    )
+
+    log.info("Train dataset: ", len(train_dataset))
+    log.info("Val dataset: ", len(val_dataset))
+    log.info("Train dataloader: ", len(train_dataloader))
+    log.info("Val dataloader: ", len(val_dataloader))
 
     # model
     if any(x in cfg.train.backbone for x in ('dino_vits16','dino_vits8')):
@@ -148,15 +162,14 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(every_n_epochs=10, filename='{epoch}-{step}-{train_loss:.2f}'),
+            ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogDinoInputViewsCallback()
         ],
         logger=wandb_logger,
         log_every_n_steps=1,
         )
-    trainer.fit(model=model, train_dataloaders=dataloader)
-    # TODO: add validation datasets and dataloaders
+    trainer.fit(model=model, train_dataloaders=train_dataloader, vals_dataloaders=val_dataloader)
 
     # saving the final model
     trainer.save_checkpoint('final_model.ckpt', weights_only=True)
@@ -165,17 +178,17 @@ def train_simclr(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
 
 
-    # TODO: add train and val datasets and dataloaders separately
-
     # data
-    dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
+    train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
+    val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
+
     collate_fn = SimCLRCollateFunction(
         input_size=cfg.dataset.input_size,
         # gaussian_blur=0.0,
     )
 
-    dataloader = torch.utils.data.DataLoader(
-        dataset,
+    train_dataloader = torch.utils.data.DataLoader(
+        train_dataset,
         batch_size=cfg.loader.batch_size,
         collate_fn = collate_fn,
         shuffle=True,
@@ -183,7 +196,20 @@ def train_simclr(cfg: DictConfig) -> None:
         num_workers=cfg.loader.num_workers,
     )
 
-    print(len(dataloader))
+    val_dataloader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=cfg.loader.batch_size,
+        collate_fn = collate_fn,
+        shuffle=False,
+        drop_last=False,
+        num_workers=cfg.loader.num_workers,
+    )
+    
+
+    log.info("Train dataset: ", len(train_dataset))
+    log.info("Val dataset: ", len(val_dataset))
+    log.info("Train dataloader: ", len(train_dataloader))
+    log.info("Val dataloader: ", len(val_dataloader))
 
     # model
     if cfg.train.backbone=="resnet":
@@ -228,15 +254,14 @@ def train_simclr(cfg: DictConfig) -> None:
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(monitor='train_loss', every_n_epochs=10, filename='{epoch}-{step}-{train_loss:.2f}'),
+            ModelCheckpoint(monitor='train_loss', every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogSimclrInputViewsCallback()
         ],
         logger=wandb_logger,
         log_every_n_steps=1,
         )
-    trainer.fit(model=model, train_dataloaders=dataloader)
-    # TODO: add validation datasets and dataloaders
+    trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # saving the final model
     trainer.save_checkpoint('final_model.ckpt', weights_only=True)
@@ -244,19 +269,17 @@ def train_simclr(cfg: DictConfig) -> None:
 def train_simclr_triplet(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
 
-
-    # TODO: add train and val datasets and dataloaders separately
-
     # data
-    dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
+    train_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
+    val_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
     
     # data processing
     normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     transform = transforms.Compose([transforms.ToTensor(), normalize])
     collate_fn = datasets.TripletBaseCollateFunction(transform)
 
-    dataloader = torch.utils.data.DataLoader(
-        dataset,
+    train_dataloader = torch.utils.data.DataLoader(
+        train_dataset,
         batch_size=cfg.loader.batch_size,
         collate_fn = collate_fn,
         shuffle=True,
@@ -264,7 +287,19 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
         num_workers=cfg.loader.num_workers,
     )
 
-    print(len(dataloader))
+    val_dataloader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=cfg.loader.batch_size,
+        collate_fn = collate_fn,
+        shuffle=False,
+        drop_last=False,
+        num_workers=cfg.loader.num_workers,
+    )
+
+    log.info("Train dataset: ", len(train_dataset))
+    log.info("Val dataset: ", len(val_dataset))
+    log.info("Train dataloader: ", len(train_dataloader))
+    log.info("Val dataloader: ", len(val_dataloader))
 
     # model
     if cfg.train.backbone=="resnet":
@@ -306,15 +341,14 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(monitor='train_loss', every_n_epochs=10, filename='{epoch}-{step}-{train_loss:.2f}'),
+            ModelCheckpoint(monitor='train_loss', every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogSimclrInputViewsCallback()
         ],
         logger=wandb_logger,
         log_every_n_steps=1,
         )
-    trainer.fit(model=model, train_dataloaders=dataloader)
-    # TODO: add validation datasets and dataloaders
+    trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # saving the final model
     trainer.save_checkpoint('final_model.ckpt', weights_only=True)
