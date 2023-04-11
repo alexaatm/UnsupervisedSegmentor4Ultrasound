@@ -10,3 +10,4 @@ matplotlib
 tqdm
 accelerate
 polyaxon
+--extra-index-url https://pypi.ngc.nvidia.com
