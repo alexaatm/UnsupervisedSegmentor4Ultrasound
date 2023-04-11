@@ -1,9 +1,10 @@
 import torch
 from torchvision import transforms
 from pathlib import Path
-from models import dinoLightningModule, simclrLightningModule
+from models import dinoLightningModule, simclrLightningModule, simclrTripletLightningModule
 import sys
 import os
+from torchsummary import summary
 
 def get_model(name: str):
     # https://github.com/lukemelas/deep-spectral-segmentation/tree/main/semantic-segmentation
@@ -110,3 +111,42 @@ def get_file_paths_recursive(directory, file_extensions=None):
                 file_path = os.path.join(root, file)
                 file_paths.append(file_path)
     return file_paths
+
+def print_model_summary(backbone, model):
+    if model=="simclr":
+        if backbone=="resnet":
+            backbone, hidden_dim = simclrLightningModule.get_resnet_backbone()
+        else:
+            raise NotImplementedError()
+        model = simclrLightningModule.SimCLR(backbone,hidden_dim)
+
+
+    if model=="simclr_triplet":
+        if backbone=="resnet":
+            backbone, hidden_dim = simclrLightningModule.get_resnet_backbone()
+        else:
+            raise NotImplementedError()
+        model = simclrTripletLightningModule.SimCLRTriplet(backbone,hidden_dim) 
+    
+    if model=="dino":
+        if any(x in backbone for x in ('dino_vits16','dino_vits8')):
+            backbone, input_dim = dinoLightningModule.get_dino_backbone(backbone)
+        else:
+            raise NotImplementedError()
+        model = dinoLightningModule.DINO(backbone, input_dim)
+    
+
+    # for liver-reduced-dataset, TODO: add as a dataset config where height and iwdth are defined
+    # s = summary(model.to('cpu'), input_size=(3, 844, 648), device='cpu')
+    s = summary(model.to('cpu'), input_size=(3, 333, 256), device='cpu')
+
+    print(s)
+
+    # ref: https://stackoverflow.com/questions/46654424/how-to-calculate-optimal-batch-size
+    print(""" (GPU_RAM - param_size) / (forward_back_ward_pass_size)
+    Then round to powers of 2 ->  batch size""")
+
+if __name__ == "__main__":
+    backbone = sys.argv[1]
+    model = sys.argv[2]
+    print_model_summary(backbone, model)
