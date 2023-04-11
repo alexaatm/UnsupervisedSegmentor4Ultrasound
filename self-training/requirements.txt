@@ -11,4 +11,5 @@ tqdm
 accelerate
 polyaxon
 torchsummary
+opencv-python
 --extra-index-url https://pypi.ngc.nvidia.com

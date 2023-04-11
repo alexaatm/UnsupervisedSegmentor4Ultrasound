@@ -4,6 +4,8 @@ import numpy as np
 import torchvision.transforms as T
 from typing import List, Tuple
 import torch
+import cv2
+from datasets import dataset_utils
 
 class TripletDataset(LightlyDataset):
     def __init__(
@@ -48,6 +50,13 @@ class TripletDataset(LightlyDataset):
 
         return (anchor_index, positive_index, negative_index)    
 
+    def get_dataset(self):
+        return self.dataset
+    
+    def set_dataset(self, ims_labels):
+        # TODO: check if corresponds to the needed format: list of tuples (PIL IMAGE, int label)
+        self.dataset = ims_labels
+    
 class TripletBaseCollateFunction(BaseCollateFunction):
     def __init__(self, transform: T.Compose):
         super(TripletBaseCollateFunction, self).__init__(transform)
@@ -91,9 +100,28 @@ class TripletBaseCollateFunction(BaseCollateFunction):
 
 
 if __name__ == "__main__":
-    test_path="../data/liver2_mini_folders/train"
+    # test_path="../data/liver_reduced/train"
+    test_path="../data/liver_similar"
 
     dataset=TripletDataset(root=test_path)
     print(len(dataset))
     triplet = dataset[0]
     print("anchor=", triplet[0], ", pos=", triplet[1], ", neg=", triplet[2])
+
+    images = dataset.get_dataset()
+    print(len(images))
+    sample = images[0]
+    print(f'Sample= {sample}')
+
+    opencvImage = cv2.cvtColor(np.array(sample[0]), cv2.COLOR_RGB2BGR)
+    print(f'Sample= {opencvImage}')
+
+    # pil_images = [im[0] for im in images]
+    # changes = dataset_utils.detect_shots_from_list(pil_images)
+
+    changed_list = dataset_utils.detect_shots_from_list_label(images)
+    dataset.set_dataset(changed_list)
+    print(len(dataset))
+    triplet = dataset[0]
+    print("anchor=", triplet[0], ", pos=", triplet[1], ", neg=", triplet[2])
+
