@@ -22,7 +22,7 @@ class TripletDataset(LightlyDataset):
         p_fname = self.index_to_filename(self.dataset, p_index)
         n_fname = self.index_to_filename(self.dataset, n_index)
 
-        # get samples (image) and targets (label, eg foldername)
+        # get samples (image) and targets (label)
         a_sample, a_target = self.dataset.__getitem__(a_index)
         p_sample, p_target = self.dataset.__getitem__(p_index)
         n_sample, n_target = self.dataset.__getitem__(n_index)
