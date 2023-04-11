@@ -87,7 +87,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
 
 
-    # TODO: add train and val datasets and dataloaders separately
+
 
     # data
     train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
@@ -113,10 +113,10 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         num_workers=cfg.loader.num_workers,
     )
 
-    log.info("Train dataset: ", len(train_dataset))
-    log.info("Val dataset: ", len(val_dataset))
-    log.info("Train dataloader: ", len(train_dataloader))
-    log.info("Val dataloader: ", len(val_dataloader))
+    log.info(f"Train dataset: {len(train_dataset)}")
+    log.info(f"Val dataset:{len(val_dataset)}")
+    log.info(f"Train dataloader: {len(train_dataloader)}")
+    log.info(f"Val dataloader: {len(val_dataloader)}")
 
     # model
     if any(x in cfg.train.backbone for x in ('dino_vits16','dino_vits8')):
@@ -184,6 +184,7 @@ def train_simclr(cfg: DictConfig) -> None:
 
     collate_fn = SimCLRCollateFunction(
         input_size=cfg.dataset.input_size,
+        cj_prob = 0.0,
         # gaussian_blur=0.0,
     )
 
@@ -206,10 +207,10 @@ def train_simclr(cfg: DictConfig) -> None:
     )
     
 
-    log.info("Train dataset: ", len(train_dataset))
-    log.info("Val dataset: ", len(val_dataset))
-    log.info("Train dataloader: ", len(train_dataloader))
-    log.info("Val dataloader: ", len(val_dataloader))
+    log.info(f"Train dataset: {len(train_dataset)}")
+    log.info(f"Val dataset:{len(val_dataset)}")
+    log.info(f"Train dataloader: {len(train_dataloader)}")
+    log.info(f"Val dataloader: {len(val_dataloader)}")
 
     # model
     if cfg.train.backbone=="resnet":
@@ -296,10 +297,10 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
         num_workers=cfg.loader.num_workers,
     )
 
-    log.info("Train dataset: ", len(train_dataset))
-    log.info("Val dataset: ", len(val_dataset))
-    log.info("Train dataloader: ", len(train_dataloader))
-    log.info("Val dataloader: ", len(val_dataloader))
+    log.info(f"Train dataset: {len(train_dataset)}")
+    log.info(f"Val dataset:{len(val_dataset)}")
+    log.info(f"Train dataloader: {len(train_dataloader)}")
+    log.info(f"Val dataloader: {len(val_dataloader)}")
 
     # model
     if cfg.train.backbone=="resnet":
