@@ -1,4 +1,4 @@
 name: liver2_mini
 path: ../data/liver2_mini/train
 val_path: ../data/liver2_mini/val
-input_size: 648
+input_size: 256

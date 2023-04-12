@@ -90,7 +90,9 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
     val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
 
-    collate_fn = DINOCollateFunction()
+    collate_fn = DINOCollateFunction(
+        input_size=cfg.dataset.input_size,
+    )
 
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
@@ -273,7 +275,8 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     
     # data processing
     normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-    transform = transforms.Compose([transforms.ToTensor(), normalize])
+    resize = transforms.Resize(cfg.dataset.input_size)
+    transform = transforms.Compose([transforms.ToTensor(), resize, normalize])
     collate_fn = datasets.TripletBaseCollateFunction(transform)
 
     train_dataloader = torch.utils.data.DataLoader(
