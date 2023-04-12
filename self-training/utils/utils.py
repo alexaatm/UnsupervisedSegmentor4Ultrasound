@@ -6,6 +6,8 @@ import sys
 import os
 from torchsummary import summary
 from torchinfo import summary as summary2
+import shutil
+import stat
 
 def get_model(name: str):
     # https://github.com/lukemelas/deep-spectral-segmentation/tree/main/semantic-segmentation
@@ -152,6 +154,35 @@ def print_model_summary(backbone, model, h, w, ch = 3):
     # ref: https://stackoverflow.com/questions/46654424/how-to-calculate-optimal-batch-size
     print(""" (GPU_RAM - param_size) / (forward_back_ward_pass_size)
     Then round to powers of 2 ->  batch size""")
+
+def copytree(src, dst, symlinks = False, ignore = None):
+    # ref: https://stackoverflow.com/questions/1868714/how-do-i-copy-an-entire-directory-of-files-into-an-existing-directory-using-pyth
+    # answer by Cyrille Pontvieux
+    if not os.path.exists(dst):
+        os.makedirs(dst)
+        shutil.copystat(src, dst)
+    lst = os.listdir(src)
+    if ignore:
+        excl = ignore(src, lst)
+        lst = [x for x in lst if x not in excl]
+    for item in lst:
+        s = os.path.join(src, item)
+        d = os.path.join(dst, item)
+        if symlinks and os.path.islink(s):
+            if os.path.lexists(d):
+                os.remove(d)
+            os.symlink(os.readlink(s), d)
+            try:
+                st = os.lstat(s)
+                mode = stat.S_IMODE(st.st_mode)
+                os.lchmod(d, mode)
+            except:
+                pass # lchmod not available
+        elif os.path.isdir(s):
+            copytree(s, d, symlinks, ignore)
+        else:
+            shutil.copy2(s, d)
+
 
 if __name__ == "__main__":
     backbone = sys.argv[1]
