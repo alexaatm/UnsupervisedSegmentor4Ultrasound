@@ -166,7 +166,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         logger=wandb_logger,
         log_every_n_steps=1,
         )
-    trainer.fit(model=model, train_dataloaders=train_dataloader, vals_dataloaders=val_dataloader)
+    trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # saving the final model
     trainer.save_checkpoint('final_model.ckpt', weights_only=True)
