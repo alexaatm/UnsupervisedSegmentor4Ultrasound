@@ -1,7 +1,6 @@
-# methods for training various self-training models
+# polyaxon-specififc libraries
+from polyaxon_client.tracking import Experiment, get_data_paths, get_outputs_path
 
-
-# TODO train simclr
 from models import dino, dinoLightningModule, simclrLightningModule, simclrTripletLightningModule
 from datasets import datasets
 from utils import utils
@@ -385,4 +384,18 @@ def run_experiment(cfg: DictConfig) -> None:
 
 
 if __name__ == "__main__":
-    run_experiment()
+    # run_experiment()
+
+    print("running! hello ... ")
+
+    # Polyaxon
+    experiment = Experiment()
+
+    data_paths = get_data_paths()
+    outputs_path = get_outputs_path()
+
+    print(f'IN path: {data_paths}')
+    print(f'OUT path: {outputs_path}')
+
+    data_dir = os.path.join(list(get_data_paths().values())[0])
+    print(f'data_dir: {data_dir}')

@@ -138,3 +138,4 @@ notebooks/
 self-training/wandb/
 **/__pycache__/
 dino/__pycache__/
+self-training/.polyaxon/
