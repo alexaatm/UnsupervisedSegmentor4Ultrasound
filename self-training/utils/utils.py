@@ -5,6 +5,7 @@ from models import dinoLightningModule, simclrLightningModule, simclrTripletLigh
 import sys
 import os
 from torchsummary import summary
+from torchinfo import summary as summary2
 
 def get_model(name: str):
     # https://github.com/lukemelas/deep-spectral-segmentation/tree/main/semantic-segmentation
@@ -112,33 +113,39 @@ def get_file_paths_recursive(directory, file_extensions=None):
                 file_paths.append(file_path)
     return file_paths
 
-def print_model_summary(backbone, model):
+def print_model_summary(backbone, model, h, w, ch = 3):
     if model=="simclr":
         if backbone=="resnet":
             backbone, hidden_dim = simclrLightningModule.get_resnet_backbone()
         else:
             raise NotImplementedError()
         model = simclrLightningModule.SimCLR(backbone,hidden_dim)
+        s = summary(model.to('cpu'), input_size=(ch, h, w), device='cpu')
 
-
-    if model=="simclr_triplet":
+    elif model=="simclr_triplet":
         if backbone=="resnet":
             backbone, hidden_dim = simclrLightningModule.get_resnet_backbone()
         else:
             raise NotImplementedError()
-        model = simclrTripletLightningModule.SimCLRTriplet(backbone,hidden_dim) 
+        model = simclrTripletLightningModule.SimCLRTriplet(backbone,hidden_dim)
+        s = summary(model.to('cpu'), input_size=[(ch, h, w),(ch, h, w),(ch, h, w)], device='cpu')
     
-    if model=="dino":
+    elif model=="dino":
         if any(x in backbone for x in ('dino_vits16','dino_vits8')):
             backbone, input_dim = dinoLightningModule.get_dino_backbone(backbone)
         else:
             raise NotImplementedError()
         model = dinoLightningModule.DINO(backbone, input_dim)
+        # use torchinfo summary instead of torchsummary (which doesnt work with this dino), but need to also pass batch size, eg 1
+        s = summary2(model.to('cpu'), input_size=(1, ch, h, w), device='cpu')
     
+    else:
+        print("No such model considered in this project")
+        raise NotImplementedError()
 
     # for liver-reduced-dataset, TODO: add as a dataset config where height and iwdth are defined
     # s = summary(model.to('cpu'), input_size=(3, 844, 648), device='cpu')
-    s = summary(model.to('cpu'), input_size=(3, 333, 256), device='cpu')
+    # s = summary(model.to('cpu'), input_size=(3, 333, 256), device='cpu')
 
     print(s)
 
@@ -149,4 +156,6 @@ def print_model_summary(backbone, model):
 if __name__ == "__main__":
     backbone = sys.argv[1]
     model = sys.argv[2]
-    print_model_summary(backbone, model)
+    h = int(sys.argv[3])
+    w = int(sys.argv[4])
+    print_model_summary(backbone, model, h, w)
