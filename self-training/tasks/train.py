@@ -86,9 +86,6 @@ def train_dino(cfg: DictConfig) -> None:
 def train_dinoLightningModule(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
 
-
-
-
     # data
     train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
     val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
