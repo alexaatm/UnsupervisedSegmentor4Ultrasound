@@ -1,4 +1,6 @@
 name: liver_reduced
 path: ../data/liver_reduced/train
 val_path: ../data/liver_reduced/val
+rel_train_path: /data/liver_reduced/train
+rel_val_path: /data/liver_reduced/val
 input_size: 256

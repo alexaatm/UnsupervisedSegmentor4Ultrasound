@@ -8,18 +8,21 @@ framework: pytorch
 tags: [tests]
 
 build:
-  image: pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime
+  image: pytorchlightning/pytorch_lightning:base-xla-py3.7-torch1.12
   build_steps:
     - pip install -r requirements.txt
+    - pip install markupsafe==2.0.1 --force
+    - pip3 install torch_xla[tpuvm]
+    - pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
 
 environment:
   resources:
     cpu:
-      requests: 4
+      requests: 6
       limits: 12
     memory:
-      requests: 1024
-      limits: 4096
+      requests: 8192
+      limits: 16384
     gpu:
       requests: 1
       limits: 1
@@ -32,5 +35,6 @@ run:
                 train=simclr \
                 train.epochs=2 \
                 loader.batch_size=1 \
-                loader.num_workers=8
+                loader.num_workers=8 \
+                wandb=server
 

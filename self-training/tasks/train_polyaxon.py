@@ -20,6 +20,8 @@ import os
 import logging
 import wandb
 
+import shutil
+
 # A logger for this file
 log = logging.getLogger(__name__)
 
@@ -86,8 +88,9 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
 
     # data
-    train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
-    val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
+    main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
+    train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path))
+    val_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path))
 
     collate_fn = DINOCollateFunction(
         input_size=cfg.dataset.input_size,
@@ -156,7 +159,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     trainer = pl.Trainer(
         max_epochs=cfg.train.epochs,
         devices=1,
-        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
@@ -177,8 +180,9 @@ def train_simclr(cfg: DictConfig) -> None:
 
 
     # data
-    train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
-    val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
+    main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
+    train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path))
+    val_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path))
 
     collate_fn = SimCLRCollateFunction(
         input_size=cfg.dataset.input_size,
@@ -249,7 +253,7 @@ def train_simclr(cfg: DictConfig) -> None:
     trainer = pl.Trainer(
         max_epochs=cfg.train.epochs,
         devices=1,
-        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
@@ -269,8 +273,9 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
 
     # data
-    train_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
-    val_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
+    main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
+    train_dataset = datasets.TripletDataset(os.path.join(main_data_dir,cfg.dataset.rel_train_path))
+    val_dataset = datasets.TripletDataset(os.path.join(main_data_dir,cfg.dataset.rel_val_path))
     
     # data processing
     normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
@@ -337,7 +342,7 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     trainer = pl.Trainer(
         max_epochs=cfg.train.epochs,
         devices=1,
-        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
@@ -355,10 +360,15 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
 
 @hydra.main(version_base=None, config_path="./configs", config_name="defaults")
 def run_experiment(cfg: DictConfig) -> None:
+    # login to wandb using locally stored key, remove the key to prevent it from being logged
+    wandb.login(key=cfg.wandb.key)
+    cfg.wandb.key=""
+
     log.info(OmegaConf.to_yaml(cfg))
     log.info("Current working directory  : {}".format(os.getcwd()))
 
     wandb_config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+    wandb.login(key=cfg.wandb.key)
 
     if cfg.experiment.name == "train_dino":
         log.info(f"Experiment chosen: {cfg.experiment.name}")
@@ -379,15 +389,16 @@ def run_experiment(cfg: DictConfig) -> None:
     else:
         raise ValueError(f'No experiment called: {cfg.experiment.name}')
     
+
+    # take care to copy outputs to polyaxon storage (NAS), because files on node where the code is will be deleted
+    utils.copytree(os.getcwd(), get_outputs_path())
+
+
     wandb.finish()
 
 
 
 if __name__ == "__main__":
-    # run_experiment()
-
-    print("running! hello ... ")
-
     # Polyaxon
     experiment = Experiment()
 
@@ -397,5 +408,6 @@ if __name__ == "__main__":
     print(f'IN path: {data_paths}')
     print(f'OUT path: {outputs_path}')
 
-    data_dir = os.path.join(list(get_data_paths().values())[0])
-    print(f'data_dir: {data_dir}')
+    print(f"Current working directory : {os.getcwd()}")
+
+    run_experiment()
