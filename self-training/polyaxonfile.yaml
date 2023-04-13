@@ -18,23 +18,23 @@ build:
 environment:
   resources:
     cpu:
-      requests: 6
-      limits: 12
+      requests: 8
+      limits: 32
     memory:
-      requests: 8192
-      limits: 16384
+      requests: 16384
+      limits: 32768
     gpu:
       requests: 1
       limits: 1
 
 run:
   cmd: python -m tasks.train_polyaxon \
-                wandb.setup.project=self-train-test \
-                dataset=liver2_mini \
+                wandb.setup.project=self-train \
+                dataset=liver_reduced \
                 experiment.name=train_simclr \
                 train=simclr \
-                train.epochs=2 \
-                loader.batch_size=1 \
+                train.epochs=1000 \
+                loader.batch_size=128 \
                 loader.num_workers=8 \
                 wandb=server
 
