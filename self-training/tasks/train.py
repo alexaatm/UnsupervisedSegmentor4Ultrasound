@@ -87,11 +87,12 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
 
     # data
-    train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
-    val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
+    resize = transforms.Resize(cfg.dataset.input_size)
+    train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=resize)
+    val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=resize)
 
     collate_fn = DINOCollateFunction(
-        input_size=cfg.dataset.input_size,
+        # input_size=cfg.dataset.input_size, #doesnt have an attribute iput_size, so use transform in the dataset
     )
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -122,7 +123,11 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         backbone, input_dim = dinoLightningModule.get_dino_backbone(cfg.train.backbone)
     else:
         raise NotImplementedError()
-    model = dinoLightningModule.DINO(backbone, input_dim)
+    model = dinoLightningModule.DINO(backbone, input_dim,
+        max_epochs=cfg.train.epochs, 
+        optimizer=cfg.train.optimizerm,
+        lr=cfg.train.lr
+        )
 
     # wandb logging
     wandb_logger = pl.loggers.WandbLogger()
