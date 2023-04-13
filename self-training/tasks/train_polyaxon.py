@@ -125,7 +125,12 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         backbone, input_dim = dinoLightningModule.get_dino_backbone(cfg.train.backbone)
     else:
         raise NotImplementedError()
-    model = dinoLightningModule.DINO(backbone, input_dim)
+    model = dinoLightningModule.DINO(backbone, input_dim,
+        max_epochs=cfg.train.epochs, 
+        optimizer=cfg.train.optimizerm,
+        lr=cfg.train.lr
+        )
+
 
     # wandb logging
     wandb_logger = pl.loggers.WandbLogger()

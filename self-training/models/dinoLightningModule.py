@@ -17,9 +17,10 @@ from lightly.utils.scheduler import cosine_schedule
 
 
 class DINO(pl.LightningModule):
-    def __init__(self, backbone, input_dim, optimizer="Adam", lr = 0.001):
+    def __init__(self, backbone, input_dim, max_epochs=1, optimizer="Adam", lr = 0.001):
         super().__init__()
 
+        self.max_epochs=max_epochs
         self.optimizer_choice=optimizer
         self.lr=lr
         self.student_backbone = backbone
@@ -50,7 +51,7 @@ class DINO(pl.LightningModule):
         self._common_step(batch, mode='val')
     
     def _common_step(self, batch, mode='train'):
-        momentum = cosine_schedule(self.current_epoch, 10, 0.996, 1)
+        momentum = cosine_schedule(self.current_epoch, self.max_epochs, 0.996, 1)
         update_momentum(self.student_backbone, self.teacher_backbone, m=momentum)
         update_momentum(self.student_head, self.teacher_head, m=momentum)
         views, a, b = batch
