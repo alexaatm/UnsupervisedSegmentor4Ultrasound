@@ -125,7 +125,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         raise NotImplementedError()
     model = dinoLightningModule.DINO(backbone, input_dim,
         max_epochs=cfg.train.epochs, 
-        optimizer=cfg.train.optimizerm,
+        optimizer=cfg.train.optimizer,
         lr=cfg.train.lr
         )
 

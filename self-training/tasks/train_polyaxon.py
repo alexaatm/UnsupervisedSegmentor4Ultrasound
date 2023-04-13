@@ -127,7 +127,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         raise NotImplementedError()
     model = dinoLightningModule.DINO(backbone, input_dim,
         max_epochs=cfg.train.epochs, 
-        optimizer=cfg.train.optimizerm,
+        optimizer=cfg.train.optimizer,
         lr=cfg.train.lr
         )
 
@@ -146,9 +146,12 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
             # which corresponds to our model predictions in this case
 
             # Let's log augmented views from the first batch
+            # if batch size, is eg 3, then views will have n_views * 3 images, and global views 2*3 images
             if batch_idx == 0:
+                # for 0th batch, take 0th data smaple - a collection of views
                 views, _, image_names = batch
-                global_views = views[:2]
+                global_views = views[0][:2]
+                views = views[0]
 
                 # log images with `WandbLogger.log_image`
                 wandb_logger.log_image(
