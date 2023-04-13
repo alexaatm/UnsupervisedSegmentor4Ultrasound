@@ -163,7 +163,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(monitor='train_loss', every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}'),
+            ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogDinoInputViewsCallback()
         ],
@@ -173,7 +173,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # saving the final model
-    trainer.save_checkpoint('final_model.ckpt', weights_only=True)
+    trainer.save_checkpoint('final_model.ckpt', weights_only=False)
 
 def train_simclr(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
@@ -257,7 +257,7 @@ def train_simclr(cfg: DictConfig) -> None:
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(monitor='train_loss', every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}'),
+            ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogSimclrInputViewsCallback()
         ],
@@ -267,7 +267,7 @@ def train_simclr(cfg: DictConfig) -> None:
     trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # saving the final model
-    trainer.save_checkpoint('final_model.ckpt', weights_only=True)
+    trainer.save_checkpoint('final_model.ckpt', weights_only=False)
 
 def train_simclr_triplet(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
@@ -346,7 +346,7 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(monitor='train_loss', every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}'),
+            ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogSimclrInputViewsCallback()
         ],
@@ -356,7 +356,7 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # saving the final model
-    trainer.save_checkpoint('final_model.ckpt', weights_only=True)
+    trainer.save_checkpoint('final_model.ckpt', weights_only=False)
 
 @hydra.main(version_base=None, config_path="./configs", config_name="defaults")
 def run_experiment(cfg: DictConfig) -> None:
