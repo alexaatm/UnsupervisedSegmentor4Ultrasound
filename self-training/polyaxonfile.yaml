@@ -31,10 +31,10 @@ run:
   cmd: python -m tasks.train_polyaxon \
                 wandb.setup.project=self-train \
                 dataset=liver_reduced \
-                experiment.name=train_simclr \
-                train=simclr \
+                experiment.name=train_dinoLightningModule \
+                train=dino_vits16 \
                 train.epochs=1000 \
-                loader.batch_size=128 \
+                loader.batch_size=120 \
                 loader.num_workers=8 \
                 wandb=server
 

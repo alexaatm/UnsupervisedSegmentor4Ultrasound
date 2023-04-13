@@ -4,7 +4,7 @@
 # TODO train simclr
 from models import dino, dinoLightningModule, simclrLightningModule, simclrTripletLightningModule
 from datasets import datasets
-from utils import utils
+from custom_utils import utils
 import torch
 from torchvision import transforms
 from lightly.data import DINOCollateFunction, LightlyDataset, SimCLRCollateFunction, BaseCollateFunction

@@ -3,7 +3,7 @@ from polyaxon_client.tracking import Experiment, get_data_paths, get_outputs_pat
 
 from models import dino, dinoLightningModule, simclrLightningModule, simclrTripletLightningModule
 from datasets import datasets
-from utils import utils
+from custom_utils import utils
 import torch
 from torchvision import transforms
 from lightly.data import DINOCollateFunction, LightlyDataset, SimCLRCollateFunction, BaseCollateFunction
@@ -89,11 +89,12 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
 
     # data
     main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
-    train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path))
-    val_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path))
+    resize = transforms.Resize(cfg.dataset.input_size)
+    train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=resize)
+    val_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), transform=resize)
 
     collate_fn = DINOCollateFunction(
-        input_size=cfg.dataset.input_size,
+        # input_size=cfg.dataset.input_size, #doesnt work for Dino Collate function, TODO: overwrite DInoFunction with inout size attribute added
     )
 
     train_dataloader = torch.utils.data.DataLoader(

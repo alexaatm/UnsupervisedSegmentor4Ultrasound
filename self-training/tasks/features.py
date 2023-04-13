@@ -3,7 +3,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 import logging
 from pathlib import Path
-from utils import utils
+from custom_utils import utils
 import torch
 from lightly.data import LightlyDataset
 import os
