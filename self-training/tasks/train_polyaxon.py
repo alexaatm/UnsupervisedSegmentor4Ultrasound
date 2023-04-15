@@ -251,13 +251,15 @@ def train_simclr(cfg: DictConfig) -> None:
             # which corresponds to our model predictions in this case
 
             # Let's log augmented views from the first batch
+            # Take 0th item from each, since when batch is bigger than 1, each x0 and x1
+            # will be the length of the batch
             if batch_idx == 0:
                 (x0, x1), _, _ = batch
 
                 # log images with `WandbLogger.log_image`
                 wandb_logger.log_image(
                     key='x0, x1',
-                    images=[x0, x1])
+                    images=[x0[0], x1[0]])
 
 
     # trainer
