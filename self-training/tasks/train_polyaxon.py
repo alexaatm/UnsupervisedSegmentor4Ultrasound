@@ -13,6 +13,7 @@ from lightly.utils.scheduler import cosine_schedule
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -176,7 +177,8 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
             ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
-            LogDinoInputViewsCallback()
+            LogDinoInputViewsCallback(),
+            EarlyStopping(monitor="val_loss", mode="min", patience = 10)
         ],
         logger=wandb_logger,
         log_every_n_steps=1,
@@ -272,7 +274,8 @@ def train_simclr(cfg: DictConfig) -> None:
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
             ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
-            LogSimclrInputViewsCallback()
+            LogSimclrInputViewsCallback(),
+            EarlyStopping(monitor="val_loss", mode="min", patience = 10)
         ],
         logger=wandb_logger,
         log_every_n_steps=1,
@@ -364,7 +367,8 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
             ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
-            LogSimclrInputViewsCallback()
+            LogSimclrInputViewsCallback(),
+            EarlyStopping(monitor="val_loss", mode="min", patience = 10)
         ],
         logger=wandb_logger,
         log_every_n_steps=1,
