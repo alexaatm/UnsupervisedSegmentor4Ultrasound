@@ -147,14 +147,19 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
                 views, _, image_names = batch
                 global_views = views[:2]
 
+                # take only a single image views and global views
+                # each view has 8 v of length batch_size
+                single_sample_views = [v[0] for v in views]
+                single_sample_global_views = [v[0] for v in views[:2]]
+
                 # log images with `WandbLogger.log_image`
                 wandb_logger.log_image(
                     key='views',
-                    images=views)
+                    images=single_sample_views)
 
                 wandb_logger.log_image(
                     key='global_views',
-                    images=global_views)
+                    images=single_sample_global_views)
 
 
 

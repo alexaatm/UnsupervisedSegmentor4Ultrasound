@@ -146,21 +146,23 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
             # which corresponds to our model predictions in this case
 
             # Let's log augmented views from the first batch
-            # if batch size, is eg 3, then views will have n_views * 3 images, and global views 2*3 images
             if batch_idx == 0:
-                # for 0th batch, take 0th data smaple - a collection of views
                 views, _, image_names = batch
-                global_views = views[0][:2]
-                views = views[0]
+                global_views = views[:2]
+
+                # take only a single image views and global views
+                # each view has 8 v of length batch_size
+                single_sample_views = [v[0] for v in views]
+                single_sample_global_views = [v[0] for v in views[:2]]
 
                 # log images with `WandbLogger.log_image`
                 wandb_logger.log_image(
                     key='views',
-                    images=views)
+                    images=single_sample_views)
 
                 wandb_logger.log_image(
                     key='global_views',
-                    images=global_views)
+                    images=single_sample_global_views)
 
 
 
