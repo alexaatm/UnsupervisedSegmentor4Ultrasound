@@ -1,0 +1,6 @@
+name: liver_similar_folders
+path: ../data/liver_similar_folders/train
+val_path: ../data/liver_similar_folders/val
+rel_train_path: liver_similar_folders/train
+rel_val_path: liver_similar_folders/val
+input_size: 256
