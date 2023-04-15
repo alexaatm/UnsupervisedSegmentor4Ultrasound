@@ -342,11 +342,14 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
             # Let's log triplet -  from the first batch
             if batch_idx == 0:
                 (anchor, pos, neg) = batch
+                # each is of length of the batch, so to get just the image, 
+                # need to pass both the index o fthe batch, and the 0th item -
+                # will be the image (1st is target, 2nd is fname)
 
                 # log images with `WandbLogger.log_image`
                 wandb_logger.log_image(
                     key='anchor, pos, neg',
-                    images=[anchor[0], pos[0], neg[0]])
+                    images=[anchor[0][0], pos[0][0], neg[0][0]])
 
 
     # trainer
