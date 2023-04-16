@@ -51,7 +51,10 @@ class SimCLR(pl.LightningModule):
             return [optim], [scheduler]
         elif self.optimizer_choice == "Adam":
             optim = torch.optim.Adam(self.parameters(), lr=self.lr)
-            return optim
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optim, self.max_epochs
+            )
+            return [optim], [scheduler]
         else:
             raise NotImplementedError()
         

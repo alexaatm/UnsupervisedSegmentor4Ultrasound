@@ -71,9 +71,12 @@ class DINO(pl.LightningModule):
     def configure_optimizers(self):
         if self.optimizer_choice=="Adam":
             optim = torch.optim.Adam(self.parameters(), lr=self.lr)
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optim, self.max_epochs
+            )
+            return [optim], [scheduler]
         else:
             raise NotImplementedError()
-        return optim
     
 def get_dino_backbone(dino_model_name: str):
     backbone = torch.hub.load('facebookresearch/dino:main', dino_model_name, pretrained=False) # Consider using ImageNet weights
