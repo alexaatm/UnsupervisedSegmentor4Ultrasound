@@ -295,7 +295,11 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     
     # data processing
     normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-    resize = transforms.Resize(cfg.dataset.input_size)
+    if 'carotid' in cfg.dataset.name:
+        # resize to acquare images (val set has varied sizes...)
+        resize = transforms.Resize((cfg.dataset.input_size,cfg.dataset.input_size))
+    else:
+        resize = transforms.Resize(cfg.dataset.input_size)
     transform = transforms.Compose([transforms.ToTensor(), resize, normalize])
     collate_fn = datasets.TripletBaseCollateFunction(transform)
 
