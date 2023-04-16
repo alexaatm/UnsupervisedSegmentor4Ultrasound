@@ -69,11 +69,31 @@ def get_model_from_path(model_name, ckpt_path):
 
         # take teacher backbone as a model for inference
         model = full_model.teacher_backbone
-    # TODO: add elif branch for loading simclr model
+
+        # group model specific params in a separate list
+        params = [num_heads]
+    # TODO: add elif branch for loading simclr model and triplet
+    elif 'simclr' in model_name:
+        backbone, hidden_dim = simclrLightningModule.get_resnet_backbone()
+        patch_size = backbone.patch_embed.patch_size
+        # backbone.fc = torch.nn.Identity() # why do we need to set it to identity?
+        
+        # load the model from the checkpoint
+        checkpoint = torch.load(ckpt_path)
+        state_dict = checkpoint['state_dict']
+        full_model = simclrLightningModule.SimCLR(backbone, hidden_dim)
+        full_model.load_state_dict(state_dict, strict=False)
+        
+        val_transform = get_transform(model_name)
+
+        # take the backbone as a model for inference
+        model = full_model.backbone
+
+        params = []
     else:
         raise ValueError(f'Cannot get model: {model_name}')
     model = model.eval()
-    return model, val_transform, patch_size, num_heads
+    return model, val_transform, patch_size, params
 
 def get_image_paths(directory, image_extensions):
     """
