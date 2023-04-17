@@ -72,15 +72,17 @@ class TripletDataset(LightlyDataset):
         Ref. for sampling based on classes: https://github.com/andreasveit/triplet-network-pytorch/blob/master/triplet_mnist_loader.py
         """
         image_labels_np = np.array([label for _, label in relabeled_list])
-        for class_idx in classes_list:
-            # print(f'class : {class_idx}')
-            anchor_index = np.random.choice(np.where(image_labels_np==class_idx)[0])
-            positive_index = np.random.choice(np.where(image_labels_np==class_idx)[0])
-            if (len(np.where(image_labels_np==class_idx)[0])>1):
-                # print(f'class {class_idx} has {np.where(image_labels_np==class_idx)[0]} samples')
-                while positive_index==anchor_index:
-                    positive_index = np.random.choice(np.where(image_labels_np==class_idx)[0])
-            negative_index = np.random.choice(np.where(image_labels_np!=class_idx)[0])
+
+        # pick a class randomly
+        class_idx = np.random.choice(classes_list)
+        # print(f'class : {class_idx}')
+        anchor_index = np.random.choice(np.where(image_labels_np==class_idx)[0])
+        positive_index = np.random.choice(np.where(image_labels_np==class_idx)[0])
+        if (len(np.where(image_labels_np==class_idx)[0])>1):
+            # print(f'class {class_idx} has {np.where(image_labels_np==class_idx)[0]} samples')
+            while positive_index==anchor_index:
+                positive_index = np.random.choice(np.where(image_labels_np==class_idx)[0])
+        negative_index = np.random.choice(np.where(image_labels_np!=class_idx)[0])
         return (anchor_index, positive_index, negative_index)
 
     def get_dataset(self):
