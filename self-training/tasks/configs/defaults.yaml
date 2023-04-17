@@ -5,3 +5,8 @@ defaults:
   - hydra: defaults
   - experiment: defaults
   - loader: defaults
+  - _self_
+
+hydra:
+  run:
+    dir: ./outputs/models/${now:%Y-%m-%d}-${experiment.name}/${now:%H-%M-%S}-${dataset.name}

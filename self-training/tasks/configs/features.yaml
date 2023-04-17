@@ -6,7 +6,10 @@ defaults:
   - experiment: defaults
   - _self_
 
+hydra:
+  run:
+    dir: ./outputs/features/${now:%Y-%m-%d}-${experiment.name}/${now:%H-%M-%S}-${dataset.name}
 output_dir: features
-model_name: dino_vits16
+model_name: simclr
 model_checkpoint: null
 loader.batch_size: 1
