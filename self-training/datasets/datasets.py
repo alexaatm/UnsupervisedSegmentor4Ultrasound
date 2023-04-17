@@ -16,16 +16,16 @@ class TripletDataset(LightlyDataset):
     ):
         super(TripletDataset, self).__init__(root, transform)
         self.mode=mode
+        self.relabeled_list, self.classes_list = dataset_utils.detect_shots_from_list_label(self.dataset)
+        self.set_dataset(self.relabeled_list)
+        print(f"Unique class labels found: {self.classes_list}")
         
 
     def __getitem__(self, index):
         if self.mode == 'random':
             a_index, p_index, n_index = self.get_random_triplet(index)
         elif self.mode == 'seq':
-            relabeled_list, classes_list = dataset_utils.detect_shots_from_list_label(self.dataset)
-            self.set_dataset(relabeled_list)
-            print(f"Unique class labels found: {classes_list}")
-            a_index, p_index, n_index = self.get_triplet_by_seq_class(relabeled_list, classes_list)
+            a_index, p_index, n_index = self.get_triplet_by_seq_class(self.relabeled_list, self.classes_list)
         else:
             print(f"No sampling mode called {self.mode}")
             raise NotImplementedError()
@@ -73,10 +73,13 @@ class TripletDataset(LightlyDataset):
         """
         image_labels_np = np.array([label for _, label in relabeled_list])
         for class_idx in classes_list:
+            # print(f'class : {class_idx}')
             anchor_index = np.random.choice(np.where(image_labels_np==class_idx)[0])
             positive_index = np.random.choice(np.where(image_labels_np==class_idx)[0])
-            while positive_index==anchor_index:
-                positive_index = np.random.choice(np.where(image_labels_np==class_idx)[0])
+            if (len(np.where(image_labels_np==class_idx)[0])>1):
+                # print(f'class {class_idx} has {np.where(image_labels_np==class_idx)[0]} samples')
+                while positive_index==anchor_index:
+                    positive_index = np.random.choice(np.where(image_labels_np==class_idx)[0])
             negative_index = np.random.choice(np.where(image_labels_np!=class_idx)[0])
         return (anchor_index, positive_index, negative_index)
 
