@@ -172,6 +172,7 @@ def detect_shots_from_list_label(image_list):
     changes = []
     ind_of_change = []
     diffs = []
+    class_labels = [prev_class]
 
     # Loop over the images
     for i in range(image_num):
@@ -197,8 +198,9 @@ def detect_shots_from_list_label(image_list):
                 ind_of_change.append(i)
                 curr_class = prev_class + 1
                 labeled_images_list.append((image, curr_class))
+                # Add a class label to the list of class labels
+                class_labels.append(curr_class)
 
-            
             else:
                 changes.append(0)
                 labeled_images_list.append((image, prev_class))
@@ -244,7 +246,7 @@ def detect_shots_from_list_label(image_list):
     for i, (im, label) in enumerate(labeled_images_list):
         print(f'index {i}, class {label}')
 
-    return labeled_images_list
+    return labeled_images_list, class_labels
 
 if __name__ == "__main__":
     path = sys.argv[1]

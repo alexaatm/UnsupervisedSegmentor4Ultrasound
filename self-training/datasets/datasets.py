@@ -12,12 +12,23 @@ class TripletDataset(LightlyDataset):
         self,
         root: str,
         transform: object = None,
+        mode: str ='random',
     ):
         super(TripletDataset, self).__init__(root, transform)
+        self.mode=mode
         
 
     def __getitem__(self, index):
-        a_index, p_index, n_index = self.get_random_triplet(index)
+        if self.mode == 'random':
+            a_index, p_index, n_index = self.get_random_triplet(index)
+        elif self.mode == 'seq':
+            relabeled_list, classes_list = dataset_utils.detect_shots_from_list_label(self.dataset)
+            self.set_dataset(relabeled_list)
+            print(f"Unique class labels found: {classes_list}")
+            a_index, p_index, n_index = self.get_triplet_by_seq_class(relabeled_list, classes_list)
+        else:
+            print(f"No sampling mode called {self.mode}")
+            raise NotImplementedError()
         
         # get filenames
         a_fname = self.index_to_filename(self.dataset, a_index)
@@ -32,13 +43,14 @@ class TripletDataset(LightlyDataset):
         # Return the triplet of images
         return ((a_sample, a_target, a_fname), (p_sample, p_target, p_fname), (n_sample, n_target, n_fname))
     
-    # TODO: add other approaches for striplet sampling
+    # TODO: add other approaches for triplet sampling
     def get_random_triplet(self, index):
         """
         Returns a triplet. Anchor, pos, neg are not the same.
         Returns:
             triplet (tuple of str): A tuple of 3 indices randomly selected from the dataset indices. 
         """
+        # TODO: choose anchor index also randomly from the whole dataset
         anchor_index = index
         positive_index = np.random.choice(self.__len__())
         while positive_index==anchor_index:
@@ -49,6 +61,24 @@ class TripletDataset(LightlyDataset):
             negative_index = np.random.choice(self.__len__())
 
         return (anchor_index, positive_index, negative_index)    
+
+    def get_triplet_by_seq_class(self, relabeled_list, classes_list):
+        """
+        Returns a triplet. Anchor, pos, neg are not the same based
+        on a class given by analizing changes in frame sequence.
+        Returns:
+            triplet (tuple of str): A tuple of 3 indices selected from the dataset classes.
+        
+        Ref. for sampling based on classes: https://github.com/andreasveit/triplet-network-pytorch/blob/master/triplet_mnist_loader.py
+        """
+        image_labels_np = np.array(relabeled_list)
+        for class_idx in classes_list:
+            anchor_index = np.random.choice(np.where(image_labels_np[:, 1]==class_idx)[0])
+            positive_index = np.random.choice(np.where(image_labels_np[:, 1]==class_idx)[0])
+            while positive_index==anchor_index:
+                positive_index = np.random.choice(np.where(image_labels_np[:, 1]==class_idx)[0])
+            negative_index = np.random.choice(np.where(image_labels_np[:, 1]!=class_idx)[0])
+        return (anchor_index, positive_index, negative_index)
 
     def get_dataset(self):
         return self.dataset
@@ -103,7 +133,7 @@ if __name__ == "__main__":
     # test_path="../data/liver_reduced/train"
     test_path="../data/liver_similar"
 
-    dataset=TripletDataset(root=test_path)
+    dataset=TripletDataset(root=test_path, mode='seq')
     print(len(dataset))
     triplet = dataset[0]
     print("anchor=", triplet[0], ", pos=", triplet[1], ", neg=", triplet[2])
@@ -119,9 +149,9 @@ if __name__ == "__main__":
     # pil_images = [im[0] for im in images]
     # changes = dataset_utils.detect_shots_from_list(pil_images)
 
-    changed_list = dataset_utils.detect_shots_from_list_label(images)
-    dataset.set_dataset(changed_list)
-    print(len(dataset))
-    triplet = dataset[0]
-    print("anchor=", triplet[0], ", pos=", triplet[1], ", neg=", triplet[2])
+    # changed_list, _ = dataset_utils.detect_shots_from_list_label(images)
+    # dataset.set_dataset(changed_list)
+    # print(len(dataset))
+    # triplet = dataset[0]
+    # print("anchor=", triplet[0], ", pos=", triplet[1], ", neg=", triplet[2])
 
