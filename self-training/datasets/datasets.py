@@ -12,7 +12,7 @@ class TripletDataset(LightlyDataset):
         self,
         root: str,
         transform: object = None,
-        mode: str ='random',
+        mode: str ='seq',
     ):
         super(TripletDataset, self).__init__(root, transform)
         self.mode=mode
@@ -71,13 +71,13 @@ class TripletDataset(LightlyDataset):
         
         Ref. for sampling based on classes: https://github.com/andreasveit/triplet-network-pytorch/blob/master/triplet_mnist_loader.py
         """
-        image_labels_np = np.array(relabeled_list)
+        image_labels_np = np.array([label for _, label in relabeled_list])
         for class_idx in classes_list:
-            anchor_index = np.random.choice(np.where(image_labels_np[:, 1]==class_idx)[0])
-            positive_index = np.random.choice(np.where(image_labels_np[:, 1]==class_idx)[0])
+            anchor_index = np.random.choice(np.where(image_labels_np==class_idx)[0])
+            positive_index = np.random.choice(np.where(image_labels_np==class_idx)[0])
             while positive_index==anchor_index:
-                positive_index = np.random.choice(np.where(image_labels_np[:, 1]==class_idx)[0])
-            negative_index = np.random.choice(np.where(image_labels_np[:, 1]!=class_idx)[0])
+                positive_index = np.random.choice(np.where(image_labels_np==class_idx)[0])
+            negative_index = np.random.choice(np.where(image_labels_np!=class_idx)[0])
         return (anchor_index, positive_index, negative_index)
 
     def get_dataset(self):
@@ -143,8 +143,8 @@ if __name__ == "__main__":
     sample = images[0]
     print(f'Sample= {sample}')
 
-    opencvImage = cv2.cvtColor(np.array(sample[0]), cv2.COLOR_RGB2BGR)
-    print(f'Sample= {opencvImage}')
+    # opencvImage = cv2.cvtColor(np.array(sample[0]), cv2.COLOR_RGB2BGR)
+    # print(f'Sample= {opencvImage}')
 
     # pil_images = [im[0] for im in images]
     # changes = dataset_utils.detect_shots_from_list(pil_images)
