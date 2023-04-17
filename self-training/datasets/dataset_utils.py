@@ -243,8 +243,8 @@ def detect_shots_from_list_label(image_list):
 
     plt.show()
 
-    for i, (im, label) in enumerate(labeled_images_list):
-        print(f'index {i}, class {label}')
+    # for i, (im, label) in enumerate(labeled_images_list):
+    #     print(f'index {i}, class {label}')
 
     return labeled_images_list, class_labels
 
