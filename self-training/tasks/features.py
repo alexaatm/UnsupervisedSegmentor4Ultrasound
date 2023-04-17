@@ -78,11 +78,8 @@ def extract_features(cfg: DictConfig) -> None:
             pbar.write(f'Skipping existing file {str(output_file)}')
             continue
 
-        # Reshape image
-        
         B, C, H, W = samples.shape
-        print("samples.shape=", samples.shape)
-        
+        # print(f'samples shape: {samples.shape}')       
 
         # Forward and collect features into output dict
         if 'dino' in model_name:
@@ -126,16 +123,11 @@ def run_experiment(cfg: DictConfig) -> None:
     log.info(OmegaConf.to_yaml(cfg))
     log.info("Current working directory  : {}".format(os.getcwd()))
 
-    wandb_config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-
     if cfg.experiment.name == "extract_features":
         log.info(f"Experiment chosen: {cfg.experiment.name}")
-        run = wandb.init(config=wandb_config, project = cfg.wandb.setup.project, settings=wandb.Settings(start_method='thread'))
         extract_features(cfg)
     else:
         raise ValueError(f'No experiment called: {cfg.experiment.name}')
-    
-    wandb.finish()
 
 
 
