@@ -392,7 +392,6 @@ def run_experiment(cfg: DictConfig) -> None:
     log.info("Current working directory  : {}".format(os.getcwd()))
 
     wandb_config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-    wandb.login(key=cfg.wandb.key)
 
     if cfg.experiment.name == "train_dino":
         log.info(f"Experiment chosen: {cfg.experiment.name}")

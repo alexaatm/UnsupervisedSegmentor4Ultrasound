@@ -1,7 +1,3 @@
-# methods for training various self-training models
-
-
-# TODO train simclr
 from models import dino, dinoLightningModule, simclrLightningModule, simclrTripletLightningModule
 from datasets import datasets
 from custom_utils import utils
@@ -21,6 +17,9 @@ from omegaconf import DictConfig, OmegaConf
 import os
 import logging
 import wandb
+
+from polyaxon_client.tracking import Experiment, get_data_paths, get_outputs_path
+import shutil
 
 # A logger for this file
 log = logging.getLogger(__name__)
@@ -89,8 +88,15 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
 
     # data
     resize = transforms.Resize(cfg.dataset.input_size)
-    train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=resize)
-    val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=resize)
+    if cfg.wandb=='server':
+        # use polyaxon paths
+        main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
+        train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=resize)
+        val_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), transform=resize)
+    else:
+        # use default local data 
+        train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=resize)
+        val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=resize)
 
     collate_fn = DINOCollateFunction(
         # input_size=cfg.dataset.input_size, #doesnt have an attribute iput_size, so use transform in the dataset
@@ -170,11 +176,11 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     trainer = pl.Trainer(
         max_epochs=cfg.train.epochs,
         devices=1,
-        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}'),
+            ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogDinoInputViewsCallback(),
             EarlyStopping(monitor="val_loss", mode="min", patience = 200, verbose=True)
@@ -185,15 +191,24 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # saving the final model
-    trainer.save_checkpoint('final_model.ckpt', weights_only=True)
+    trainer.save_checkpoint('final_model.ckpt', weights_only=False)
 
 def train_simclr(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
 
 
     # data
-    train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
-    val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
+    resize = transforms.Resize(cfg.dataset.input_size)
+    if cfg.wandb=='server':
+        # use polyaxon paths
+        main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
+        train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=resize)
+        val_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), transform=resize)
+    else:
+        # use default local data 
+        train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=resize)
+        val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=resize)
+
 
     collate_fn = SimCLRCollateFunction(
         input_size=cfg.dataset.input_size,
@@ -266,11 +281,11 @@ def train_simclr(cfg: DictConfig) -> None:
     trainer = pl.Trainer(
         max_epochs=cfg.train.epochs,
         devices=1,
-        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(monitor='train_loss', every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}'),
+            ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogSimclrInputViewsCallback(),
             EarlyStopping(monitor="val_loss", mode="min", patience = 200, verbose=True)
@@ -281,14 +296,22 @@ def train_simclr(cfg: DictConfig) -> None:
     trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # saving the final model
-    trainer.save_checkpoint('final_model.ckpt', weights_only=True)
+    trainer.save_checkpoint('final_model.ckpt', weights_only=False)
 
 def train_simclr_triplet(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
 
     # data
-    train_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
-    val_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
+    resize = transforms.Resize(cfg.dataset.input_size)
+    if cfg.wandb=='server':
+        # use polyaxon paths
+        main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
+        train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=resize)
+        val_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), transform=resize)
+    else:
+        # use default local data 
+        train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=resize)
+        val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=resize)
     
     # data processing
     normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
@@ -362,11 +385,11 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     trainer = pl.Trainer(
         max_epochs=cfg.train.epochs,
         devices=1,
-        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
                             save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(monitor='train_loss', every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}'),
+            ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogSimclrInputViewsCallback(),
             EarlyStopping(monitor="val_loss", mode="min", patience = 200, verbose=True)
@@ -377,10 +400,15 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # saving the final model
-    trainer.save_checkpoint('final_model.ckpt', weights_only=True)
+    trainer.save_checkpoint('final_model.ckpt', weights_only=False)
 
 @hydra.main(version_base=None, config_path="./configs", config_name="defaults")
 def run_experiment(cfg: DictConfig) -> None:
+    if cfg.wandb=='server':
+        # login to wandb using locally stored key, remove the key to prevent it from being logged
+        wandb.login(key=cfg.wandb.key)
+        cfg.wandb.key=""
+        
     log.info(OmegaConf.to_yaml(cfg))
     log.info("Current working directory  : {}".format(os.getcwd()))
 
@@ -405,6 +433,12 @@ def run_experiment(cfg: DictConfig) -> None:
     else:
         raise ValueError(f'No experiment called: {cfg.experiment.name}')
     
+
+    if cfg.wandb=='server':
+        # take care to copy outputs to polyaxon storage (NAS), because files on node where the code is will be deleted
+        utils.copytree(os.getcwd(), get_outputs_path())
+
+
     wandb.finish()
 
 
