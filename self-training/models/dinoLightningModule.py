@@ -78,13 +78,19 @@ class DINO(pl.LightningModule):
         else:
             raise NotImplementedError()
     
-def get_dino_backbone(dino_model_name: str):
-    backbone = torch.hub.load('facebookresearch/dino:main', dino_model_name, pretrained=False) # Consider using ImageNet weights
+def get_dino_backbone(dino_model_name: str, pretrained_weights = False):
+    if pretrained_weights:
+        backbone = torch.hub.load('facebookresearch/dino:main', dino_model_name, pretrained=True) 
+    else:
+        backbone = torch.hub.load('facebookresearch/dino:main', dino_model_name, pretrained=False)
     input_dim = backbone.embed_dim
     return (backbone, input_dim)
 
-def get_resnet_backbone():
-    resnet = torchvision.models.resnet18()
+def get_resnet_backbone(pretrained_weights = False):
+    if pretrained_weights:
+        resnet = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
+    else:
+        resnet = torchvision.models.resnet18()
     backbone = nn.Sequential(*list(resnet.children())[:-1])
     input_dim = 512
     return (backbone, input_dim)

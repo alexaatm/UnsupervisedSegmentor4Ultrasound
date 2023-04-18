@@ -58,8 +58,11 @@ class SimCLR(pl.LightningModule):
         else:
             raise NotImplementedError()
         
-def get_resnet_backbone():
-    resnet = torchvision.models.resnet18()
+def get_resnet_backbone(pretrained_weights = False):
+    if pretrained_weights:
+        resnet = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
+    else:
+        resnet = torchvision.models.resnet18()
     backbone = nn.Sequential(*list(resnet.children())[:-1])
     hidden_dim = resnet.fc.in_features
     return (backbone, hidden_dim)
