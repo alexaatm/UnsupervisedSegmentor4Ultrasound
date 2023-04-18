@@ -5,7 +5,7 @@ kind: experiment
 
 framework: pytorch
 
-tags: [tests]
+tags: [tests, simclr, liver_reduced, lr-scheduler, pretrained-weights]
 
 build:
   image: pytorchlightning/pytorch_lightning:base-xla-py3.7-torch1.12
@@ -18,7 +18,7 @@ build:
 environment:
   resources:
     cpu:
-      requests: 8
+      requests: 4
       limits: 32
     memory:
       requests: 16384
@@ -28,13 +28,14 @@ environment:
       limits: 1
 
 run:
-  cmd: python -m tasks.train_polyaxon \
+  cmd: python -m tasks.train \
                 wandb.setup.project=self-train \
                 dataset=liver_reduced \
-                experiment.name=train_dinoLightningModule \
-                train=dino_vits16 \
+                experiment.name=train_simclr \
+                train=simclr \
                 train.epochs=1000 \
-                loader.batch_size=120 \
+                train.pretrained_weights=True \
+                loader.batch_size=128 \
                 loader.num_workers=8 \
                 wandb=server
 
