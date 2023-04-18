@@ -88,7 +88,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
 
     # data
     resize = transforms.Resize(cfg.dataset.input_size)
-    if cfg.wandb=='server':
+    if cfg.wandb.mode=='server':
         # use polyaxon paths
         main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
         train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=resize)
@@ -199,7 +199,7 @@ def train_simclr(cfg: DictConfig) -> None:
 
     # data
     resize = transforms.Resize(cfg.dataset.input_size)
-    if cfg.wandb=='server':
+    if cfg.wandb.mode=='server':
         # use polyaxon paths
         main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
         train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=resize)
@@ -303,7 +303,7 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
 
     # data
     resize = transforms.Resize(cfg.dataset.input_size)
-    if cfg.wandb=='server':
+    if cfg.wandb.mode=='server':
         # use polyaxon paths
         main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
         train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=resize)
@@ -404,7 +404,9 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
 
 @hydra.main(version_base=None, config_path="./configs", config_name="defaults")
 def run_experiment(cfg: DictConfig) -> None:
-    if cfg.wandb=='server':
+    print(f'cfg.wandb.mode is={cfg.wandb.mode}')
+
+    if cfg.wandb.mode=='server':
         # login to wandb using locally stored key, remove the key to prevent it from being logged
         wandb.login(key=cfg.wandb.key)
         cfg.wandb.key=""
@@ -434,7 +436,7 @@ def run_experiment(cfg: DictConfig) -> None:
         raise ValueError(f'No experiment called: {cfg.experiment.name}')
     
 
-    if cfg.wandb=='server':
+    if cfg.wandb.mode=='server':
         # take care to copy outputs to polyaxon storage (NAS), because files on node where the code is will be deleted
         utils.copytree(os.getcwd(), get_outputs_path())
 
