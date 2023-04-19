@@ -306,13 +306,14 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     if cfg.wandb.mode=='server':
         # use polyaxon paths
         main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
-        train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=resize)
-        val_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), transform=resize)
+        train_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=resize)
+        val_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), transform=resize)
     else:
         # use default local data 
-        train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=resize)
-        val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=resize)
+        train_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=resize)
+        val_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=resize)
     
+    print(f'Train dataset sample={train_dataset[0]}')
     # data processing
     normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     if 'carotid' in cfg.dataset.name:
