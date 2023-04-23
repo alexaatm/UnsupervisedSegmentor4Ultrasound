@@ -20,15 +20,10 @@ from tqdm import tqdm
 # A logger for this file
 log = logging.getLogger(__name__)
 
-@hydra.main(version_base=None, config_path="./configs", config_name="saliency_maps")
-def extract_saliency_maps(cfg: DictConfig) -> None:
+def extract_saliency_maps_v1(cfg: DictConfig) -> None:
     """
     Based on: https://github.com/sunnynevarekar/pytorch-saliency-maps/blob/master/Saliency_maps_in_pytorch.ipynb
     """
-
-
-    log.info(OmegaConf.to_yaml(cfg))
-    log.info("Current working directory  : {}".format(os.getcwd()))
 
     # Transform
     # val_transform = utils.get_transform(cfg.model_name)
@@ -93,13 +88,10 @@ def extract_saliency_maps(cfg: DictConfig) -> None:
     model = model.to(accelerator.device)
     print('accelerator devices=', accelerator.device)
 
-
-
     # Process
     pbar = tqdm(dataset, desc='Processing')
     for i, (sample, target, fname) in enumerate(pbar):   
         C, H, W = sample.shape
-        print(f'sample shape: {sample.shape}')
         sample = sample.to(accelerator.device)
 
         input=sample.unsqueeze(0)
@@ -135,5 +127,16 @@ def extract_saliency_maps(cfg: DictConfig) -> None:
         # plt.show()
         plt.savefig('saliency_map__'+fname)
 
+@hydra.main(version_base=None, config_path="./configs", config_name="saliency_maps")
+def vis(cfg: DictConfig) -> None:
+    log.info(OmegaConf.to_yaml(cfg))
+    log.info("Current working directory  : {}".format(os.getcwd()))
+
+    if cfg.vis == "saliency_maps_v1":
+        log.info(f"Visualisation chosen: {cfg.vis}")
+        extract_saliency_maps_v1(cfg)
+    else:
+        raise ValueError(f'No visualisation called: {cfg.vis}')
+
 if __name__ == "__main__":
-    extract_saliency_maps()
+    vis()

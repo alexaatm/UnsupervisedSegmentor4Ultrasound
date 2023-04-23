@@ -6,7 +6,8 @@ defaults:
 
 hydra:
   run:
-    dir: ./outputs/saliency_maps/${now:%Y-%m-%d}-${model_name}/${now:%H-%M-%S}-${dataset.name}
+    dir: ./outputs/saliency_maps/${model_name}/${now:%Y-%m-%d}-${dataset.name}/${now:%H-%M-%S}-${vis}
 model_name: simclr
 model_checkpoint: ""
 loader.batch_size: 1
+vis: saliency_maps_v1
