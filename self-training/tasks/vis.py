@@ -23,6 +23,124 @@ import ssl
 # A logger for this file
 log = logging.getLogger(__name__)
 
+def extract_saliency_maps_v1_avg(cfg: DictConfig) -> None:
+    """
+    Based on: https://github.com/sunnynevarekar/pytorch-saliency-maps/blob/master/Saliency_maps_in_pytorch.ipynb
+    """
+
+    # Transform
+    # val_transform = utils.get_transform(cfg.model_name)
+    # Add resize to the transforms
+    if 'carotid' in cfg.dataset.name:
+        # resize to acquare images (val set has varied sizes...)
+        resize = transforms.Resize((cfg.dataset.input_size,cfg.dataset.input_size))
+    else:
+        resize = transforms.Resize(cfg.dataset.input_size)
+    # transform = transforms.Compose([resize, val_transform])
+    #define transforms to preprocess input image into format expected by model
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+    #transforms to resize image to the size expected by pretrained model,
+    #convert PIL image to tensor, and
+    #normalize the image
+    transform = transforms.Compose([
+        resize,
+        transforms.ToTensor(),
+        normalize,          
+    ])
+
+    #inverse transform to get normalize image back to original form for visualization
+    inv_normalize = transforms.Normalize(
+    mean=[-0.485/0.229, -0.456/0.224, -0.406/0.255],
+    std=[1/0.229, 1/0.224, 1/0.255]
+    )
+
+
+    # Dataset
+    dataset = LightlyDataset(
+        input_dir = os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),
+        transform=transform)
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=cfg.loader.batch_size,
+        num_workers=cfg.loader.num_workers)
+    log.info(f'Dataset size: {len(dataset)}')
+    log.info(f'Dataloader size: {len(dataloader)}')
+
+    # Model
+    if cfg.model_checkpoint=="":
+        model = torchvision.models.resnet50(pretrained=True)
+    else:
+        model_path = os.path.join(hydra.utils.get_original_cwd(), cfg.model_checkpoint)
+        print("model path: ", model_path)
+        model, _ = utils.get_model_from_path(cfg.model_name, model_path)
+
+    #set model in eval mode
+    model.eval()
+
+    # get a test image
+    sample, target, fname=dataset[0]
+    print(sample)
+    print(sample.shape)
+
+    # Prepare accelerator
+    cpu = True
+    if torch.cuda.is_available():
+        cpu = False
+    accelerator = Accelerator(cpu)
+    model = model.to(accelerator.device)
+    print('accelerator devices=', accelerator.device)
+
+    # Process
+    pbar = tqdm(dataset, desc='Processing')
+    for i, (sample, target, fname) in enumerate(pbar):   
+        C, H, W = sample.shape
+        sample = sample.to(accelerator.device)
+
+        input=sample.unsqueeze(0)
+
+        #we want to calculate gradient of higest score w.r.t. input
+        #so set requires_grad to True for input 
+        input.requires_grad = True
+
+        #forward pass to calculate predictions
+        preds = model(input)
+        print(f'preds shape: {preds.shape}')
+        preds=preds.squeeze()
+        print(f'preds shape squeezed: {preds.shape}')
+
+        # works for feature sixe 512, for 1000 breaks cause out of memory
+        slc_maps = []
+        for p in preds:
+            p.backward(retain_graph=True)
+            slc,_ = torch.max(torch.abs(input.grad[0]), dim=0)
+            slc = (slc - slc.min())/(slc.max()-slc.min())
+            slc_maps.append(slc)
+            p.detach()
+
+        stacked_slc_maps = torch.stack(slc_maps)
+        preds = (preds - preds.min())/(preds.max()-preds.min())
+        weighted_slc_maps= stacked_slc_maps * preds[:, None, None]
+        # Take the mean along the first dimension
+        slc = torch.mean(weighted_slc_maps, dim=0)
+
+        #apply inverse transform on image
+        with torch.no_grad():
+            input_img = inv_normalize(input[0])
+            
+        #plot image and its saleincy map
+        plt.figure(figsize=(10, 10))
+        plt.subplot(1, 2, 1)
+        plt.imshow(np.transpose(input_img.cpu().numpy(), (1, 2, 0)))
+        plt.xticks([])
+        plt.yticks([])
+        plt.subplot(1, 2, 2)
+        plt.imshow(slc.detach().cpu().numpy())
+        plt.xticks([])
+        plt.yticks([])
+        # plt.show()
+        plt.savefig('saliency_map_v1__'+fname)
+
 def extract_saliency_maps_v1(cfg: DictConfig) -> None:
     """
     Based on: https://github.com/sunnynevarekar/pytorch-saliency-maps/blob/master/Saliency_maps_in_pytorch.ipynb
@@ -105,7 +223,10 @@ def extract_saliency_maps_v1(cfg: DictConfig) -> None:
 
         #forward pass to calculate predictions
         preds = model(input)
+        print(f'preds shape: {preds.shape}')
         score, indices = torch.max(preds, 1)
+        print(f'score shape: {score.shape}')
+
         #backward pass to get gradients of score predicted class w.r.t. input image
         score.backward()
         #get max along channel axiss
@@ -260,6 +381,8 @@ def vis(cfg: DictConfig) -> None:
         extract_saliency_maps_v1(cfg)
     elif cfg.vis == "saliency_maps_v2":
         extract_saliency_maps_v2(cfg)
+    elif cfg.vis == "saliency_maps_v1_avg":
+        extract_saliency_maps_v1_avg(cfg)
     else:
         raise ValueError(f'No visualisation called: {cfg.vis}')
 
