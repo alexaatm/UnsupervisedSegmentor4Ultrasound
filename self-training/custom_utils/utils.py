@@ -23,6 +23,16 @@ def get_model(name: str):
     model = model.eval()
     return model, val_transform, patch_size, num_heads
 
+def get_dino_traind_model(name: str):
+    if 'dino' in name:
+        model = torch.hub.load('facebookresearch/dino:main', name, pretrained=True)
+        model.fc = torch.nn.Identity()
+        patch_size = model.patch_embed.patch_size
+        num_heads = model.blocks[0].attn.num_heads
+        params = [patch_size, num_heads]
+    else:
+        raise ValueError(f'Cannot get model: {name}')
+    return model, params
 
 def get_transform(name: str):
     # https://github.com/lukemelas/deep-spectral-segmentation/tree/main/semantic-segmentation
@@ -47,10 +57,10 @@ def get_model_from_path(model_name, ckpt_path):
     if 'dino' in model_name:
         # get the backbone
         backbone, input_dim = dinoLightningModule.get_dino_backbone(model_name)
-        patch_size = backbone.patch_embed.patch_size
+        # patch_size = backbone.patch_embed.patch_size
         num_heads = backbone.blocks[0].attn.num_heads
-        backbone.fc = torch.nn.Identity() # why do we need to set it to identity?
-        
+        # backbone.fc = torch.nn.Identity() # why do we need to set it to identity?
+
 
         # load the model from the checkpoint
         checkpoint = torch.load(ckpt_path)
@@ -67,6 +77,8 @@ def get_model_from_path(model_name, ckpt_path):
 
         # take teacher backbone as a model for inference
         model = full_model.teacher_backbone
+        model.fc = torch.nn.Identity() 
+        patch_size = model.patch_embed.patch_size
 
         # group model specific params in a separate list
         params = [num_heads, patch_size]

@@ -371,6 +371,118 @@ def extract_saliency_maps_v2(cfg: DictConfig) -> None:
         # plt.show()
         plt.savefig('saliency_map_v2__'+fname)
 
+def extract_saliency_maps_dino(cfg: DictConfig) -> None:
+    """
+    Based on: Registering a hook to get output of the last convolutional layer
+    """
+
+    # Transform
+    # Add resize to the transforms
+    if 'carotid' in cfg.dataset.name:
+        # resize to acquare images (val set has varied sizes...)
+        resize = transforms.Resize((cfg.dataset.input_size,cfg.dataset.input_size))
+    else:
+        resize = transforms.Resize(cfg.dataset.input_size)
+    # val_transform = utils.get_transform(cfg.model_name)
+    # transform = transforms.Compose([resize, val_transform])
+
+    #define transforms to preprocess input image into format expected by model
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+
+    transform = transforms.Compose([
+        resize,
+        transforms.ToTensor(),
+        normalize,          
+    ])
+
+    #inverse transform to get normalize image back to original form for visualization
+    inv_normalize = transforms.Normalize(
+    mean=[-0.485/0.229, -0.456/0.224, -0.406/0.255],
+    std=[1/0.229, 1/0.224, 1/0.255]
+    )
+
+    # Dataset
+    dataset = LightlyDataset(
+        input_dir = os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),
+        transform=transform)
+    log.info(f'Dataset size: {len(dataset)}')
+
+    # Model
+    if cfg.model_checkpoint=="":
+        ssl._create_default_https_context = ssl._create_unverified_context
+        model, params = utils.get_dino_traind_model(cfg.model_name)
+        # model = torch.hub.load('facebookresearch/dino:main', cfg.model_name, pretrained=True) 
+    else:
+        model_path = os.path.join(hydra.utils.get_original_cwd(), cfg.model_checkpoint)
+        print("model path: ", model_path)
+        model, params = utils.get_model_from_path(cfg.model_name, model_path)
+
+    #set model in eval mode
+    model.eval()
+
+    # register a hook
+    if 'dino' in cfg.model_name:
+        # hook
+        which_block = -1
+        feat_out = {}
+        def hook_fn_forward_qkv(module, input, output):
+            feat_out["qkv"] = output
+        model._modules["blocks"][which_block]._modules["attn"]._modules["qkv"].register_forward_hook(hook_fn_forward_qkv)
+        num_heads = params[0]
+        patch_size = params[1]
+
+    # Prepare accelerator
+    cpu = True
+    if torch.cuda.is_available():
+        cpu = False
+    accelerator = Accelerator(cpu)
+    model = model.to(accelerator.device)
+    print('accelerator device=', accelerator.device)
+
+    # Process
+    pbar = tqdm(dataset, desc='Processing')
+    for i, (sample, target, fname) in enumerate(pbar):   
+        sample=sample.unsqueeze(0)
+        print(f'sample shape before: {sample.shape}')
+        B, C, H, W = sample.shape
+        P = patch_size
+        print(f'patch size: {P}')
+        H_patch, W_patch = H // P, W // P
+        H_pad, W_pad = H_patch * P, W_patch * P
+        T = H_patch * W_patch + 1  # number of tokens, add 1 for [CLS]
+        print(f'Tokens num : {T}')
+        
+        sample = sample[:, :, :H_pad, :W_pad]
+        sample = sample.to(accelerator.device)
+        print(f'sample shape: {sample.shape}')
+        
+        # extarct features
+        model.get_intermediate_layers(sample)[0].squeeze(0)
+        output_qkv = feat_out["qkv"].reshape(B, T, 3, num_heads, -1 // num_heads).permute(2, 0, 3, 1, 4)
+        print(f'output_qkv shape: {output_qkv.shape}')
+        slc = output_qkv[1].transpose(1, 2).reshape(B, T, -1)[:, 1:, :]
+        print(f'slc shape: {slc.shape}')
+        #apply inverse transform on image
+        input_img = inv_normalize(sample[0])
+        print(f'input_img shape: {input_img.shape}')
+
+        
+            
+        #plot image and its saleincy map
+        plt.figure(figsize=(10, 10))
+        plt.subplot(1, 2, 1)
+        plt.imshow(np.transpose(input_img.cpu().numpy(), (1, 2, 0)))
+        plt.xticks([])
+        plt.yticks([])
+        plt.subplot(1, 2, 2)
+        plt.imshow(np.transpose(slc.cpu().numpy(), (1, 2, 0)))
+        plt.xticks([])
+        plt.yticks([])
+        plt.show()
+        exit()
+        plt.savefig('saliency_map_v2__'+fname)
+
 @hydra.main(version_base=None, config_path="./configs", config_name="saliency_maps")
 def vis(cfg: DictConfig) -> None:
     log.info(OmegaConf.to_yaml(cfg))
@@ -383,6 +495,8 @@ def vis(cfg: DictConfig) -> None:
         extract_saliency_maps_v2(cfg)
     elif cfg.vis == "saliency_maps_v1_avg":
         extract_saliency_maps_v1_avg(cfg)
+    elif cfg.vis == "saliency_maps_dino":
+        extract_saliency_maps_dino(cfg)
     else:
         raise ValueError(f'No visualisation called: {cfg.vis}')
 
