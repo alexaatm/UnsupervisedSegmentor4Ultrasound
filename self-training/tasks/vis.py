@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 import torchvision
 import  torchvision.transforms as transforms
 
@@ -16,6 +17,8 @@ from lightly.data import LightlyDataset
 from custom_utils import utils
 from accelerate import Accelerator
 from tqdm import tqdm
+
+import ssl
 
 # A logger for this file
 log = logging.getLogger(__name__)
@@ -125,16 +128,138 @@ def extract_saliency_maps_v1(cfg: DictConfig) -> None:
         plt.xticks([])
         plt.yticks([])
         # plt.show()
-        plt.savefig('saliency_map__'+fname)
+        plt.savefig('saliency_map_v1__'+fname)
+
+def extract_saliency_maps_v2(cfg: DictConfig) -> None:
+    """
+    Based on: Registering a hook to get output of the last convolutional layer
+    """
+
+    # Transform
+    # Add resize to the transforms
+    if 'carotid' in cfg.dataset.name:
+        # resize to acquare images (val set has varied sizes...)
+        resize = transforms.Resize((cfg.dataset.input_size,cfg.dataset.input_size))
+    else:
+        resize = transforms.Resize(cfg.dataset.input_size)
+    # val_transform = utils.get_transform(cfg.model_name)
+    # transform = transforms.Compose([resize, val_transform])
+
+    #define transforms to preprocess input image into format expected by model
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+
+    transform = transforms.Compose([
+        resize,
+        transforms.ToTensor(),
+        normalize,          
+    ])
+
+    #inverse transform to get normalize image back to original form for visualization
+    inv_normalize = transforms.Normalize(
+    mean=[-0.485/0.229, -0.456/0.224, -0.406/0.255],
+    std=[1/0.229, 1/0.224, 1/0.255]
+    )
+
+    # Dataset
+    dataset = LightlyDataset(
+        input_dir = os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),
+        transform=transform)
+    log.info(f'Dataset size: {len(dataset)}')
+
+    # Model
+    if cfg.model_checkpoint=="":
+        resnet = torchvision.models.resnet50(pretrained=True)
+        model = nn.Sequential(*list(resnet.children())[:-1])
+        # ssl._create_default_https_context = ssl._create_unverified_context
+        # model = torch.hub.load('facebookresearch/dino:main', cfg.model_name, pretrained=True) 
+    else:
+        model_path = os.path.join(hydra.utils.get_original_cwd(), cfg.model_checkpoint)
+        print("model path: ", model_path)
+        model, params = utils.get_model_from_path(cfg.model_name, model_path)
+
+    #set model in eval mode
+    model.eval()
+
+    # register a hook
+    if 'dino' in cfg.model_name:
+        # hook
+        which_block = -1
+        feat_out = {}
+        def hook_fn_forward_qkv(module, input, output):
+            feat_out["qkv"] = output
+        model._modules["blocks"][which_block]._modules["attn"]._modules["qkv"].register_forward_hook(hook_fn_forward_qkv)
+        num_heads = params[0]
+        patch_size = params[1]
+    elif 'simclr' in cfg.model_name:
+        feat_out = {}
+        # define hook function
+        def hook(module, input, output):
+            # store the output of the module in the outputs dictionary
+            feat_out['last_conv_layer_input'] = input
+        # register hook on the last convolutional layer of the resnet model
+        last_layer = list(model.children())[-1]
+        last_layer.register_forward_hook(hook)
+
+    # get a test image
+    sample, target, fname=dataset[0]
+    print(sample)
+    print(sample.shape)
+
+    # Prepare accelerator
+    cpu = True
+    if torch.cuda.is_available():
+        cpu = False
+    accelerator = Accelerator(cpu)
+    model = model.to(accelerator.device)
+    print('accelerator device=', accelerator.device)
+
+    # Process
+    pbar = tqdm(dataset, desc='Processing')
+    for i, (sample, target, fname) in enumerate(pbar):   
+        C, H, W = sample.shape
+        sample = sample.to(accelerator.device)
+
+        input=sample.unsqueeze(0)
+        output = model(input)
+
+        last_conv_layer_input=feat_out['last_conv_layer_input'][0]
+        print(f'shape of last_conv_layer: {last_conv_layer_input.shape}')
+
+        summed_features,_ = torch.max(last_conv_layer_input, dim=1)
+        print(f'summed_features shape: {summed_features.shape}')
+
+        upscaled_features=torch.nn.functional.interpolate(summed_features.unsqueeze(0), size=(H, W), mode='bilinear', align_corners=False).squeeze(0)
+        print(f'output shape: {upscaled_features.shape}')
+
+        slc = upscaled_features[0]
+
+        #apply inverse transform on image
+        input_img = inv_normalize(input[0])
+            
+        #plot image and its saleincy map
+        plt.figure(figsize=(10, 10))
+        plt.subplot(1, 2, 1)
+        plt.imshow(np.transpose(input_img.cpu().numpy(), (1, 2, 0)))
+        plt.xticks([])
+        plt.yticks([])
+        plt.subplot(1, 2, 2)
+        plt.imshow(slc.detach().cpu().numpy())
+        plt.xticks([])
+        plt.yticks([])
+        # plt.show()
+        plt.savefig('saliency_map_v2__'+fname)
 
 @hydra.main(version_base=None, config_path="./configs", config_name="saliency_maps")
 def vis(cfg: DictConfig) -> None:
     log.info(OmegaConf.to_yaml(cfg))
     log.info("Current working directory  : {}".format(os.getcwd()))
 
+    log.info(f"Visualisation chosen: {cfg.vis}")
     if cfg.vis == "saliency_maps_v1":
-        log.info(f"Visualisation chosen: {cfg.vis}")
         extract_saliency_maps_v1(cfg)
+    elif cfg.vis == "saliency_maps_v2":
+        extract_saliency_maps_v2(cfg)
     else:
         raise ValueError(f'No visualisation called: {cfg.vis}')
 
