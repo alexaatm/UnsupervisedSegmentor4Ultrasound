@@ -28,6 +28,7 @@ def extract_features(cfg: DictConfig) -> None:
     print("model path: ", model_path)
     model, params = utils.get_model_from_path(model_name, model_path)
     val_transform = utils.get_transform(model_name)
+    model = model.eval()
 
     # Add resize to the transforms
     if 'carotid' in cfg.dataset.name:

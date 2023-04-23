@@ -87,7 +87,7 @@ def get_model_from_path(model_name, ckpt_path):
         params = []
     else:
         raise ValueError(f'Cannot get model: {model_name}')
-    model = model.eval()
+    
     return model, params
 
 def get_image_paths(directory, image_extensions):

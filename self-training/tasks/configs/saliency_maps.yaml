@@ -1,0 +1,12 @@
+defaults:
+  - dataset: defaults
+  - loader: defaults
+  - hydra: defaults
+  - _self_
+
+hydra:
+  run:
+    dir: ./outputs/saliency_maps/${now:%Y-%m-%d}-${model_name}/${now:%H-%M-%S}-${dataset.name}
+model_name: simclr
+model_checkpoint: ""
+loader.batch_size: 1
