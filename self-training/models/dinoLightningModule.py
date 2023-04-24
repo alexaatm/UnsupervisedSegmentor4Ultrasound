@@ -87,6 +87,8 @@ def get_dino_backbone(dino_model_name: str, pretrained_weights = False):
     return (backbone, input_dim)
 
 def get_resnet_backbone(pretrained_weights = False):
+    # TODO: change to resnet50 = torch.hub.load('facebookresearch/dino:main', 'dino_resnet50')
+    # unify with the function above
     if pretrained_weights:
         resnet = torchvision.models.resnet18(weights=torchvision.models.ResNet18_Weights.IMAGENET1K_V1)
     else:

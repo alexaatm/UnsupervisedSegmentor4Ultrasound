@@ -24,12 +24,13 @@ def get_model(name: str):
     return model, val_transform, patch_size, num_heads
 
 def get_dino_traind_model(name: str):
+    print(f'model name: {name}')
     if 'dino' in name:
         model = torch.hub.load('facebookresearch/dino:main', name, pretrained=True)
         model.fc = torch.nn.Identity()
         patch_size = model.patch_embed.patch_size
         num_heads = model.blocks[0].attn.num_heads
-        params = [patch_size, num_heads]
+        params = [num_heads, patch_size]
     else:
         raise ValueError(f'Cannot get model: {name}')
     return model, params
@@ -57,27 +58,23 @@ def get_model_from_path(model_name, ckpt_path):
     if 'dino' in model_name:
         # get the backbone
         backbone, input_dim = dinoLightningModule.get_dino_backbone(model_name)
-        # patch_size = backbone.patch_embed.patch_size
-        num_heads = backbone.blocks[0].attn.num_heads
-        # backbone.fc = torch.nn.Identity() # why do we need to set it to identity?
-
 
         # load the model from the checkpoint
         checkpoint = torch.load(ckpt_path)
         print(checkpoint.keys())
         state_dict = checkpoint['state_dict']
         # remove `module.` prefix
-        state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+        # state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
         # remove `backbone.` prefix induced by multicrop wrapper
-        state_dict = {k.replace("backbone.", ""): v for k, v in state_dict.items()}
-
+        # state_dict = {k.replace("backbone.", ""): v for k, v in state_dict.items()}
 
         full_model = dinoLightningModule.DINO(backbone, input_dim)
-        full_model.load_state_dict(state_dict, strict=False)
+        full_model.load_state_dict(state_dict, strict=True)
 
         # take teacher backbone as a model for inference
         model = full_model.teacher_backbone
-        model.fc = torch.nn.Identity() 
+        model.fc = torch.nn.Identity()
+        num_heads = model.blocks[0].attn.num_heads
         patch_size = model.patch_embed.patch_size
 
         # group model specific params in a separate list
