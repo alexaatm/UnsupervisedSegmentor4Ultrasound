@@ -83,7 +83,7 @@ def get_model_from_path(model_name, ckpt_path):
         # group model specific params in a separate list
         params = [num_heads, patch_size]
     # TODO: add elif branch for loading simclr model and triplet
-    elif 'simclr' in model_name:
+    elif model_name=='simclr':
         backbone, hidden_dim = simclrLightningModule.get_resnet_backbone()
         # backbone.fc = torch.nn.Identity() # why do we need to set it to identity?
         
@@ -91,6 +91,20 @@ def get_model_from_path(model_name, ckpt_path):
         checkpoint = torch.load(ckpt_path)
         state_dict = checkpoint['state_dict']
         full_model = simclrLightningModule.SimCLR(backbone, hidden_dim)
+        full_model.load_state_dict(state_dict, strict=False)
+
+        # take the backbone as a model for inference
+        model = full_model.backbone
+
+        params = []
+    elif model_name=='simclr_triplet':
+        backbone, hidden_dim = simclrLightningModule.get_resnet_backbone()
+        # backbone.fc = torch.nn.Identity() # why do we need to set it to identity?
+        
+        # load the model from the checkpoint
+        checkpoint = torch.load(ckpt_path)
+        state_dict = checkpoint['state_dict']
+        full_model = simclrTripletLightningModule.SimCLRTriplet(backbone, hidden_dim)
         full_model.load_state_dict(state_dict, strict=False)
 
         # take the backbone as a model for inference
