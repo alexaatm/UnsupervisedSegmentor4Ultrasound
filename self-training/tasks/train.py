@@ -307,11 +307,11 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
         # use polyaxon paths
         main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
         train_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), mode = cfg.dataset.triplet_mode)
-        val_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), cfg.dataset.triplet_mode)
+        val_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), mode = cfg.dataset.triplet_mode)
     else:
         # use default local data 
-        train_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path), cfg.dataset.triplet_mode)
-        val_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path), cfg.dataset.triplet_mode)
+        train_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path), mode = cfg.dataset.triplet_mode)
+        val_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path), modoe = cfg.dataset.triplet_mode)
     
     print(f'Train dataset sample={train_dataset[0]}')
     # data processing
