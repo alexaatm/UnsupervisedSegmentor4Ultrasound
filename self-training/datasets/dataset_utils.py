@@ -189,6 +189,7 @@ def detect_shots_from_list_label(image_list):
             # Calculate the absolute difference between the current and previous histograms
             diff = hist_diff(curr_hist, prev_hist)
             diffs.append(diff)
+            print(f"diff={diff}")
 
             # Check if the absolute difference exceeds the threshold
             if diff > threshold:
@@ -247,6 +248,12 @@ def detect_shots_from_list_label(image_list):
     #     print(f'index {i}, class {label}')
 
     return labeled_images_list, class_labels
+
+def get_unique_classes_list(image_list):
+    image_labels_np = np.array([label for _, label in image_list])
+    print(image_labels_np)
+    classes = np.unique(image_labels_np)
+    return classes.tolist()
 
 if __name__ == "__main__":
     path = sys.argv[1]

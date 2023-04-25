@@ -1,3 +1,4 @@
 name: carotid-mini
 path: ../data/carotid-mini/images
 input_size: 256
+triplet_mode: seq

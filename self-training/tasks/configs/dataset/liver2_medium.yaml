@@ -4,3 +4,4 @@ val_path: ../data/liver2_medium/val
 rel_train_path: liver2_medium/train
 rel_val_path: liver2_medium/val
 input_size: 256
+triplet_mode: seq

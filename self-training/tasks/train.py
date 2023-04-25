@@ -306,17 +306,17 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     if cfg.wandb.mode=='server':
         # use polyaxon paths
         main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
-        train_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path))
-        val_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path))
+        train_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), mode = cfg.dataset.triplet_mode)
+        val_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), cfg.dataset.triplet_mode)
     else:
         # use default local data 
-        train_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
-        val_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
+        train_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path), cfg.dataset.triplet_mode)
+        val_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path), cfg.dataset.triplet_mode)
     
     print(f'Train dataset sample={train_dataset[0]}')
     # data processing
     normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-    if 'carotid' in cfg.dataset.name:
+    if 'carotid' in cfg.dataset.name or "imagenet" in cfg.dataset.name:
         # resize to acquare images (val set has varied sizes...)
         resize = transforms.Resize((cfg.dataset.input_size,cfg.dataset.input_size))
     else:

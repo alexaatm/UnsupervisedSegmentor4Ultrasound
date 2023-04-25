@@ -16,8 +16,11 @@ class TripletDataset(LightlyDataset):
     ):
         super(TripletDataset, self).__init__(root, transform)
         self.mode=mode
-        self.relabeled_list, self.classes_list = dataset_utils.detect_shots_from_list_label(self.dataset)
-        self.set_dataset(self.relabeled_list)
+        if self.mode == 'seq':
+            self.relabeled_list, self.classes_list = dataset_utils.detect_shots_from_list_label(self.dataset)
+            self.set_dataset(self.relabeled_list)
+        elif self.mode == 'class':
+            self.classes_list = dataset_utils.get_unique_classes_list(self.dataset)
         print(f"Unique class labels found: {self.classes_list}")
         
 
@@ -25,7 +28,9 @@ class TripletDataset(LightlyDataset):
         if self.mode == 'random':
             a_index, p_index, n_index = self.get_random_triplet(index)
         elif self.mode == 'seq':
-            a_index, p_index, n_index = self.get_triplet_by_seq_class(self.relabeled_list, self.classes_list)
+            a_index, p_index, n_index = self.get_triplet_by_class(self.relabeled_list, self.classes_list)
+        elif self.mode == 'class':
+            a_index, p_index, n_index = self.get_triplet_by_class(self.dataset, self.classes_list)
         else:
             print(f"No sampling mode called {self.mode}")
             raise NotImplementedError()
@@ -62,7 +67,7 @@ class TripletDataset(LightlyDataset):
 
         return (anchor_index, positive_index, negative_index)    
 
-    def get_triplet_by_seq_class(self, relabeled_list, classes_list):
+    def get_triplet_by_class(self, labeled_list, classes_list):
         """
         Returns a triplet. Anchor, pos, neg are not the same based
         on a class given by analizing changes in frame sequence.
@@ -71,7 +76,7 @@ class TripletDataset(LightlyDataset):
         
         Ref. for sampling based on classes: https://github.com/andreasveit/triplet-network-pytorch/blob/master/triplet_mnist_loader.py
         """
-        image_labels_np = np.array([label for _, label in relabeled_list])
+        image_labels_np = np.array([label for _, label in labeled_list])
 
         # pick a class randomly
         class_idx = np.random.choice(classes_list)
@@ -136,9 +141,11 @@ class TripletBaseCollateFunction(BaseCollateFunction):
 
 if __name__ == "__main__":
     # test_path="../data/liver_reduced/train"
-    test_path="../data/liver_similar"
+    # test_path="../data/liver_similar"
+    test_path="../data/imagenet-4-classes/train"
 
-    dataset=TripletDataset(root=test_path, mode='seq')
+
+    dataset=TripletDataset(root=test_path, mode='class')
     print(len(dataset))
     triplet = dataset[0]
     print("anchor=", triplet[0], ", pos=", triplet[1], ", neg=", triplet[2])

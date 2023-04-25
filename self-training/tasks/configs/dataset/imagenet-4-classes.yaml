@@ -1,0 +1,7 @@
+name: imagenet-4-classes
+path: ../data/imagenet-4-classes/train
+val_path: ../data/imagenet-4-classes/val
+rel_train_path: imagenet-4-classes/train
+rel_val_path: imagenet-4-classes/val
+input_size: 256
+triplet_mode: class
