@@ -88,7 +88,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
 
     # data
     if cfg.dataset.name=="imagenet-4-classes":
-        transform = transforms.Compose([transforms.Resize(cfg.dataset.input_size),transforms.Grayscale()])
+        transform = transforms.Compose([transforms.Resize(cfg.dataset.input_size),transforms.Grayscale(num_output_channels=3)])
     else:
         transform = transforms.Resize(cfg.dataset.input_size)
 
