@@ -7,7 +7,7 @@ from PIL import Image
 import numpy as np
 
 class PatchSampler(Sampler):
-    def __init__(self, dataset, patch_size, patch_mode='grid', remove_empty=True):
+    def __init__(self, dataset, patch_size, patch_mode='random', remove_empty=True):
         self.dataset = dataset
         self.patch_size = patch_size
         self.patch_mode = patch_mode
@@ -29,7 +29,7 @@ class PatchSampler(Sampler):
                 for i in range(0, h - self.patch_size + 1, self.patch_size):
                     for j in range(0, w - self.patch_size + 1, self.patch_size):
                         patch = (idx, i, j, self.patch_size)
-                        if self.remove_empty and np.sum(np.array(image)[..., i:i+self.patch_size, j:j+self.patch_size]) < (self.patch_size**2)*0.1:
+                        if self.remove_empty and np.sum(np.array(image)[..., i:i+self.patch_size, j:j+self.patch_size]) < (self.patch_size**2)*0.2:
                             continue
                         yield patch
             elif self.patch_mode == 'random':
@@ -41,7 +41,7 @@ class PatchSampler(Sampler):
                     # TODO: check how to better check if patch is balck
                     # eg:
                     # if (np.count_nonzero(image[..., i:i+self.patch_size, j:j+self.patch_size]) / (self.patch_size*self.patch_size) < 0.2
-                    if self.remove_empty and torch.sum(image[..., i:i+self.patch_size, j:j+self.patch_size]) < (self.patch_size**2)*0.2:
+                    if self.remove_empty and np.sum(np.array(image)[..., i:i+self.patch_size, j:j+self.patch_size]) < (self.patch_size**2)*0.2:
                         continue
                     yield patch
 
