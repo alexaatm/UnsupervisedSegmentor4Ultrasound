@@ -6,6 +6,7 @@ from typing import List, Tuple
 import torch
 import cv2
 from datasets import dataset_utils
+from datasets import samplers
 
 class TripletDataset(LightlyDataset):
     def __init__(
@@ -138,6 +139,40 @@ class TripletBaseCollateFunction(BaseCollateFunction):
 
         return (a_samples, a_targets, a_fnames), (p_samples, p_targets, p_fnames), (n_samples, n_targets, n_fnames)
 
+class PatchDataset(LightlyDataset):
+    def __init__(
+        self,
+        root: str,
+        transform: object = None,
+    ):
+        super(PatchDataset, self).__init__(root, transform)        
+
+    def __getitem__(self, index):
+        print(f'index={index}')
+        if isinstance(index, tuple):
+            idx, i, j, patch_size = index
+            # get filename
+            fname = self.index_to_filename(self.dataset, idx)
+
+            # get samples (image) and targets (label)
+            sample, target = self.dataset.__getitem__(idx)
+
+            # get a specified patch
+            # patch = sample[..., i:i+patch_size, j:j+patch_size]
+            # TODO: check if you need to switch H and W for PIL Image
+            patch = sample.crop((i, j, i+patch_size, j+patch_size))
+
+            return (patch, target, f'patch_{i}_{j}_{fname}')
+        else:
+            # just return a full image
+            # get filename
+            fname = self.index_to_filename(self.dataset, index)
+
+            # get samples (image) and targets (label)
+            sample, target = self.dataset.__getitem__(index)
+
+            return (sample, target, fname)
+
 
 if __name__ == "__main__":
     # test_path="../data/liver_reduced/train"
@@ -155,15 +190,7 @@ if __name__ == "__main__":
     sample = images[0]
     print(f'Sample= {sample}')
 
-    # opencvImage = cv2.cvtColor(np.array(sample[0]), cv2.COLOR_RGB2BGR)
-    # print(f'Sample= {opencvImage}')
 
-    # pil_images = [im[0] for im in images]
-    # changes = dataset_utils.detect_shots_from_list(pil_images)
+    
 
-    # changed_list, _ = dataset_utils.detect_shots_from_list_label(images)
-    # dataset.set_dataset(changed_list)
-    # print(len(dataset))
-    # triplet = dataset[0]
-    # print("anchor=", triplet[0], ", pos=", triplet[1], ", neg=", triplet[2])
 
