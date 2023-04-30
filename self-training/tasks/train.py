@@ -87,19 +87,26 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
 
     # data
-    resize = transforms.Resize(cfg.dataset.input_size)
+    if cfg.dataset.name=="imagenet-4-classes":
+        transform = transforms.Compose([transforms.Resize(cfg.dataset.input_size),transforms.Grayscale])
+    else:
+        transform = transforms.Resize(cfg.dataset.input_size)
+
     if cfg.wandb.mode=='server':
         # use polyaxon paths
         main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
-        train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=resize)
-        val_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), transform=resize)
+        train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=transform)
+        val_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), transform=transform)
     else:
         # use default local data 
-        train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=resize)
-        val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=resize)
+        train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=transform)
+        val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=transform)
 
     collate_fn = DINOCollateFunction(
-        # input_size=cfg.dataset.input_size, #doesnt have an attribute iput_size, so use transform in the dataset
+        #doesnt have an attribute iput_size, so use transform in the dataset
+        # cj_prob = 0,
+        # cj_hue = 0, 
+        random_gray_scale = 1,
     )
 
     train_dataloader = torch.utils.data.DataLoader(
