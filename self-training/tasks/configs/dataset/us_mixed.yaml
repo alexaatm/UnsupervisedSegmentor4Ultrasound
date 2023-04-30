@@ -1,0 +1,7 @@
+name: us_mixed
+path: ../data/us_mixed/train
+val_path: ../data/us_mixed/val
+rel_train_path: us_mixed/train
+rel_val_path: us_mixed/val
+input_size: 256
+triplet_mode: class
