@@ -88,7 +88,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
 
     # data
     if cfg.dataset.name=="imagenet-4-classes":
-        transform = transforms.Compose([transforms.Resize(cfg.dataset.input_size),transforms.Grayscale])
+        transform = transforms.Compose([transforms.Resize(cfg.dataset.input_size),transforms.Grayscale()])
     else:
         transform = transforms.Resize(cfg.dataset.input_size)
 
@@ -106,7 +106,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         #doesnt have an attribute iput_size, so use transform in the dataset
         # cj_prob = 0,
         # cj_hue = 0, 
-        random_gray_scale = 1,
+        # random_gray_scale = 1,
     )
 
     train_dataloader = torch.utils.data.DataLoader(
