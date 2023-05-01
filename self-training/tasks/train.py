@@ -104,9 +104,9 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
 
     collate_fn = DINOCollateFunction(
         #doesnt have an attribute iput_size, so use transform in the dataset
-        # cj_prob = 0,
-        # cj_hue = 0, 
-        # random_gray_scale = 1,
+        cj_prob = 0,
+        cj_hue = 0, 
+        random_gray_scale = 0,
     )
 
     train_dataloader = torch.utils.data.DataLoader(
