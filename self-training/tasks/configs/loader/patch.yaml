@@ -1,0 +1,6 @@
+batch_size: 1
+num_workers: 0
+mode: patch
+patch_mode: random
+patch_size: 16
+remove_empty: True

@@ -148,7 +148,7 @@ class PatchDataset(LightlyDataset):
         super(PatchDataset, self).__init__(root, transform)        
 
     def __getitem__(self, index):
-        print(f'index={index}')
+        # print(f'index={index}')
         if isinstance(index, tuple):
             idx, i, j, patch_size = index
             # get filename
@@ -159,10 +159,12 @@ class PatchDataset(LightlyDataset):
 
             # get a specified patch
             # patch = sample[..., i:i+patch_size, j:j+patch_size]
-            # TODO: check if you need to switch H and W for PIL Image
+            # TODO: check if you need to switch H and W for PIL Image -> i for width, j for height, PIL image has (W, H)
             patch = sample.crop((i, j, i+patch_size, j+patch_size))
+            # patch.show()
 
             return (patch, target, f'patch_{i}_{j}_{fname}')
+
         else:
             # just return a full image
             # get filename

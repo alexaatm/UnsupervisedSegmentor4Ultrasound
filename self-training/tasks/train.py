@@ -1,5 +1,5 @@
 from models import dino, dinoLightningModule, simclrLightningModule, simclrTripletLightningModule
-from datasets import datasets
+from datasets import datasets, samplers
 from custom_utils import utils
 import torch
 from torchvision import transforms
@@ -95,31 +95,55 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     if cfg.wandb.mode=='server':
         # use polyaxon paths
         main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
-        train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=transform)
-        val_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), transform=transform)
+        train_dataset = datasets.PatchDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=transform)
+        val_dataset = datasets.PatchDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), transform=transform)
     else:
         # use default local data 
-        train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=transform)
-        val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=transform)
+        train_dataset = datasets.PatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=transform)
+        val_dataset = datasets.PatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=transform)
 
     collate_fn = DINOCollateFunction(
         #doesnt have an attribute iput_size, so use transform in the dataset
         cj_prob = 0,
         cj_hue = 0, 
         random_gray_scale = 0,
+        cj_sat = 0,
+        cj_bright=0,
+        cj_contrast=0
     )
+
+    if cfg.loader.mode=="patch":
+        # TODO: figure out how to make it a random sampler, cause cannot use shuffle..
+        train_sampler=samplers.PatchSampler(
+            dataset=train_dataset,
+            patch_mode=cfg.loader.patch_mode,
+            patch_size=cfg.loader.patch_size,
+            shuffle=True,
+            remove_empty=cfg.loader.remove_empty)
+        val_sampler=samplers.PatchSampler(
+            dataset=val_dataset,
+            patch_mode="grid",
+            patch_size=cfg.loader.patch_size,
+            shuffle=False,
+            remove_empty=cfg.loader.remove_empty) #TODO: check if makes sense to remove emtpy here?
+    else:
+        # need to create a random sampler, because with custom samplers we cannot use shuffle=True in the dataloader
+        train_sampler=torch.utils.data.RandomSampler(train_dataset)
+        val_sampler=torch.utils.data.SequentialSampler(val_dataset)
 
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
+        sampler=train_sampler,
         batch_size=cfg.loader.batch_size, #make smaller for dino backbone, was 64 for resnet
         collate_fn=collate_fn,
-        shuffle=True,
+        shuffle=False,
         drop_last=True,
         num_workers=cfg.loader.num_workers,
     )
 
     val_dataloader = torch.utils.data.DataLoader(
         val_dataset,
+        sampler=val_sampler,
         batch_size=cfg.loader.batch_size, #make smaller for dino backbone, was 64 for resnet
         collate_fn=collate_fn,
         shuffle=False,
@@ -131,6 +155,14 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     log.info(f"Val dataset:{len(val_dataset)}")
     log.info(f"Train dataloader: {len(train_dataloader)}")
     log.info(f"Val dataloader: {len(val_dataloader)}")
+    log.info(f"Train sampler: {len(train_sampler)}")
+    log.info(f"Val sampler: {len(val_sampler)}")
+
+    # for batch in train_dataloader:
+    #     samples, _, _ = batch
+    #     print(f'samples: {samples[0]}')
+    #     break
+    # exit()
 
     # model
     if any(x in cfg.train.backbone for x in ('dino_vits16','dino_vits8')):
