@@ -17,7 +17,7 @@ class PatchSampler(Sampler):
         indices = range(len(self.dataset))
         for idx in indices:
             image = self.dataset[idx][0]
-            # TODO: check if image is C, W, H?
+            # TODO: check if image is C, W, H? 
             h, w = image.size[-2], image.size[-1]
             if self.patch_mode == 'grid':
                 # crop the image to a size that is evenly divisible by the patch size
@@ -44,6 +44,8 @@ class PatchSampler(Sampler):
                     if self.remove_empty and np.sum(np.array(image)[..., i:i+self.patch_size, j:j+self.patch_size]) < (self.patch_size**2)*0.2:
                         continue
                     yield patch
+            else:
+                raise NotImplementedError()
 
     def __len__(self):
         # TODO: check if this counting is reasonable - esp given you want to ignore the black patches
