@@ -7,69 +7,64 @@ from PIL import Image
 import numpy as np
 
 class PatchSampler(Sampler):
-    def __init__(self, dataset, patch_size, patch_mode='grid', remove_empty=True, shuffle=True):
+    def __init__(self, dataset, patch_size, patch_mode='grid', shuffle=True):
         self.dataset = dataset
         self.patch_size = patch_size
         self.patch_mode = patch_mode
-        self.remove_empty = remove_empty
         self.shuffle=shuffle
-        self.indices = list(range(len(self.dataset)))
+
+        # generate patches
+        if self.patch_mode=='grid':
+            self.grid_sampler_init()
+        elif self.patch_mode=='random':
+            self.random_sampler_init()
+        else:
+            raise NotImplementedError()
+        
         if self.shuffle:
             random.shuffle(self.indices)
 
-    def __iter__(self):
-        for idx in self.indices:
+    def grid_sampler_init(self):
+        dataset_indices = []
+        for idx in range(len(self.dataset)):
             image = self.dataset[idx][0]
-            # image.show()
-            # TODO: check if image is C, W, H -> it is (W, H)
             w, h = image.size[0], image.size[1]
-            if self.patch_mode == 'grid':
-                # crop the image to a size that is evenly divisible by the patch size
-                crop_height = h - h % self.patch_size
-                crop_width = w - w % self.patch_size
-                # TODO: check if you can use slicing here: im=im[:, :crop_height, : crop_width]? -> it's (W, H), would need to convert to numpy
-                # TODO: check if PIl image crop is correct?
-                image = image.crop((0, 0, crop_width, crop_height))
-                for i in range(0, crop_width - self.patch_size + 1, self.patch_size):
-                    for j in range(0, crop_height - self.patch_size + 1, self.patch_size):
-                        patch = (idx, i, j, self.patch_size)
-                        if self.remove_empty and self.is_patch_empty(np.array(image)[..., j:j+self.patch_size, i:i+self.patch_size]):
-                            print(f'skipped patch ={patch}')
-                            continue
-                        else:
-                            yield patch
-            elif self.patch_mode == 'random':
-                num_patches = int(h * w / (self.patch_size**2))
-                for _ in range(num_patches):
-                    i = torch.randint(high=w - self.patch_size + 1, size=(1,)).item()
-                    j = torch.randint(high=h - self.patch_size + 1, size=(1,)).item()
-                    patch = (idx, i, j, self.patch_size)
-                    # print(f'patch {_}={patch}')
-                    # TODO: check how to better check if patch is balck
-                    if self.remove_empty and self.is_patch_empty(np.array(image)[..., j:j+self.patch_size, i:i+self.patch_size]):
-                        print(f'skipped patch {_}={patch}')
-                        # patch = image.crop((i, j, i+self.patch_size, j+self.patch_size))
-                        continue
-                    else:
-                        yield patch
-            else:
-                raise NotImplementedError()
-    def is_patch_empty(self, img):
-        """
-        Check if a patch is mostly black (i.e. over 90% of pixels are black).
-        Consider a patch to be mostly black if the fraction of black pixels
-        is greater than a chosen threshold, i.e. 0.9 - 90% of black pixels are black.
-        """
-        thresh = 0.9  # Threshold for determining if a patch is empty
-        return (img <= 20).sum() > thresh * img.shape[-1] * img.shape[-2]
+
+            # find the crop of the image s.t. that is evenly divisible by the patch size
+            crop_height = h - h % self.patch_size
+            crop_width = w - w % self.patch_size
+            num_patches_h = (crop_height - 1) // self.patch_size + 1
+            num_patches_w = (crop_width - 1) // self.patch_size + 1
+
+            # get all patches from image with index idx
+            image_indices = [(idx, w*self.patch_size, h*self.patch_size, self.patch_size) for w in range(num_patches_w) for h in range(num_patches_h)]
+            dataset_indices.append(image_indices)
+        # concatenate all indices per all images into one list of indices
+        self.indices = [i for image_indices in dataset_indices for i in image_indices]        
+
+    def random_sampler_init(self):
+        dataset_indices = []
+        for idx in range(len(self.dataset)):
+            image = self.dataset[idx][0]
+            w, h = image.size[0], image.size[1]
+
+            num_patches = int(h * w / (self.patch_size**2))
+
+            # get random patches for a given image
+            image_indices = [(idx, \
+                              torch.randint(low = 0, high = w - self.patch_size + 1, size=(1,)).item(), \
+                               torch.randint(low = 0, high = h - self.patch_size + 1, size=(1,)).item() , \
+                                self.patch_size) for patch in range(num_patches)] 
+
+            dataset_indices.append(image_indices)
+        # concatenate all indices per all images into one list of indices
+        self.indices = [i for image_indices in dataset_indices for i in image_indices]
+
+    def __iter__(self):
+        return iter(self.indices)
 
     def __len__(self):
-        # TODO: check if this counting is reasonable - esp given you want to ignore the black patches
-        # TODO: esp check if PIl size is C, H, W or smth different?
-        if self.patch_mode == 'grid':
-            return len(self.dataset) * ((self.dataset[0][0].size[0] - self.patch_size + 1) // self.patch_size)**2
-        elif self.patch_mode == 'random':
-            return len(self.dataset) * (self.dataset[0][0].size[0] * self.dataset[0][0].size[1] // (self.patch_size**2))
+        return len(self.indices)
 
 if __name__ == "__main__":
     test_path="../data/liver2_mini/train"

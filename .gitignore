@@ -140,3 +140,4 @@ self-training/wandb/
 dino/__pycache__/
 self-training/.polyaxon/
 self-training/tasks/configs/wandb/server.yaml
+self-training/multirun/

@@ -103,7 +103,6 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         val_dataset = datasets.PatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=transform)
 
     collate_fn = DINOCollateFunction(
-        #doesnt have an attribute iput_size, so use transform in the dataset
         cj_prob = 0,
         cj_hue = 0, 
         random_gray_scale = 0,
@@ -118,14 +117,12 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
             dataset=train_dataset,
             patch_mode=cfg.loader.patch_mode,
             patch_size=cfg.loader.patch_size,
-            shuffle=True,
-            remove_empty=cfg.loader.remove_empty)
+            shuffle=True)
         val_sampler=samplers.PatchSampler(
             dataset=val_dataset,
-            patch_mode="grid",
+            patch_mode=cfg.loader.patch_mode,
             patch_size=cfg.loader.patch_size,
-            shuffle=False,
-            remove_empty=cfg.loader.remove_empty) #TODO: check if makes sense to remove emtpy here?
+            shuffle=False)
     else:
         # need to create a random sampler, because with custom samplers we cannot use shuffle=True in the dataloader
         train_sampler=torch.utils.data.RandomSampler(train_dataset)
@@ -158,11 +155,6 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     log.info(f"Train sampler: {len(train_sampler)}")
     log.info(f"Val sampler: {len(val_sampler)}")
 
-    # for batch in train_dataloader:
-    #     samples, _, _ = batch
-    #     print(f'samples: {samples[0]}')
-    #     break
-    # exit()
 
     # model
     if any(x in cfg.train.backbone for x in ('dino_vits16','dino_vits8')):
