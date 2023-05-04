@@ -5,7 +5,7 @@ kind: experiment
 
 framework: pytorch
 
-tags: [tests, simclr, liver_reduced, lr-scheduler, pretrained-weights]
+tags: [dino16, liver_reduced, pretrained-weights False, dataset.input_size=256, batch_size=48, new-collate, PATCH100 RandomPatchSampler]
 
 build:
   image: pytorchlightning/pytorch_lightning:base-xla-py3.7-torch1.12
@@ -21,7 +21,7 @@ environment:
       requests: 4
       limits: 32
     memory:
-      requests: 16384
+      requests: 24576
       limits: 32768
     gpu:
       requests: 1
@@ -31,11 +31,19 @@ run:
   cmd: python -m tasks.train \
                 wandb.setup.project=self-train \
                 dataset=liver_reduced \
-                experiment.name=train_simclr \
-                train=simclr \
+                experiment.name=train_dinoLightningModule \
+                train=dino_vits16 \
                 train.epochs=1000 \
-                train.pretrained_weights=True \
-                loader.batch_size=128 \
+                train.pretrained_weights=False \
+                loader.batch_size=48 \
                 loader.num_workers=8 \
-                wandb=server
+                wandb=server \
+                dataset.input_size=256 \
+                loader=patch \
+                loader.patch_size=100 
+                # loader.patch_mode=random \
+                # \ && \
+      
+    
+
 

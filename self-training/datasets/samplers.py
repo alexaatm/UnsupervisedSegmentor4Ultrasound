@@ -7,7 +7,7 @@ from PIL import Image
 import numpy as np
 
 class PatchSampler(Sampler):
-    def __init__(self, dataset, patch_size, patch_mode='grid', shuffle=True):
+    def __init__(self, dataset, patch_size, patch_mode='random', shuffle=True):
         self.dataset = dataset
         self.patch_size = patch_size
         self.patch_mode = patch_mode
@@ -65,6 +65,36 @@ class PatchSampler(Sampler):
 
     def __len__(self):
         return len(self.indices)
+
+class RandomPatchSampler(Sampler):
+    def __init__(self, dataset, patch_size, shuffle=True):
+        self.dataset = dataset
+        self.patch_size = patch_size
+        self.shuffle=shuffle
+
+    def __iter__(self):
+        indices = range(len(self.dataset))
+        if self.shuffle:
+            random.shuffle(indices)
+        for idx in indices:
+            image = self.dataset[idx][0]
+            w, h = image.size[0], image.size[1]
+
+            num_patches = int(h * w / (self.patch_size**2))
+
+            # get random patches for a given image
+            for patch in range(num_patches):
+                yield (idx, \
+                              torch.randint(low = 0, high = w - self.patch_size + 1, size=(1,)).item(), \
+                               torch.randint(low = 0, high = h - self.patch_size + 1, size=(1,)).item() , \
+                                self.patch_size)
+
+    def __len__(self):
+        image = self.dataset[0][0]
+        w, h = image.size[0], image.size[1]
+        num_patches_per_image = int(h * w / (self.patch_size**2))
+        return len(self.dataset) * num_patches_per_image
+
 
 if __name__ == "__main__":
     test_path="../data/liver2_mini/train"

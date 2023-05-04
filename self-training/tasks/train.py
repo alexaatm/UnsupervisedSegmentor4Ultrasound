@@ -113,14 +113,12 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
 
     if cfg.loader.mode=="patch":
         # TODO: figure out how to make it a random sampler, cause cannot use shuffle..
-        train_sampler=samplers.PatchSampler(
+        train_sampler=samplers.RandomPatchSampler(
             dataset=train_dataset,
-            patch_mode=cfg.loader.patch_mode,
             patch_size=cfg.loader.patch_size,
             shuffle=True)
-        val_sampler=samplers.PatchSampler(
+        val_sampler=samplers.RandomPatchSampler(
             dataset=val_dataset,
-            patch_mode=cfg.loader.patch_mode,
             patch_size=cfg.loader.patch_size,
             shuffle=False)
     else:
