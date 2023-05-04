@@ -73,7 +73,7 @@ class RandomPatchSampler(Sampler):
         self.shuffle=shuffle
 
     def __iter__(self):
-        indices = range(len(self.dataset))
+        indices = list(range(len(self.dataset)))
         if self.shuffle:
             random.shuffle(indices)
         for idx in indices:
@@ -101,7 +101,7 @@ if __name__ == "__main__":
 
     dataset=datasets.PatchDataset(root=test_path)
 
-    sampler = PatchSampler(dataset=dataset, patch_size=16)
+    sampler = RandomPatchSampler(dataset=dataset, patch_size=16)
 
     transform = transforms.Compose([transforms.ToTensor()])
     collate_fn = datasets.BaseCollateFunction(transform)
