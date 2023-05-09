@@ -175,6 +175,44 @@ class PatchDataset(LightlyDataset):
 
             return (sample, target, fname)
 
+class TripletPatchDataset(LightlyDataset):
+    def __init__(
+        self,
+        root: str,
+        transform: object = None,
+    ):
+        super(TripletPatchDataset, self).__init__(root, transform)    
+
+    def __getitem__(self, index):
+        # print(f'index={index}')
+        if isinstance(index, tuple):
+            idx, a, p, n, patch_size = index
+            # get filename
+            fname = self.index_to_filename(self.dataset, idx)
+
+            # get samples (image) and targets (label)
+            sample, target = self.dataset.__getitem__(idx)
+
+            # get specified patches for a triplet
+            a_sample = sample.crop((a[0], a[1], a[0]+patch_size, a[1]+patch_size))
+            p_sample = sample.crop((p[0], p[1], p[0]+patch_size, p[1]+patch_size))
+            n_sample = sample.crop((n[0], n[1], n[0]+patch_size, n[1]+patch_size))
+
+            # patch.show()
+
+            return ((a_sample, target, f'patch_{a[0]}_{a[1]}_{fname}'), \
+                    (p_sample, target, f'patch_{p[0]}_{p[1]}_{fname}'), \
+                    (n_sample, target, f'patch_{n[0]}_{n[1]}_{fname}'))
+        else:
+            # just return a full image
+            # get filename
+            fname = self.index_to_filename(self.dataset, index)
+
+            # get samples (image) and targets (label)
+            sample, target = self.dataset.__getitem__(index)
+
+            return (sample, target, fname)
+
 
 if __name__ == "__main__":
     # test_path="../data/liver_reduced/train"
