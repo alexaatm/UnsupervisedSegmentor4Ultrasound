@@ -79,10 +79,17 @@ class DINO(pl.LightningModule):
             raise NotImplementedError()
     
 def get_dino_backbone(dino_model_name: str, pretrained_weights = False):
-    if pretrained_weights:
-        backbone = torch.hub.load('facebookresearch/dino:main', dino_model_name, pretrained=True) 
+    if "dinov2" in dino_model_name:
+        # eg for dinov2 models like dinov2_vits14
+        if pretrained_weights:
+            backbone = torch.hub.load('facebookresearch/dinov2:main', dino_model_name, pretrained=True) 
+        else:
+            backbone = torch.hub.load('facebookresearch/dinov2:main', dino_model_name, pretrained=False)
     else:
-        backbone = torch.hub.load('facebookresearch/dino:main', dino_model_name, pretrained=False)
+        if pretrained_weights:
+            backbone = torch.hub.load('facebookresearch/dino:main', dino_model_name, pretrained=True) 
+        else:
+            backbone = torch.hub.load('facebookresearch/dino:main', dino_model_name, pretrained=False)
     input_dim = backbone.embed_dim
     return (backbone, input_dim)
 

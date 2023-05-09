@@ -157,7 +157,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
 
 
     # model
-    if any(x in cfg.train.backbone for x in ('dino_vits16','dino_vits8')):
+    if any(x in cfg.train.backbone for x in ('dino_vits16','dino_vits8', 'dinov2_vits14')):
         backbone, input_dim = dinoLightningModule.get_dino_backbone(cfg.train.backbone, cfg.train.pretrained_weights)
     elif cfg.train.backbone=="resnet":
         backbone, input_dim = dinoLightningModule.get_resnet_backbone(cfg.train.pretrained_weights)
