@@ -102,13 +102,17 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         train_dataset = datasets.PatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=transform)
         val_dataset = datasets.PatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=transform)
 
+    if 'dinov2' in cfg.train.backbone:
+        local_crop_size=98 #to make divisible by 14, dinov2 pacthsize
+    
     collate_fn = DINOCollateFunction(
         cj_prob = 0,
         cj_hue = 0, 
         random_gray_scale = 0,
         cj_sat = 0,
         cj_bright=0,
-        cj_contrast=0
+        cj_contrast=0,
+        local_crop_size = local_crop_size
     )
 
     if cfg.loader.mode=="patch":

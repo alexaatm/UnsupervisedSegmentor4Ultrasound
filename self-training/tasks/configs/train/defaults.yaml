@@ -1,6 +1,7 @@
 ---
 backbone:
-optimizer:
+pretrained_weights: False
+optimizer: Adam
 lr: 1e-3
 epochs: 10
 seed: 1
