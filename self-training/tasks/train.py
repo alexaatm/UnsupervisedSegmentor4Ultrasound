@@ -103,7 +103,9 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         val_dataset = datasets.PatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=transform)
 
     if 'dinov2' in cfg.train.backbone:
-        local_crop_size=98 #to make divisible by 14, dinov2 pacthsize
+        local_crop_size = 98 #to make divisible by 14, dinov2 pacthsize
+    else:
+        local_crop_size = 96
     
     collate_fn = DINOCollateFunction(
         cj_prob = 0,
@@ -341,12 +343,20 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     if cfg.wandb.mode=='server':
         # use polyaxon paths
         main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
-        train_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), mode = cfg.dataset.triplet_mode)
-        val_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), mode = cfg.dataset.triplet_mode)
+        if cfg.loader.mode=="patch":
+            train_dataset = datasets.TripletPatchDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path))
+            val_dataset = datasets.TripletPatchDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path))
+        else:
+            train_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), mode = cfg.dataset.triplet_mode)
+            val_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), mode = cfg.dataset.triplet_mode)
     else:
-        # use default local data 
-        train_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path), mode = cfg.dataset.triplet_mode)
-        val_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path), modoe = cfg.dataset.triplet_mode)
+         # use default local data 
+        if cfg.loader.mode=="patch":
+            train_dataset = datasets.TripletPatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
+            val_dataset = datasets.TripletPatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
+        else:
+            train_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path), mode = cfg.dataset.triplet_mode)
+            val_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path), modoe = cfg.dataset.triplet_mode)
     
     print(f'Train dataset sample={train_dataset[0]}')
     # data processing
@@ -359,17 +369,35 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     transform = transforms.Compose([transforms.ToTensor(), resize, normalize])
     collate_fn = datasets.TripletBaseCollateFunction(transform)
 
+    if cfg.loader.mode=="patch":
+        train_sampler=samplers.TripletPatchSampler(
+            dataset=train_dataset,
+            patch_size=cfg.loader.patch_size,
+            shuffle=True,
+            max_shift=cfg.loader.max_shift)
+        val_sampler=samplers.TripletPatchSampler(
+            dataset=val_dataset,
+            patch_size=cfg.loader.patch_size,
+            shuffle=False,
+            max_shift=cfg.loader.max_shift)
+    else:
+        train_sampler=torch.utils.data.RandomSampler(train_dataset)
+        val_sampler=torch.utils.data.SequentialSampler(val_dataset)
+
+
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
+        sampler=train_sampler,
         batch_size=cfg.loader.batch_size,
         collate_fn = collate_fn,
-        shuffle=True,
+        shuffle=False,
         drop_last=True,
         num_workers=cfg.loader.num_workers,
     )
 
     val_dataloader = torch.utils.data.DataLoader(
         val_dataset,
+        sampler=val_sampler,
         batch_size=cfg.loader.batch_size,
         collate_fn = collate_fn,
         shuffle=False,
@@ -381,6 +409,8 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     log.info(f"Val dataset:{len(val_dataset)}")
     log.info(f"Train dataloader: {len(train_dataloader)}")
     log.info(f"Val dataloader: {len(val_dataloader)}")
+    log.info(f"Train sampler: {len(train_sampler)}")
+    log.info(f"Val sampler: {len(val_sampler)}")
 
     # model
     if cfg.train.backbone=="resnet":
