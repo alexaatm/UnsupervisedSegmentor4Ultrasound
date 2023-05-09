@@ -97,10 +97,11 @@ class RandomPatchSampler(Sampler):
 
 
 class TripletPatchSampler(Sampler):
-    def __init__(self, dataset, patch_size, shuffle=True):
+    def __init__(self, dataset, patch_size, shuffle=True, max_shift=30):
         self.dataset = dataset
         self.patch_size = patch_size
-        self.shuffle=shuffle     
+        self.shuffle=shuffle
+        self.max_shift=max_shift    
 
 
     def __iter__(self):
@@ -120,13 +121,13 @@ class TripletPatchSampler(Sampler):
                                torch.randint(low = 0, high = h - self.patch_size + 1, size=(1,)).item())
                 
                 # sample positive patch by shifting range from the anchor
-                w_shift = torch.randint(low = 0, high = self.patch_size//2, size=(1,)).item()
-                h_shift = torch.randint(low = 0, high = self.patch_size//2, size=(1,)).item()
+                w_shift = torch.randint(low = 0, high = self.max_shift, size=(1,)).item()
+                h_shift = torch.randint(low = 0, high = self.max_shift, size=(1,)).item()
                 pos_patch = (torch.randint(low = max(anchor_patch[0] - w_shift, 0),
-                                           high = min(anchor_patch[0] + self.patch_size + w_shift, w),
+                                           high = min(anchor_patch[0] + self.patch_size//2 + w_shift, w),
                                            size=(1,)).item(), \
                              torch.randint(low = max(anchor_patch[1] - h_shift, 0),
-                                           high = min(anchor_patch[1] + self.patch_size + w_shift, h),
+                                           high = min(anchor_patch[1] + self.patch_size//2 + w_shift, h),
                                            size=(1,)).item())
                 
                 # sample negative randomly (TODO: add non random negative sampling)
