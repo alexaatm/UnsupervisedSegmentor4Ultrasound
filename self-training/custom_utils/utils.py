@@ -25,7 +25,13 @@ def get_model(name: str):
 
 def get_dino_traind_model(name: str):
     print(f'model name: {name}')
-    if 'dino' in name:
+    if 'dinov2' in name:
+        model = torch.hub.load('facebookresearch/dinov2:main', name, pretrained=True)
+        model.fc = torch.nn.Identity()
+        patch_size = model.patch_embed.patch_size
+        num_heads = model.blocks[0].attn.num_heads
+        params = [num_heads, patch_size]
+    elif 'dino' in name:
         model = torch.hub.load('facebookresearch/dino:main', name, pretrained=True)
         model.fc = torch.nn.Identity()
         patch_size = model.patch_embed.patch_size
