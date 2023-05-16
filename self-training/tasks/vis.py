@@ -19,6 +19,13 @@ from accelerate import Accelerator
 from tqdm import tqdm
 
 import ssl
+import torch.nn.functional as F
+
+
+# for dino attention maps
+import requests
+from io import BytesIO
+from PIL import Image
 
 # A logger for this file
 log = logging.getLogger(__name__)
@@ -253,7 +260,7 @@ def extract_saliency_maps_v1(cfg: DictConfig) -> None:
 
 def extract_saliency_maps_v2(cfg: DictConfig) -> None:
     """
-    Based on: Registering a hook to get output of the last convolutional layer
+    Based on: Registering a hook to get input of the last convolutional layer
     """
 
     # Transform
@@ -316,7 +323,7 @@ def extract_saliency_maps_v2(cfg: DictConfig) -> None:
         feat_out = {}
         # define hook function
         def hook(module, input, output):
-            # store the output of the module in the outputs dictionary
+            # store the input of the module in the outputs dictionary
             feat_out['last_conv_layer_input'] = input
         # register hook on the last convolutional layer of the resnet model
         last_layer = list(model.children())[-1]
@@ -431,6 +438,9 @@ def extract_saliency_maps_dino(cfg: DictConfig) -> None:
         model._modules["blocks"][which_block]._modules["attn"]._modules["qkv"].register_forward_hook(hook_fn_forward_qkv)
         num_heads = params[0]
         patch_size = params[1]
+    
+    print(f'patch size of backbone: {patch_size}')
+    # exit()
 
     # Prepare accelerator
     cpu = True
@@ -447,7 +457,6 @@ def extract_saliency_maps_dino(cfg: DictConfig) -> None:
         print(f'sample shape before: {sample.shape}')
         B, C, H, W = sample.shape
         P = patch_size
-        print(f'patch size: {P}')
         H_patch, W_patch = H // P, W // P
         H_pad, W_pad = H_patch * P, W_patch * P
         T = H_patch * W_patch + 1  # number of tokens, add 1 for [CLS]
@@ -459,15 +468,27 @@ def extract_saliency_maps_dino(cfg: DictConfig) -> None:
         
         # extarct features
         model.get_intermediate_layers(sample)[0].squeeze(0)
+        print(f'feat_out["qkv"] shape : {feat_out["qkv"].shape}')
         output_qkv = feat_out["qkv"].reshape(B, T, 3, num_heads, -1 // num_heads).permute(2, 0, 3, 1, 4)
         print(f'output_qkv shape: {output_qkv.shape}')
         slc = output_qkv[1].transpose(1, 2).reshape(B, T, -1)[:, 1:, :]
         print(f'slc shape: {slc.shape}')
+
+        
         #apply inverse transform on image
         input_img = inv_normalize(sample[0])
         print(f'input_img shape: {input_img.shape}')
 
+        # slc=slc.unsqueeze(0)
+        # print(f'slc shape after unsqueeze: {slc.shape}')
+
+        # Upscale features to match the resolution
+        slc = F.interpolate(
+                slc.T.reshape(1, -1, H_patch, W_patch), 
+                size=(H, W), mode='bilinear', align_corners=False
+            )
         
+        print(f'slc shape after upscaling: {slc.shape}')
             
         #plot image and its saleincy map
         plt.figure(figsize=(10, 10))
@@ -476,12 +497,156 @@ def extract_saliency_maps_dino(cfg: DictConfig) -> None:
         plt.xticks([])
         plt.yticks([])
         plt.subplot(1, 2, 2)
-        plt.imshow(np.transpose(slc.cpu().numpy(), (1, 2, 0)))
+        plt.imshow(np.transpose(slc.detach().cpu().numpy(), (1, 2, 0)))
         plt.xticks([])
         plt.yticks([])
-        plt.show()
-        exit()
-        plt.savefig('saliency_map_v2__'+fname)
+        # plt.show()
+        # exit()
+        plt.savefig('saliency_map_dino__'+fname)
+
+def extract_attention_maps_dino(cfg: DictConfig) -> None:
+    """
+    Based on: https://www.kaggle.com/code/stpeteishii/visualize-self-attention-by-dino/notebook
+    and https://github.com/facebookresearch/dino/blob/main/visualize_attention.py
+    """
+
+    # Transform
+    # Add resize to the transforms
+    if 'carotid' in cfg.dataset.name:
+        # resize to acquare images (val set has varied sizes...)
+        resize = transforms.Resize((cfg.dataset.input_size,cfg.dataset.input_size))
+    else:
+        resize = transforms.Resize(cfg.dataset.input_size)
+
+    #define transforms to preprocess input image into format expected by model
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+
+    transform = transforms.Compose([
+        resize,
+        transforms.ToTensor(),
+        normalize,          
+    ])
+
+    #inverse transform to get normalize image back to original form for visualization
+    inv_normalize = transforms.Normalize(
+    mean=[-0.485/0.229, -0.456/0.224, -0.406/0.255],
+    std=[1/0.229, 1/0.224, 1/0.255]
+    )
+
+    # Dataset
+    dataset = LightlyDataset(
+        input_dir = os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),
+        transform=transform)
+    log.info(f'Dataset size: {len(dataset)}')
+
+    # Model
+    if cfg.model_checkpoint=="":
+        ssl._create_default_https_context = ssl._create_unverified_context
+        model, params = utils.get_dino_traind_model(cfg.model_name)
+        # model = torch.hub.load('facebookresearch/dino:main', cfg.model_name, pretrained=True) 
+    else:
+        model_path = os.path.join(hydra.utils.get_original_cwd(), cfg.model_checkpoint)
+        print("model path: ", model_path)
+        model, params = utils.get_model_from_path(cfg.model_name, model_path)
+
+    # TODO: check if this step is needed
+    for p in model.parameters():
+        p.requires_grad = False
+
+    #set model in eval mode
+    model.eval()
+
+    if 'dino' in cfg.model_name:
+        num_heads = params[0]
+        patch_size = params[1]
+    
+    print(f'patch size of backbone: {patch_size}')
+    # exit()
+
+    # Prepare accelerator
+    cpu = True
+    if torch.cuda.is_available():
+        cpu = False
+    accelerator = Accelerator(cpu)
+    model = model.to(accelerator.device)
+    print('accelerator device=', accelerator.device)
+
+    # Process
+    pbar = tqdm(dataset, desc='Processing')
+    for i, (sample, target, fname) in enumerate(pbar):
+        print(type(sample))
+        print(sample.shape)  
+
+        # sample=sample.unsqueeze(0)
+        # print(f'sample shape before: {sample.shape}')
+        h = sample.shape[1] - sample.shape[1] % patch_size
+        w = sample.shape[2] - sample.shape[2] % patch_size
+        sample = sample[:, :h, :w].unsqueeze(0)
+        h_featmap = sample.shape[-2] // patch_size
+        w_featmap = sample.shape[-1] // patch_size
+        # print(f'h, w: {h},{w}')
+        # print(f'h_featmap, w_featmap: {h_featmap},{w_featmap}')
+        # print(f'sample shape: {sample.shape}')
+        sample = sample.to(accelerator.device)
+
+
+
+        # # # # # # ATTENTION MAPS DINO 
+
+        # get self-attention
+        attentions = model.get_last_selfattention(sample)
+        nh = attentions.shape[1] # number of head
+
+        # we keep only the output patch attention
+        attentions = attentions[0, :, 0, 1:].reshape(nh, -1)
+
+        # we keep only a certain percentage of the mass
+        val, idx = torch.sort(attentions)
+        val /= torch.sum(val, dim=1, keepdim=True)
+        cumval = torch.cumsum(val, dim=1)
+
+        threshold = 0.6 # We visualize masks obtained by thresholding the self-attention maps to keep xx% of the mass.
+        th_attn = cumval > (1 - threshold)
+        idx2 = torch.argsort(idx)
+        for head in range(nh):
+            th_attn[head] = th_attn[head][idx2[head]]
+            
+        th_attn = th_attn.reshape(nh, h_featmap, w_featmap).float()
+
+        # interpolate
+        th_attn = nn.functional.interpolate(th_attn.unsqueeze(0), scale_factor=patch_size, mode="nearest")[0].cpu().numpy()
+        attentions = attentions.reshape(nh, h_featmap, w_featmap)
+        attentions = nn.functional.interpolate(attentions.unsqueeze(0), scale_factor=patch_size, mode="nearest")[0].cpu().numpy()
+        attentions_mean = np.mean(attentions, axis=0)
+
+
+
+        # # # # # # PLOTTING
+
+        #apply inverse transform on image
+        input_img = inv_normalize(sample[0])
+        # print(f'input_img shape: {input_img.shape}')
+
+        plt.figure(figsize=(6,6), dpi=200)
+        plt.subplot(3,3,1)
+        plt.title("Input")
+        plt.imshow(np.transpose(input_img.cpu().numpy(), (1, 2, 0)))
+        plt.axis("off")
+        # visualize self-attention of each head
+
+        for i in range(6):
+            plt.subplot(3,3,i+4)
+            plt.title("Head "+str(i+1))
+            plt.imshow(attentions[i])
+            plt.axis("off")
+
+        plt.subplot(3,3,2)
+        plt.title("Head Mean")
+        plt.imshow(attentions_mean)
+        plt.axis("off")
+        plt.tight_layout()
+        plt.savefig('saliency_map_dino__'+fname)
 
 @hydra.main(version_base=None, config_path="./configs", config_name="saliency_maps")
 def vis(cfg: DictConfig) -> None:
@@ -497,6 +662,8 @@ def vis(cfg: DictConfig) -> None:
         extract_saliency_maps_v1_avg(cfg)
     elif cfg.vis == "saliency_maps_dino":
         extract_saliency_maps_dino(cfg)
+    elif cfg.vis == "attention_maps_dino":
+        extract_attention_maps_dino(cfg)
     else:
         raise ValueError(f'No visualisation called: {cfg.vis}')
 
