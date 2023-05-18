@@ -1,5 +1,6 @@
 batch_size: 1
 num_workers: 0
 mode: patch
-patch_size: 16
-max_shift: 30
+patch_size: 64
+min_shift: 0.1
+max_shift: 0.3
