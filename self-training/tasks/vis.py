@@ -560,6 +560,8 @@ def extract_attention_maps_dino(cfg: DictConfig) -> None:
     if 'dino' in cfg.model_name:
         num_heads = params[0]
         patch_size = params[1]
+        if isinstance(patch_size, tuple):
+            patch_size = patch_size[0]
     
     print(f'patch size of backbone: {patch_size}')
     # exit()
