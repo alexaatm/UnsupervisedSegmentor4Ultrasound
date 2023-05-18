@@ -336,7 +336,7 @@ def train_simclr(cfg: DictConfig) -> None:
     # saving the final model
     trainer.save_checkpoint('final_model.ckpt', weights_only=False)
 
-def train_simclr_triplet(cfg: DictConfig) -> None:
+def train_triplet(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
 
     # data
@@ -426,6 +426,8 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     # model
     if cfg.train.backbone=="resnet":
         backbone, hidden_dim = simclrLightningModule.get_resnet_backbone(cfg.train.pretrained_weights)
+    elif any(x in cfg.train.backbone for x in ('dino_vits16','dino_vits8', 'dinov2_vits14')):
+        backbone, hidden_dim = dinoLightningModule.get_dino_backbone(cfg.train.backbone, cfg.train.pretrained_weights)
     else:
         raise NotImplementedError()
     model = simclrTripletLightningModule.SimCLRTriplet(
@@ -506,10 +508,10 @@ def run_experiment(cfg: DictConfig) -> None:
         log.info(f"Experiment chosen: {cfg.experiment.name}")
         run = wandb.init(config=wandb_config, project = cfg.wandb.setup.project, settings=wandb.Settings(start_method='thread'))
         train_simclr(cfg)
-    elif cfg.experiment.name == "train_simclr_triplet":
+    elif cfg.experiment.name == "train_triplet":
         log.info(f"Experiment chosen: {cfg.experiment.name}")
         run = wandb.init(config=wandb_config, project = cfg.wandb.setup.project, settings=wandb.Settings(start_method='thread'))
-        train_simclr_triplet(cfg)
+        train_triplet(cfg)
     else:
         raise ValueError(f'No experiment called: {cfg.experiment.name}')
     
