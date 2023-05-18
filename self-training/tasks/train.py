@@ -433,7 +433,8 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
         hidden_dim, 
         max_epochs=cfg.train.epochs, 
         lr=cfg.train.lr,
-        optimizer=cfg.train.optimizer)
+        optimizer=cfg.train.optimizer,
+        triplet_loss_margin=cfg.train.triplet_loss_margin)
 
     # wandb logging
     wandb_logger = pl.loggers.WandbLogger()

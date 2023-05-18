@@ -5,7 +5,7 @@ from torch import nn
 from lightly.models.modules import SimCLRProjectionHead
 
 class SimCLRTriplet(pl.LightningModule):
-    def __init__(self, backbone, hidden_dim, max_epochs=1, lr = 0.001, optimizer="Adam"):
+    def __init__(self, backbone, hidden_dim, max_epochs=1, lr = 0.001, optimizer="Adam", triplet_loss_margin=1):
         super().__init__()
 
         self.optimizer_choice=optimizer
@@ -14,7 +14,7 @@ class SimCLRTriplet(pl.LightningModule):
         self.backbone=backbone
         self.projection_head = SimCLRProjectionHead(hidden_dim, hidden_dim, 512)
         # https://pytorch.org/docs/stable/generated/torch.nn.TripletMarginLoss.html
-        self.criterion = torch.nn.TripletMarginLoss()
+        self.criterion = torch.nn.TripletMarginLoss(margin=triplet_loss_margin)
 
     def forward(self, anchor, pos, neg):
         x_anchor = self.backbone(anchor).flatten(start_dim=1)
