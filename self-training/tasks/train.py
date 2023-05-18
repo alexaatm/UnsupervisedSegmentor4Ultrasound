@@ -110,10 +110,11 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     collate_fn = DINOCollateFunction(
         cj_prob = 0,
         cj_hue = 0, 
-        random_gray_scale = 0,
+        random_gray_scale = 1,
         cj_sat = 0,
         cj_bright=0,
         cj_contrast=0,
+        solarization_prob = 0,
         local_crop_size = local_crop_size
     )
 
@@ -216,11 +217,11 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
-                            save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
+                            save_top_k=5, filename='{epoch}-{step}-{val_loss:.2f}'),
             ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogDinoInputViewsCallback(),
-            EarlyStopping(monitor="val_loss", mode="min", patience = 200, verbose=True)
+            EarlyStopping(monitor="val_loss", mode="min", patience = 100, verbose=True)
         ],
         logger=wandb_logger,
         log_every_n_steps=1,
