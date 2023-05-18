@@ -1,0 +1,51 @@
+version: 1
+kind: experiment
+framework: pytorch
+tags:
+  - dinov1_vits16
+build:
+  image: pytorchlightning/pytorch_lightning:base-xla-py3.7-torch1.12
+  build_steps:
+    - pip install -r requirements.txt
+    - pip install markupsafe==2.0.1 --force
+    - pip3 install torch_xla[tpuvm]
+    - pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
+
+environment:
+  resources:
+    cpu:
+      requests: 12
+      limits: 48
+    memory:
+      requests: 24576
+      limits: 64000
+    gpu:
+      requests: 1
+      limits: 1
+
+params:
+  batch_size: 48
+  exp_name: train_dinoLightningModule
+  backbone: dino_vits16
+  epochs: 300
+  loader_num_workers: 8
+  dataset_input_size: 256
+  train_lr: 1e-3
+  pretrained_weights: False
+  dataset: liver_reduced
+  loader: patch64
+
+run:
+  cmd: python -m tasks.train \
+      wandb.setup.project=self-train \
+      wandb=server \
+      dataset={{ dataset }} \
+      experiment.name={{ exp_name }} \
+      train.backbone={{ backbone }} \
+      train.epochs={{ epochs }} \
+      train.pretrained_weights={{ pretrained_weights }} \
+      loader.batch_size={{ batch_size }} \
+      loader.num_workers={{ loader_num_workers }}  \
+      dataset.input_size={{ dataset_input_size }} \
+      loader={{ loader }} \
+      train.lr={{ train_lr }}
