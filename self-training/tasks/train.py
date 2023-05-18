@@ -368,7 +368,17 @@ def train_simclr_triplet(cfg: DictConfig) -> None:
     else:
         resize = transforms.Resize(cfg.dataset.input_size)
     transform = transforms.Compose([transforms.ToTensor(), resize, normalize])
-    collate_fn = datasets.TripletBaseCollateFunction(transform)
+
+    # transforms for the positive patch in the triplet
+    pos_transform = transforms.Compose(
+            [
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomVerticalFlip(p=0.5),
+                transforms.RandomResizedCrop(size=cfg.loader.patch_size, scale=(0.4, 1.0)),
+                transforms.RandomApply(transforms=[transforms.GaussianBlur(sigma=(0.1, 2), kernel_size=(5, 9))], p=0.5)
+            ]
+        )
+    collate_fn = datasets.TripletBaseCollateFunction(transform, pos_transform=pos_transform)
 
     if cfg.loader.mode=="patch":
         train_sampler=samplers.TripletPatchSampler(

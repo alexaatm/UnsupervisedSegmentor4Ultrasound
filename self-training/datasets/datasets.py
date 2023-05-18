@@ -99,9 +99,13 @@ class TripletDataset(LightlyDataset):
         self.dataset = ims_labels
     
 class TripletBaseCollateFunction(BaseCollateFunction):
-    def __init__(self, transform: T.Compose):
+    def __init__(self, transform: T.Compose, pos_transform: T.Compose):
         super(TripletBaseCollateFunction, self).__init__(transform)
         self.transform = transform
+        if pos_transform==None:
+            self.pos_transform=T.Compose([])
+        else:
+            self.pos_transform = pos_transform
 
     def forward(self, batch: List[Tuple[ \
             Tuple[Image.Image, int, str], \
@@ -124,7 +128,7 @@ class TripletBaseCollateFunction(BaseCollateFunction):
         # lists of samples
         # anchors is 0th item in a tuple (a,p,n), anchor sample is 0th item in a tuple (sample, target, fname)
         a_samples = torch.stack([self.transform(item[0][0]) for item in batch])
-        p_samples = torch.stack([self.transform(item[1][0]) for item in batch])
+        p_samples = torch.stack([self.pos_transform(self.transform(item[1][0])) for item in batch])
         n_samples = torch.stack([self.transform(item[2][0]) for item in batch])
 
         # lists of labels (targets)
