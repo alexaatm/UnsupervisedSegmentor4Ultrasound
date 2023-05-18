@@ -129,7 +129,7 @@ class TripletPatchSampler(Sampler):
                                            high = min(anchor_patch[0] + self.patch_size//2 + w_shift, w - self.patch_size + 1),
                                            size=(1,)).item(), \
                              torch.randint(low = max(anchor_patch[1] - h_shift, 0),
-                                           high = min(anchor_patch[1] + self.patch_size//2 + w_shift, h - self.patch_size + 1),
+                                           high = min(anchor_patch[1] + self.patch_size//2 + h_shift, h - self.patch_size + 1),
                                            size=(1,)).item())
                 
                 # sample negative randomly (TODO: add non random negative sampling)
