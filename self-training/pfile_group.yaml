@@ -39,9 +39,9 @@ hptuning:
     pretrained_weights:
       values: [False,True]
     dataset:
-      values: [liver_reduced,carotid_mutinfo]
+      values: [carotid_mutinfo, liver_reduced]
     loader:
-      values: [patch64,defaults]
+      values: [defaults,patch64]
 
 run:
   cmd: python -m tasks.train \
