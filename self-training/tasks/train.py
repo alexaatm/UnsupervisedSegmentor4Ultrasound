@@ -226,7 +226,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
             ModelCheckpoint(every_n_epochs=100, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogDinoInputViewsCallback(),
-            EarlyStopping(monitor="val_loss", mode="min", patience = 50, verbose=True)
+            EarlyStopping(monitor="val_loss", mode="min", patience = 10, verbose=True)
         ],
         logger=wandb_logger,
         log_every_n_steps=1,
@@ -333,7 +333,7 @@ def train_simclr(cfg: DictConfig) -> None:
             ModelCheckpoint(every_n_epochs=100, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogSimclrInputViewsCallback(),
-            EarlyStopping(monitor="val_loss", mode="min", patience = 50, verbose=True)
+            EarlyStopping(monitor="val_loss", mode="min", patience = 10, verbose=True)
         ],
         logger=wandb_logger,
         log_every_n_steps=1,
@@ -481,7 +481,7 @@ def train_triplet(cfg: DictConfig) -> None:
             ModelCheckpoint(every_n_epochs=100, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogSimclrInputViewsCallback(),
-            EarlyStopping(monitor="val_loss", mode="min", patience = 50, verbose=True)
+            EarlyStopping(monitor="val_loss", mode="min", patience = 10, verbose=True)
         ],
         logger=wandb_logger,
         log_every_n_steps=1,
