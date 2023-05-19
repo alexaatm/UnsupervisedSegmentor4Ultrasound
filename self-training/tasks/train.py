@@ -222,11 +222,11 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
-                            save_top_k=5, filename=path_to_save_ckpt + '/{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(every_n_epochs=2, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
+                            save_top_k=4, filename=path_to_save_ckpt + '/{epoch}-{step}-{val_loss:.2f}'),
+            ModelCheckpoint(every_n_epochs=100, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogDinoInputViewsCallback(),
-            EarlyStopping(monitor="val_loss", mode="min", patience = 100, verbose=True)
+            EarlyStopping(monitor="val_loss", mode="min", patience = 50, verbose=True)
         ],
         logger=wandb_logger,
         log_every_n_steps=1,
@@ -329,7 +329,7 @@ def train_simclr(cfg: DictConfig) -> None:
         accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
-                            save_top_k=3, filename=path_to_save_ckpt + '/{epoch}-{step}-{val_loss:.2f}'),
+                            save_top_k=4, filename=path_to_save_ckpt + '/{epoch}-{step}-{val_loss:.2f}'),
             ModelCheckpoint(every_n_epochs=100, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogSimclrInputViewsCallback(),
@@ -477,11 +477,11 @@ def train_triplet(cfg: DictConfig) -> None:
         accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
-                            save_top_k=3, filename=path_to_save_ckpt + '/{epoch}-{step}-{val_loss:.2f}'),
+                            save_top_k=4, filename=path_to_save_ckpt + '/{epoch}-{step}-{val_loss:.2f}'),
             ModelCheckpoint(every_n_epochs=100, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogSimclrInputViewsCallback(),
-            EarlyStopping(monitor="val_loss", mode="min", patience = 200, verbose=True)
+            EarlyStopping(monitor="val_loss", mode="min", patience = 50, verbose=True)
         ],
         logger=wandb_logger,
         log_every_n_steps=1,
