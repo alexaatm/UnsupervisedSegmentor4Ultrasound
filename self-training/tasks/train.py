@@ -97,10 +97,15 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
         train_dataset = datasets.PatchDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=transform)
         val_dataset = datasets.PatchDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), transform=transform)
+        path_to_save_ckpt = get_outputs_path()
+        
     else:
         # use default local data 
         train_dataset = datasets.PatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=transform)
         val_dataset = datasets.PatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=transform)
+        path_to_save_ckpt = os.getcwd()
+
+    log.info(f"Path to save chekpoints: {path_to_save_ckpt}")
 
     if 'dinov2' in cfg.train.backbone:
         local_crop_size = 98 #to make divisible by 14, dinov2 pacthsize
@@ -217,8 +222,8 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
-                            save_top_k=5, filename='{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
+                            save_top_k=5, filename=path_to_save_ckpt + '/{epoch}-{step}-{val_loss:.2f}'),
+            ModelCheckpoint(every_n_epochs=2, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogDinoInputViewsCallback(),
             EarlyStopping(monitor="val_loss", mode="min", patience = 100, verbose=True)
@@ -229,7 +234,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # saving the final model
-    trainer.save_checkpoint('final_model.ckpt', weights_only=False)
+    trainer.save_checkpoint(path_to_save_ckpt + '/final_model.ckpt', weights_only=False)
 
 def train_simclr(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
@@ -242,10 +247,12 @@ def train_simclr(cfg: DictConfig) -> None:
         main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
         train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=resize)
         val_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), transform=resize)
+        path_to_save_ckpt = get_outputs_path()
     else:
         # use default local data 
         train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=resize)
         val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=resize)
+        path_to_save_ckpt = os.getcwd()
 
 
     collate_fn = SimCLRCollateFunction(
@@ -322,11 +329,11 @@ def train_simclr(cfg: DictConfig) -> None:
         accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
-                            save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
+                            save_top_k=3, filename=path_to_save_ckpt + '/{epoch}-{step}-{val_loss:.2f}'),
+            ModelCheckpoint(every_n_epochs=100, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogSimclrInputViewsCallback(),
-            EarlyStopping(monitor="val_loss", mode="min", patience = 200, verbose=True)
+            EarlyStopping(monitor="val_loss", mode="min", patience = 50, verbose=True)
         ],
         logger=wandb_logger,
         log_every_n_steps=1,
@@ -334,7 +341,7 @@ def train_simclr(cfg: DictConfig) -> None:
     trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # saving the final model
-    trainer.save_checkpoint('final_model.ckpt', weights_only=False)
+    trainer.save_checkpoint(path_to_save_ckpt + '/final_model.ckpt', weights_only=False)
 
 def train_triplet(cfg: DictConfig) -> None:
     pl.seed_everything(cfg.train.seed)
@@ -350,6 +357,7 @@ def train_triplet(cfg: DictConfig) -> None:
         else:
             train_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), mode = cfg.dataset.triplet_mode)
             val_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), mode = cfg.dataset.triplet_mode)
+        path_to_save_ckpt = get_outputs_path()
     else:
          # use default local data 
         if cfg.loader.mode=="patch":
@@ -358,6 +366,7 @@ def train_triplet(cfg: DictConfig) -> None:
         else:
             train_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path), mode = cfg.dataset.triplet_mode)
             val_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path), modoe = cfg.dataset.triplet_mode)
+        path_to_save_ckpt = os.getcwd()
     
     print(f'Train dataset sample={train_dataset[0]}')
     # data processing
@@ -468,8 +477,8 @@ def train_triplet(cfg: DictConfig) -> None:
         accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
-                            save_top_k=3, filename='{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(every_n_epochs=100, filename='{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
+                            save_top_k=3, filename=path_to_save_ckpt + '/{epoch}-{step}-{val_loss:.2f}'),
+            ModelCheckpoint(every_n_epochs=100, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogSimclrInputViewsCallback(),
             EarlyStopping(monitor="val_loss", mode="min", patience = 200, verbose=True)
@@ -480,7 +489,7 @@ def train_triplet(cfg: DictConfig) -> None:
     trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
 
     # saving the final model
-    trainer.save_checkpoint('final_model.ckpt', weights_only=False)
+    trainer.save_checkpoint(path_to_save_ckpt + '/final_model.ckpt', weights_only=False)
 
 @hydra.main(version_base=None, config_path="./configs", config_name="defaults")
 def run_experiment(cfg: DictConfig) -> None:
