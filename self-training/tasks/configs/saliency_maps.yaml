@@ -11,3 +11,4 @@ model_name: simclr
 model_checkpoint: ""
 loader.batch_size: 1
 vis: saliency_maps_v1
+just_backbone: False
