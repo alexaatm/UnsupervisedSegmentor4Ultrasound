@@ -548,7 +548,7 @@ def extract_attention_maps_dino(cfg: DictConfig) -> None:
     else:
         model_path = os.path.join(hydra.utils.get_original_cwd(), cfg.model_checkpoint)
         print("model path: ", model_path)
-        model, params = utils.get_model_from_path(cfg.model_name, model_path)
+        model, params = utils.get_model_from_path(cfg.model_name, model_path, cfg.just_backbone)
 
     # TODO: check if this step is needed
     for p in model.parameters():

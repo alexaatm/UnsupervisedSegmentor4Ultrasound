@@ -60,31 +60,57 @@ def make_output_dir(output_dir, check_if_empty=True):
         if input(f'Output dir already contains files. Continue? (y/n) >> ') != 'y':
             sys.exit()  # skip because already generated
 
-def get_model_from_path(model_name, ckpt_path):
+def get_model_from_path(model_name, ckpt_path, just_backbone=False):
     if 'dino' in model_name:
-        # get the backbone
-        backbone, input_dim = dinoLightningModule.get_dino_backbone(model_name)
+        if just_backbone:
+            # get the backbone
+            model, input_dim = dinoLightningModule.get_dino_backbone(model_name)
 
-        # load the model from the checkpoint
-        checkpoint = torch.load(ckpt_path)
-        print(checkpoint.keys())
-        state_dict = checkpoint['state_dict']
-        # remove `module.` prefix
-        # state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
-        # remove `backbone.` prefix induced by multicrop wrapper
-        # state_dict = {k.replace("backbone.", ""): v for k, v in state_dict.items()}
+             # load the backbone model from the checkpoint
+            checkpoint = torch.load(ckpt_path)
+            print(checkpoint.keys())
+            state_dict = checkpoint['state_dict']
 
-        full_model = dinoLightningModule.DINO(backbone, input_dim)
-        full_model.load_state_dict(state_dict, strict=True)
+             # remove `backbone.` prefix induced by multicrop wrapper
+            state_dict = {k.replace("backbone.", ""): v for k, v in state_dict.items()}
 
-        # take teacher backbone as a model for inference
-        model = full_model.teacher_backbone
-        model.fc = torch.nn.Identity()
-        num_heads = model.blocks[0].attn.num_heads
-        patch_size = model.patch_embed.patch_size
+            # use strict=False to ignore projection head layers..
+            model.load_state_dict(state_dict, strict=False)
+            model.fc = torch.nn.Identity()
+            num_heads = model.blocks[0].attn.num_heads
+            patch_size = model.patch_embed.patch_size
 
-        # group model specific params in a separate list
-        params = [num_heads, patch_size]
+            # group model specific params in a separate list
+            params = [num_heads, patch_size]
+
+        else:
+            # get the backbone
+            backbone, input_dim = dinoLightningModule.get_dino_backbone(model_name)
+            # backbone_dict=backbone['state_dict']
+            print("backbone_dict: ", backbone)
+
+
+            # load the model from the checkpoint
+            checkpoint = torch.load(ckpt_path)
+            print(checkpoint.keys())
+            state_dict = checkpoint['state_dict']
+            print(state_dict.keys())
+            # remove `module.` prefix
+            # state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+            # remove `backbone.` prefix induced by multicrop wrapper
+            # state_dict = {k.replace("backbone.", ""): v for k, v in state_dict.items()}
+
+            full_model = dinoLightningModule.DINO(backbone, input_dim)
+            full_model.load_state_dict(state_dict, strict=True)
+
+            # take teacher backbone as a model for inference
+            model = full_model.teacher_backbone
+            model.fc = torch.nn.Identity()
+            num_heads = model.blocks[0].attn.num_heads
+            patch_size = model.patch_embed.patch_size
+
+            # group model specific params in a separate list
+            params = [num_heads, patch_size]
     # TODO: add elif branch for loading simclr model and triplet
     elif model_name=='simclr':
         backbone, hidden_dim = simclrLightningModule.get_resnet_backbone()
