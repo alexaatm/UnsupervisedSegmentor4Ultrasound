@@ -178,7 +178,8 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
     model = dinoLightningModule.DINO(backbone, input_dim,
         max_epochs=cfg.train.epochs, 
         optimizer=cfg.train.optimizer,
-        lr=cfg.train.lr
+        lr=cfg.train.lr,
+        weight_decay=cfg.train.weight_decay
         )
 
     # wandb logging

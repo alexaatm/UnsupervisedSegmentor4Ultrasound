@@ -17,7 +17,7 @@ from lightly.utils.scheduler import cosine_schedule
 
 
 class DINO(pl.LightningModule):
-    def __init__(self, backbone, input_dim, max_epochs=1, optimizer="Adam", lr = 0.001):
+    def __init__(self, backbone, input_dim, max_epochs=1, optimizer="Adam", lr = 0.001, weight_decay=0):
         super().__init__()
 
         self.max_epochs=max_epochs
@@ -33,6 +33,7 @@ class DINO(pl.LightningModule):
         deactivate_requires_grad(self.teacher_head)
 
         self.criterion = DINOLoss(output_dim=2048, warmup_teacher_temp_epochs=5)
+        self.weight_decay=weight_decay
 
     def forward(self, x):
         y = self.student_backbone(x).flatten(start_dim=1)
@@ -70,7 +71,7 @@ class DINO(pl.LightningModule):
 
     def configure_optimizers(self):
         if self.optimizer_choice=="Adam":
-            optim = torch.optim.Adam(self.parameters(), lr=self.lr)
+            optim = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optim, self.max_epochs
             )

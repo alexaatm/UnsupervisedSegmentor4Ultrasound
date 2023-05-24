@@ -1,6 +1,7 @@
 backbone: dino_vits8
 pretrained_weights: False
 optimizer: Adam
-lr: 1e-3
+lr: 1e-4
 epochs: 10
 seed: 1
+weight_decay: 1e-5

@@ -4,4 +4,4 @@ optimizer: Adam
 lr: 1e-3
 epochs: 10
 seed: 1
-triplet_loss_margin: 1
+triplet_loss_margin: 2
