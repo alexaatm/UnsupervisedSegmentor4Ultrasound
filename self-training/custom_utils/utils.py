@@ -9,6 +9,12 @@ from torchinfo import summary as summary2
 import shutil
 import stat
 
+# for dino attention maps
+from io import BytesIO
+import numpy as np
+import matplotlib.pyplot as plt
+from torch import nn
+
 def get_model(name: str):
     # https://github.com/lukemelas/deep-spectral-segmentation/tree/main/semantic-segmentation
 
@@ -253,6 +259,82 @@ def copytree(src, dst, symlinks = False, ignore = None):
         else:
             shutil.copy2(s, d)
 
+def extract_attention_map_dino_per_image(model, patch_size, sample):
+
+    input_img = sample
+    # Convert PIL Image to NumPy array and transpose dimensions
+    input_img = np.array(input_img).transpose((2, 0, 1))  # Transpose to (channels, height, width)
+
+    # apply transform
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ])
+    
+    sample = transform(sample)
+    w = sample.shape[1] - sample.shape[1] % patch_size
+    h = sample.shape[2] - sample.shape[2] % patch_size
+    sample = sample[:, :h, :w].unsqueeze(0)
+    w_featmap = sample.shape[-2] // patch_size
+    h_featmap = sample.shape[-1] // patch_size
+
+    # move image to device
+    sample = sample.to('cuda')
+
+    # get self-attention
+    attentions = model.get_last_selfattention(sample)
+    nh = attentions.shape[1] # number of head
+
+    # we keep only the output patch attention
+    attentions = attentions[0, :, 0, 1:].reshape(nh, -1)
+
+    # we keep only a certain percentage of the mass
+    val, idx = torch.sort(attentions)
+    val /= torch.sum(val, dim=1, keepdim=True)
+    cumval = torch.cumsum(val, dim=1)
+
+    threshold = 0.6 # We visualize masks obtained by thresholding the self-attention maps to keep xx% of the mass.
+    th_attn = cumval > (1 - threshold)
+    idx2 = torch.argsort(idx)
+    for head in range(nh):
+        th_attn[head] = th_attn[head][idx2[head]]
+        
+    th_attn = th_attn.reshape(nh, w_featmap, h_featmap).float()
+
+    # interpolate
+    th_attn = nn.functional.interpolate(th_attn.unsqueeze(0), scale_factor=patch_size, mode="nearest")[0].cpu().numpy()
+    attentions = attentions.reshape(nh, w_featmap, h_featmap)
+    attentions = nn.functional.interpolate(attentions.unsqueeze(0), scale_factor=patch_size, mode="nearest")[0].cpu().numpy()
+    attentions_mean = np.mean(attentions, axis=0)
+
+    fig = plt.figure(figsize=(6, 6), dpi=200)
+    ax = fig.add_subplot(3, 3, 1)
+    ax.set_title("Input")
+    ax.imshow(np.transpose(input_img, (1, 2, 0)))
+    ax.axis("off")
+
+    # visualize self-attention of each head
+    for i in range(6):
+        ax = fig.add_subplot(3, 3, i + 4)
+        ax.set_title("Head " + str(i + 1))
+        ax.imshow(attentions[i])
+        ax.axis("off")
+
+    ax = fig.add_subplot(3, 3, 2)
+    ax.set_title("Head Mean")
+    ax.imshow(attentions_mean)
+    ax.axis("off")
+
+    fig.tight_layout()
+
+    with BytesIO() as buff:
+        fig.savefig(buff, format='raw')
+        buff.seek(0)
+        data = np.frombuffer(buff.getvalue(), dtype=np.uint8)
+    w, h = fig.canvas.get_width_height()
+    im = data.reshape((int(h), int(w), -1))
+
+    return im
 
 if __name__ == "__main__":
     backbone = sys.argv[1]
@@ -260,3 +342,6 @@ if __name__ == "__main__":
     h = int(sys.argv[3])
     w = int(sys.argv[4])
     print_model_summary(backbone, model, h, w)
+
+
+    # 
