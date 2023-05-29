@@ -6,3 +6,4 @@ lr: 1e-3
 epochs: 10
 seed: 1
 weight_decay: 0
+fraction_layers_to_freeze: 0

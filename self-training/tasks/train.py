@@ -21,6 +21,8 @@ import wandb
 from polyaxon_client.tracking import Experiment, get_data_paths, get_outputs_path
 import shutil
 
+import numpy as np
+
 # A logger for this file
 log = logging.getLogger(__name__)
 
@@ -182,6 +184,18 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         weight_decay=cfg.train.weight_decay
         )
 
+    # freeze layers if needed
+    num_total_blocks = len(model.student_backbone.blocks)
+    num_blocks_to_freeze = int (cfg.train.fraction_layers_to_freeze * num_total_blocks)
+    
+    for i, block in enumerate(model.student_backbone.blocks):
+        if i < num_blocks_to_freeze:
+            for param in block.parameters():
+                param.requires_grad = False
+        else:
+            break  # Stop freezing layers once the desired number is reached
+
+
     # wandb logging
     wandb_logger = pl.loggers.WandbLogger()
     wandb_logger.watch(model)
@@ -214,6 +228,35 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
                     key='global_views',
                     images=single_sample_global_views)
 
+    class LogDinoAttentionMapsForCheckpointsCallback(pl.Callback):
+        def on_save_checkpoint(
+                self, trainer, pl_module, checkpoint):
+            """Called when saving checkpoints."""
+
+            # use checkpoint's state-dict for the model
+            state_dict = checkpoint['state_dict']
+            pl_module.load_state_dict(state_dict, strict=True)
+            model = pl_module.teacher_backbone
+            model.fc = torch.nn.Identity()
+            patch_size = model.patch_embed.patch_size
+
+            # put model to cuda device to
+            model = model.to('cuda')
+
+            # Take random 5 samples from the dataset
+            rand_val_samples=np.random.choice(len(val_dataset), 5)
+
+            attn_maps = []
+            for idx in rand_val_samples:
+                sample =  val_dataset[idx]
+                image, _, fname = val_dataset[idx]
+                attn_map_plot = utils.extract_attention_map_dino_per_image(model, patch_size, image)
+                attn_maps.append(attn_map_plot)
+
+            # log images with `WandbLogger.log_image`
+            wandb_logger.log_image(
+                key='attention_maps', 
+                images=attn_maps)
 
 
     # trainer
@@ -224,10 +267,11 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         callbacks=[
             ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
                             save_top_k=4, filename=path_to_save_ckpt + '/{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(every_n_epochs=100, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
+            ModelCheckpoint(every_n_epochs=10, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogDinoInputViewsCallback(),
-            EarlyStopping(monitor="val_loss", mode="min", patience = 25, verbose=True)
+            EarlyStopping(monitor="val_loss", mode="min", patience = 25, verbose=True),
+            LogDinoAttentionMapsForCheckpointsCallback()
         ],
         logger=wandb_logger,
         log_every_n_steps=1,

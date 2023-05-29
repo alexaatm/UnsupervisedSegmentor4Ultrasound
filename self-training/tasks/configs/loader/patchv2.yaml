@@ -1,0 +1,4 @@
+batch_size: 1
+num_workers: 0
+mode: patch
+patch_size: 100

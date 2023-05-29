@@ -2,7 +2,8 @@ version: 1
 kind: group
 framework: pytorch
 tags:
-  - dinov1_vits16
+  - dinov1_vits8
+  - freezing half of the layers
   - group_exp
 build:
   image: pytorchlightning/pytorch_lightning:base-xla-py3.7-torch1.12
@@ -15,37 +16,44 @@ build:
 environment:
   resources:
     cpu:
-      requests: 12
-      limits: 48
+      requests: 4
+      limits: 12
     memory:
       requests: 24576
       limits: 64000
     gpu:
       requests: 1
       limits: 1
+  node_selector:
+    gpuMemory: "32"
+  
 
 params:
   batch_size: 48
   exp_name: train_dinoLightningModule
-  backbone: dino_vits16
-  epochs: 300
+  backbone: dino_vits8
+  epochs: 50
   loader_num_workers: 8
   dataset_input_size: 256
-  train_lr: 1e-3
+  train_lr: 1e-5
+  train_weight_decay: 1e-5
 
 hptuning:
   concurrency: 1
   matrix:
     pretrained_weights:
-      values: [False,True]
+      values: [True]
     dataset:
-      values: [carotid_mutinfo, liver_reduced]
+      values: [carotid_mutinfo]
+    fraction_layers_to_freeze:
+      values: [0.0, 0.5]
     loader:
       values: [defaults,patch64]
+    
 
 run:
   cmd: python -m tasks.train \
-      wandb.setup.project=self-train \
+      wandb.setup.project=SSL-fine-tuning \
       wandb=server \
       dataset={{ dataset }} \
       experiment.name={{ exp_name }} \
@@ -56,4 +64,7 @@ run:
       loader.num_workers={{ loader_num_workers }}  \
       dataset.input_size={{ dataset_input_size }} \
       loader={{ loader }} \
-      train.lr={{ train_lr }}
+      train.lr={{ train_lr }} \
+      train.weight_decay={{ train_weight_decay }} \
+      train.fraction_layers_to_freeze={{ fraction_layers_to_freeze }}
+
