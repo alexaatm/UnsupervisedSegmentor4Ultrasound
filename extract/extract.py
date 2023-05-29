@@ -58,11 +58,11 @@ def extract_features(
     filenames = Path(images_list).read_text().splitlines()
     dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=val_transform)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=8)
-    print(f'Dataset size: {len(dataset)=}')
-    print(f'Dataloader size: {len(dataloader)=}')
+    print(f'Dataset size: {len(dataset)}')
+    print(f'Dataloader size: {len(dataloader)}')
 
     # Prepare
-    accelerator = Accelerator(fp16=True, cpu=False)
+    accelerator = Accelerator(cpu=False)
     # model, dataloader = accelerator.prepare(model, dataloader)
     model = model.to(accelerator.device)
 
@@ -129,6 +129,7 @@ def _extract_eig(
     threshold_at_zero: bool = True,
     image_downsample_factor: Optional[int] = None,
     image_color_lambda: float = 10,
+    image_ssd_beta: float = 0.0,
 ):
     index, features_file = inp
 
@@ -217,8 +218,34 @@ def _extract_eig(
             # No color affinity
             W_color = 0
 
+        if image_ssd_beta > 0:
+
+            # Load image
+            image_file = str(Path(images_root) / f'{image_id}.jpg')
+            image_resized = Image.open(image_file).resize((W_pad, H_pad), Image.BILINEAR) # NOTE: in PIL image shpae is (w, h) while in NP its (h, w)
+            image_resized=np.array(image_resized.convert('RGB')) / 255.
+            
+            # set patch size
+            patch_size = (8,8) # (H_patch, W_patch)
+            
+            # SSD patch-wise affinity matrix
+            W_ssd, p = utils.ssd_patchwise_affinity_knn(image_resized, patch_size, n_neighbors=[80, 40], distance_weights=[8.0, 4.0]) # [8, 4]
+            
+            # Check the size
+            if (W_ssd.shape != W_feat.shape):
+                # print("W_ssd.shape=",W_ssd.shape, "W_feat.shape=", W_feat.shape )
+                W_ssd = utils.interpolate_2Darray(W_ssd, W_feat.shape)
+                
+            
+
+        
+        else:
+
+            # No ssd affinity
+            W_ssd = 0
+
         # Combine
-        W_comb = W_feat + W_color * image_color_lambda  # combination
+        W_comb = W_feat + W_color * image_color_lambda + W_ssd * image_ssd_beta  # combination
         D_comb = np.array(utils.get_diagonal(W_comb).todense())  # is dense or sparse faster? not sure, should check
 
         # Extract eigenvectors
@@ -257,7 +284,8 @@ def extract_eigs(
     K: int = 20,
     image_downsample_factor: Optional[int] = None,
     image_color_lambda: float = 0.0,
-    multiprocessing: int = 0
+    multiprocessing: int = 0,
+    image_ssd_beta: float = 0.0,
 ):
     """
     Extracts eigenvalues from features.
@@ -273,7 +301,7 @@ def extract_eigs(
     utils.make_output_dir(output_dir)
     kwargs = dict(K=K, which_matrix=which_matrix, which_features=which_features, which_color_matrix=which_color_matrix,
                  normalize=normalize, threshold_at_zero=threshold_at_zero, images_root=images_root, output_dir=output_dir, 
-                 image_downsample_factor=image_downsample_factor, image_color_lambda=image_color_lambda, lapnorm=lapnorm)
+                 image_downsample_factor=image_downsample_factor, image_color_lambda=image_color_lambda, lapnorm=lapnorm, image_ssd_beta=image_ssd_beta)
     print(kwargs)
     fn = partial(_extract_eig, **kwargs)
     inputs = list(enumerate(sorted(Path(features_dir).iterdir())))
@@ -809,7 +837,7 @@ def vis_segmentations(
         bboxes = None
         if bbox_file is not None:
             bboxes = torch.tensor(bboxes_list[i]['bboxes_original_resolution'])
-            assert bboxes_list[i]['id'] == image_id, f"{bboxes_list[i]['id']=} but {image_id=}"
+            assert bboxes_list[i]['id'] == image_id, f"{bboxes_list[i]['id']} but {image_id}"
             image_torch = torch.from_numpy(image).permute(2, 0, 1)
             image_with_boxes_torch = draw_bounding_boxes(image_torch, bboxes)
             image_with_boxes = image_with_boxes_torch.permute(1, 2, 0).numpy()

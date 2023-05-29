@@ -218,3 +218,87 @@ def get_diagonal(W: scipy.sparse.csr_matrix, threshold: float = 1e-12):
     D[D < threshold] = 1.0  # Prevent division by zero.
     D = scipy.sparse.diags(D)
     return D
+
+def reshape_split(image: np.ndarray, kernel_size: tuple):
+  """
+  Computes non-overlapping patches for a given image and a given patch size.
+  Note that th eimage should be able to fit a whole number of patches of the given size.
+  # based on: https://towardsdatascience.com/efficiently-splitting-an-image-into-tiles-in-python-using-numpy-d1bf0dd7b6f7
+  """
+  h, w, ch = image.shape
+  tile_h, tile_w = kernel_size
+
+  tiled_array=image.reshape(h//tile_h, 
+                            tile_h, 
+                            w//tile_w,
+                            tile_w,
+                            ch)
+  tiled_array=tiled_array.swapaxes(1,2)
+  tiled_array=tiled_array.reshape(-1,tile_h,tile_w,ch)
+  return tiled_array
+
+def ssd_patchwise_affinity_knn(image, patch_size, n_neighbors=[8, 4], distance_weights=[2.0, 0.1]):
+  """
+  Computes a SSD-based affinity matrix for patches of a single image.
+  Note that this function requires pymattin and scipy.
+
+  step 1 - split image into patches
+  step 2 - flatten patches along x,y and ch dimensions -> results in shape (num_patches, rest)
+  step 3 - calculate position arrays for distance weighing
+  step 4 - apply knn approach, concatenating flattened patches with weighted position arrays (different for diff distance weights)
+  step 5 - assemble affinity matrix
+
+  par: image - ndarray, of size compatible with the patch size, normalized
+  par: patch_size - a tuple (patch_height, patch_width)
+  
+  based on: https://github.com/pymatting/pymatting/blob/master/pymatting/laplacian/knn_laplacian.py
+  """
+  try:
+    from pymatting.util.kdtree import knn
+  except:
+        raise ImportError(
+            'Please install pymatting to compute KNN affinity matrices:\n'
+            'pip3 install pymatting'
+        )
+  
+  patches=reshape_split(image, patch_size)
+  
+  patches_2d = patches.reshape(patches.shape[0],-1)
+
+  n_patches=patches_2d.shape[0]
+  n_height=image.shape[0]//patch_size[0]
+  n_width=image.shape[1]//patch_size[1]
+  x = np.tile(np.linspace(0, 1, n_width), n_height)
+  y = np.repeat(np.linspace(0, 1, n_height), n_width)
+
+  i, j = [], []
+
+  for k, distance_weight in zip(n_neighbors, distance_weights):
+    xs=(distance_weight * x)[:, None]
+    ys=(distance_weight * y)[:, None]
+    f = np.concatenate((patches_2d, xs, ys), axis = 1, dtype=np.float32)
+    distances, neighbors = knn(f, f, k=k)
+    i.append(np.repeat(np.arange(n_patches), k))
+    j.append(neighbors.flatten())
+
+  ij = np.concatenate(i + j)
+  ji = np.concatenate(j + i)
+  coo_data = np.ones(2 * sum(n_neighbors) * n_patches)
+
+  # This is our affinity matrix
+  W = scipy.sparse.csr_matrix((coo_data, (ij, ji)), (n_patches, n_patches)) 
+
+  # Convert to dense numpy array
+  W = np.array(W.todense().astype(np.float32))
+
+  return W, patches
+
+from PIL import Image
+
+def interpolate_2Darray(input_2Darray, output_size):
+  """
+  based on : PIL Image functionality for interpolating images when resizing
+  """
+  image_from_array = Image.fromarray(input_2Darray).resize((output_size[0],output_size[1]), Image.BILINEAR)
+  array_from_image = np.array(image_from_array)
+  return array_from_image
