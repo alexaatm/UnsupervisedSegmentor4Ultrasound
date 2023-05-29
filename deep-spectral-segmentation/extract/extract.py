@@ -15,8 +15,8 @@ from sklearn.decomposition import PCA
 from torchvision.utils import draw_bounding_boxes
 from tqdm import tqdm
 
-# import extract_utils as utils
-import extract.extract_utils as utils
+import extract_utils as utils
+
 
 def extract_features(
     images_list: str,
@@ -144,10 +144,7 @@ def _extract_eig(
         return  # skip because already generated
 
     # Load affinity matrix
-    if torch.cuda.is_available():
-        feats = data_dict[which_features].squeeze().cuda()
-    else:
-        feats = data_dict[which_features].squeeze()
+    feats = data_dict[which_features].squeeze().cuda()
     if normalize:
         feats = F.normalize(feats, p=2, dim=-1)
 
@@ -264,7 +261,7 @@ def _extract_eig(
                 eigenvalues, eigenvectors = eigsh(D_comb - W_comb, k=K, which='SM')
         eigenvalues, eigenvectors = torch.from_numpy(eigenvalues), torch.from_numpy(eigenvectors.T).float()
 
-    # Sign ambiguityx
+    # Sign ambiguity
     for k in range(eigenvectors.shape[0]):
         if 0.5 < torch.mean((eigenvectors[k] > 0).float()).item() < 1.0:  # reverse segment
             eigenvectors[k] = 0 - eigenvectors[k]
