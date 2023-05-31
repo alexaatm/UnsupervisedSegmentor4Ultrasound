@@ -1,0 +1,34 @@
+---
+version: 1
+
+kind: experiment
+
+tags:
+  - test
+
+build:
+  image: pytorchlightning/pytorch_lightning:base-xla-py3.7-torch1.12
+  build_steps:
+    - pip install -r requirements.txt
+    - pip install markupsafe==2.0.1 --force
+    
+
+params:
+  dataset: liver2_mini
+  model: dino_vits8
+  # matrix: laplacian
+  # downsample: 16
+  # n_seg: 15
+  # n_erode: 2
+  # n_dilate: 5
+  # data_root: ../../data"
+
+
+run:
+  cmd:  python -m pipeline.pipeline \
+        wandb.setup.project=pipeline \
+        wandb=server \
+        dataset={{ dataset }} \
+        model={{ model }} \
+        loader=defaults
+
