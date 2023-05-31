@@ -15,7 +15,8 @@ from sklearn.decomposition import PCA
 from torchvision.utils import draw_bounding_boxes
 from tqdm import tqdm
 
-import extract_utils as utils
+# import extract_utils as utils
+from extract import extract_utils as utils
 
 
 def extract_features(
@@ -62,9 +63,14 @@ def extract_features(
     print(f'Dataloader size: {len(dataloader)}')
 
     # Prepare
-    accelerator = Accelerator(cpu=False)
-    # model, dataloader = accelerator.prepare(model, dataloader)
+    cpu = True
+    if torch.cuda.is_available():
+        cpu = False
+    accelerator = Accelerator(cpu)
+    model, dataloader = accelerator.prepare(model, dataloader)
     model = model.to(accelerator.device)
+    print('accelerator device=', accelerator.device)
+
 
     # Process
     pbar = tqdm(dataloader, desc='Processing')

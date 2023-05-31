@@ -1,0 +1,11 @@
+defaults:
+  - dataset: liver2_mini
+  - wandb: defaults
+  - hydra: defaults
+  - loader: defaults
+  - model: dino_vits8
+  - _self_
+
+hydra:
+  run:
+    dir: ./outputs/pipeline/${dataset.name}/${now:%Y-%m-%d}--${now:%H-%M-%S}

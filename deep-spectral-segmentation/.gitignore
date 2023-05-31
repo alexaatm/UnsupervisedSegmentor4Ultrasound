@@ -1,6 +1,5 @@
 # Custom
 .vscode
-wandb
 outputs
 tmp*
 slurm-logs
@@ -143,3 +142,7 @@ venv.bak/
 lightning_logs/
 MNIST
 .DS_Store
+
+# oleksatm
+pipeline/outputs/
+pipeline/configs/wandb/server.yaml
