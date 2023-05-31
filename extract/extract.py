@@ -67,7 +67,7 @@ def extract_features(
     if torch.cuda.is_available():
         cpu = False
     accelerator = Accelerator(cpu)
-    model, dataloader = accelerator.prepare(model, dataloader)
+    # model, dataloader = accelerator.prepare(model, dataloader)
     model = model.to(accelerator.device)
     print('accelerator device=', accelerator.device)
 
@@ -150,7 +150,10 @@ def _extract_eig(
         return  # skip because already generated
 
     # Load affinity matrix
-    feats = data_dict[which_features].squeeze().cuda()
+    if torch.cuda.is_available():
+        feats = data_dict[which_features].squeeze().cuda()
+    else:
+        feats = data_dict[which_features].squeeze().cpu()
     if normalize:
         feats = F.normalize(feats, p=2, dim=-1)
 

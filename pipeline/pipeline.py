@@ -16,11 +16,6 @@ log = logging.getLogger(__name__)
 def pipeline(cfg: DictConfig) -> None:
     log.info("Starting the pipeline...")
 
-
-    # Extract Features
-    log.info("STEP 1/8: extract features")
-
-
     # Set the directories
     if cfg.wandb.mode=='server':
         # use polyaxon paths
@@ -32,19 +27,23 @@ def pipeline(cfg: DictConfig) -> None:
         path_to_save_data = os.path.join(os.getcwd())
 
 
+
+    # Extract Features
+    log.info("STEP 1/8: extract features")
+
     images_list = os.path.join(main_data_dir, cfg.dataset.name, 'lists', 'images.txt')
     images_root = os.path.join(main_data_dir, cfg.dataset.name, 'images')
-    output_dir = os.path.join(path_to_save_data, 'features', cfg.model.name)
+    output_feat_dir = os.path.join(path_to_save_data, 'features', cfg.model.name)
 
     log.info(f'images_list={images_list}')
     log.info(f'images_root={images_root}')
-    log.info(f'output_dir for features={output_dir}')
+    log.info(f'output_feat_dir={output_feat_dir}')
 
 
     extract.extract_features(
         images_list=images_list,
         images_root=images_root,
-        output_dir=output_dir,
+        output_dir=output_feat_dir,
         model_name=cfg.model.name,
         batch_size=cfg.loader.batch_size
     )
@@ -52,6 +51,28 @@ def pipeline(cfg: DictConfig) -> None:
 
 
     # Compute Eigenvectors - spectral clustering step
+    log.info("STEP 2/8: extract eigenvectors (spectral clustering)")
+
+    # Set the directories
+    output_eig_dir = os.path.join(path_to_save_data, 'eig', cfg.spectral_clustering.which_matrix)
+
+    # TODO: figure out how to pass data... cannot read from saved directory??? need to copy data from NAS outputs to data1  
+    extract.extract_eigs(
+        images_root=images_root,
+        features_dir=output_feat_dir,
+        output_dir=output_eig_dir,
+        which_matrix=cfg.spectral_clustering.which_matrix,
+        which_color_matrix=cfg.spectral_clustering.which_color_matrix,
+        which_features=cfg.spectral_clustering.which_features,
+        normalize=cfg.spectral_clustering.normalize,
+        threshold_at_zero=cfg.spectral_clustering.threshold_at_zero,
+        lapnorm=cfg.spectral_clustering.lapnorm,
+        K=cfg.spectral_clustering.K,
+        image_downsample_factor=cfg.spectral_clustering.image_downsample_factor,
+        image_color_lambda=cfg.spectral_clustering.image_color_lambda,
+        multiprocessing=cfg.spectral_clustering.multiprocessing,
+        image_ssd_beta=cfg.spectral_clustering.image_ssd_beta,
+    )
 
 
     # Extract segments

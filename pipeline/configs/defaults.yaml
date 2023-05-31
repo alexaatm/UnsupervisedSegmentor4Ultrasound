@@ -4,6 +4,7 @@ defaults:
   - hydra: defaults
   - loader: defaults
   - model: dino_vits8
+  - spectral_clustering: defaults
   - _self_
 
 hydra:
