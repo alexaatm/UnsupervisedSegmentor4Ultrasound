@@ -5,6 +5,7 @@ defaults:
   - loader: defaults
   - model: dino_vits8
   - spectral_clustering: defaults
+  - multi_region_segmentation: defaults
   - _self_
 
 hydra:

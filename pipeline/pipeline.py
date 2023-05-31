@@ -41,11 +41,11 @@ def pipeline(cfg: DictConfig) -> None:
 
 
     extract.extract_features(
-        images_list=images_list,
-        images_root=images_root,
-        output_dir=output_feat_dir,
-        model_name=cfg.model.name,
-        batch_size=cfg.loader.batch_size
+        images_list = images_list,
+        images_root = images_root,
+        output_dir = output_feat_dir,
+        model_name = cfg.model.name,
+        batch_size = cfg.loader.batch_size
     )
 
 
@@ -56,26 +56,45 @@ def pipeline(cfg: DictConfig) -> None:
     # Set the directories
     output_eig_dir = os.path.join(path_to_save_data, 'eig', cfg.spectral_clustering.which_matrix)
 
-    # TODO: figure out how to pass data... cannot read from saved directory??? need to copy data from NAS outputs to data1  
+    # TODO: figure out how to pass data... cannot read from saved directory??? need to copy data from NAS outputs to data1
+    # NOTE: Reading from output_feat_dir seems to work... 
     extract.extract_eigs(
-        images_root=images_root,
-        features_dir=output_feat_dir,
-        output_dir=output_eig_dir,
-        which_matrix=cfg.spectral_clustering.which_matrix,
-        which_color_matrix=cfg.spectral_clustering.which_color_matrix,
-        which_features=cfg.spectral_clustering.which_features,
-        normalize=cfg.spectral_clustering.normalize,
-        threshold_at_zero=cfg.spectral_clustering.threshold_at_zero,
-        lapnorm=cfg.spectral_clustering.lapnorm,
-        K=cfg.spectral_clustering.K,
-        image_downsample_factor=cfg.spectral_clustering.image_downsample_factor,
-        image_color_lambda=cfg.spectral_clustering.image_color_lambda,
-        multiprocessing=cfg.spectral_clustering.multiprocessing,
-        image_ssd_beta=cfg.spectral_clustering.image_ssd_beta,
+        images_root = images_root,
+        features_dir = output_feat_dir,
+        output_dir = output_eig_dir,
+        which_matrix = cfg.spectral_clustering.which_matrix,
+        which_color_matrix = cfg.spectral_clustering.which_color_matrix,
+        which_features = cfg.spectral_clustering.which_features,
+        normalize = cfg.spectral_clustering.normalize,
+        threshold_at_zero = cfg.spectral_clustering.threshold_at_zero,
+        lapnorm = cfg.spectral_clustering.lapnorm,
+        K = cfg.spectral_clustering.K,
+        image_downsample_factor = cfg.spectral_clustering.image_downsample_factor,
+        image_color_lambda = cfg.spectral_clustering.image_color_lambda,
+        multiprocessing = cfg.spectral_clustering.multiprocessing,
+        image_ssd_beta = cfg.spectral_clustering.image_ssd_beta,
     )
 
 
+
     # Extract segments
+    log.info("STEP 3/8: extract segments ")
+
+    # Set the directories
+    output_seg_dir = os.path.join(path_to_save_data, 'multi_region_segmentation', cfg.spectral_clustering.which_matrix)
+
+    extract.extract_multi_region_segmentations(
+        features_dir = output_feat_dir,
+        eigs_dir = output_eig_dir,
+        output_dir = output_seg_dir,
+        adaptive = cfg.multi_region_segmentation.adaptive,
+        non_adaptive_num_segments = cfg.multi_region_segmentation.non_adaptive_num_segments,
+        infer_bg_index = cfg.multi_region_segmentation.infer_bg_index,
+        kmeans_baseline = cfg.multi_region_segmentation.kmeans_baseline,
+        num_eigenvectors = cfg.multi_region_segmentation.num_eigenvectors,
+        multiprocessing = cfg.multi_region_segmentation.multiprocessing
+    )
+
 
 
     # Extract bounding boxes
