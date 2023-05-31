@@ -98,6 +98,21 @@ def pipeline(cfg: DictConfig) -> None:
 
 
     # Extract bounding boxes
+    log.info("STEP 4/8: extract bounding boxes ")
+
+    # Set the directories
+    output_bbox_dir = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg.spectral_clustering.which_matrix, 'bboxes.pth')
+
+
+    extract.extract_bboxes(
+        features_dir = output_feat_dir,
+        segmentations_dir = output_seg_dir,
+        output_file = output_bbox_dir,
+        num_erode = cfg.bbox.num_erode,
+        num_dilate = cfg.bbox.num_dilate,
+        skip_bg_index= cfg.bbox.skip_bg_index,
+        downsample_factor = cfg.bbox.downsample_factor,
+    )
 
 
     # Extract bounding box features

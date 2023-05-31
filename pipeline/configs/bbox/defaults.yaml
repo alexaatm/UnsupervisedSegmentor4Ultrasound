@@ -1,0 +1,4 @@
+num_erode: 2
+num_dilate: 5
+skip_bg_index: True,
+downsample_factor: null
