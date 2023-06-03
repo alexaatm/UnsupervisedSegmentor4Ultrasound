@@ -153,18 +153,16 @@ def pipeline(cfg: DictConfig) -> None:
     )
 
 
+    # Extract clusters
+    log.info("STEP 6/8: extract clusters ")
 
-    # # Extract clusters
-    # log.info("STEP 6/8: extract clusters ")
-
-    # extract.extract_bbox_clusters(
-    #     bbox_features_file = output_bbox_features,
-    #     output_file = output_bbox_clusters,
-    #     num_clusters = cfg.bbox.num_clusters,
-    #     seed = cfg.bbox.seed,
-    #     pca_dim = cfg.bbox.pca_dim
-    # )
-
+    extract.extract_bbox_clusters(
+        bbox_features_file = output_bbox_features,
+        output_file = output_bbox_clusters,
+        num_clusters = cfg.bbox.num_clusters,
+        seed = cfg.bbox.seed,
+        pca_dim = cfg.bbox.pca_dim
+    )
 
 
     # # Create semantic segmentations
