@@ -40,7 +40,7 @@ def extract_features(
     """
 
     # Output
-    utils.make_output_dir(output_dir)
+    utils.make_output_dir(output_dir, check_if_empty=False)
 
     # Models
     model_name = model_name.lower()
@@ -66,8 +66,8 @@ def extract_features(
     cpu = True
     if torch.cuda.is_available():
         cpu = False
-    accelerator = Accelerator(cpu)
-    model, dataloader = accelerator.prepare(model, dataloader)
+    accelerator = Accelerator(cpu, mixed_precision="fp16")
+    # model, dataloader = accelerator.prepare(model, dataloader)
     model = model.to(accelerator.device)
     print('accelerator device=', accelerator.device)
 
@@ -150,7 +150,10 @@ def _extract_eig(
         return  # skip because already generated
 
     # Load affinity matrix
-    feats = data_dict[which_features].squeeze().cuda()
+    if torch.cuda.is_available():
+        feats = data_dict[which_features].squeeze().cuda()
+    else:
+        feats = data_dict[which_features].squeeze().cpu()
     if normalize:
         feats = F.normalize(feats, p=2, dim=-1)
 
@@ -304,7 +307,7 @@ def extract_eigs(
             --output_dir "./data/VOC2012/eigs/laplacian" \
             --K 5
     """
-    utils.make_output_dir(output_dir)
+    utils.make_output_dir(output_dir, check_if_empty=False)
     kwargs = dict(K=K, which_matrix=which_matrix, which_features=which_features, which_color_matrix=which_color_matrix,
                  normalize=normalize, threshold_at_zero=threshold_at_zero, images_root=images_root, output_dir=output_dir, 
                  image_downsample_factor=image_downsample_factor, image_color_lambda=image_color_lambda, lapnorm=lapnorm, image_ssd_beta=image_ssd_beta)
@@ -403,7 +406,7 @@ def extract_multi_region_segmentations(
         --eigs_dir "./data/VOC2012/eigs/laplacian" \
         --output_dir "./data/VOC2012/multi_region_segmentation/fixed" \
     """
-    utils.make_output_dir(output_dir)
+    utils.make_output_dir(output_dir, check_if_empty=False)
     fn = partial(_extract_multi_region_segmentations, adaptive=adaptive, infer_bg_index=infer_bg_index,
                  non_adaptive_num_segments=non_adaptive_num_segments, num_eigenvectors=num_eigenvectors, 
                  kmeans_baseline=kmeans_baseline, output_dir=output_dir)
@@ -547,15 +550,21 @@ def extract_bbox_features(
             --output_file "./data/VOC2012/multi_region_bboxes/fixed/bbox_features_e2_d5.pth" \
     """
 
+    utils.make_output_dir(str(Path(output_file).parent), check_if_empty=False)
+
     # Load bounding boxes
     bbox_list = torch.load(bbox_file)
     total_num_boxes = sum(len(d['bboxes']) for d in bbox_list)
     print(f'Loaded bounding box list. There are {total_num_boxes} total bounding boxes.')
 
+    # Device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = 'cuda'
+
     # Models
     model_name_lower = model_name.lower()
     model, val_transform, patch_size, num_heads = utils.get_model(model_name_lower)
-    model.eval().to('cuda')
+    model.eval().to(device)
 
     # Loop over boxes
     for bbox_dict in tqdm(bbox_list):
@@ -565,7 +574,7 @@ def extract_bbox_features(
         # Load image as tensor
         image_filename = str(Path(images_root) / f'{image_id}.jpg')
         image = val_transform(Image.open(image_filename).convert('RGB'))  # (3, H, W)
-        image = image.unsqueeze(0).to('cuda')  # (1, 3, H, W)
+        image = image.unsqueeze(0).to(device)  # (1, 3, H, W)
         features_crops = []
         for (xmin, ymin, xmax, ymax) in bboxes:
             image_crop = image[:, :, ymin:ymax, xmin:xmax]
@@ -603,6 +612,9 @@ def extract_bbox_clusters(
     all_features = torch.cat([bbox_dict['features'] for bbox_dict in bbox_list], dim=0)  # (numBbox, D)
     all_features = all_features / torch.norm(all_features, dim=-1, keepdim=True)  # (numBbox, D)f
     all_features = all_features.numpy()
+
+    # tensors need to be detached
+    all_features = all_features.detach().numpy()
 
     # Cluster: PCA
     if pca_dim:
@@ -652,7 +664,7 @@ def extract_semantic_segmentations(
     print(f'Loaded bounding box list. There are {total_num_boxes} total bounding boxes with features and clusters.')
 
     # Output
-    utils.make_output_dir(output_dir)
+    utils.make_output_dir(output_dir, check_if_empty=False)
 
     # Loop over boxes
     for bbox_dict in tqdm(bbox_list):
@@ -761,7 +773,7 @@ def extract_crf_segmentations(
             'pip3 install SimpleCRF'
         )
 
-    utils.make_output_dir(output_dir)
+    utils.make_output_dir(output_dir, check_if_empty=False)
     fn = partial(_extract_crf_segmentations, images_root=images_root, num_classes=num_classes, output_dir=output_dir,
                  crf_params=(w1, alpha, beta, w2, gamma, it), downsample_factor=downsample_factor)
     inputs = utils.get_paired_input_files(images_list, segmentations_dir)
