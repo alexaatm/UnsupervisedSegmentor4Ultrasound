@@ -7,6 +7,7 @@ defaults:
   - spectral_clustering: defaults
   - multi_region_segmentation: defaults
   - bbox: defaults
+  - precomputed: defaults
   - _self_
 
 hydra:

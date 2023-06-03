@@ -1,4 +1,9 @@
+# bbox extraction:
 num_erode: 2
 num_dilate: 5
-skip_bg_index: True,
+skip_bg_index: True
 downsample_factor: null
+# bbox clustering:
+num_clusters: 20
+seed: 0
+pca_dim: 0

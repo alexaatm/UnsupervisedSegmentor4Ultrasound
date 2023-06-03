@@ -27,18 +27,54 @@ def pipeline(cfg: DictConfig) -> None:
         path_to_save_data = os.path.join(os.getcwd())
 
 
-
-    # Extract Features
-    log.info("STEP 1/8: extract features")
-
+    # Directories
     images_list = os.path.join(main_data_dir, cfg.dataset.name, 'lists', 'images.txt')
     images_root = os.path.join(main_data_dir, cfg.dataset.name, 'images')
+
+    # Set default output directories
     output_feat_dir = os.path.join(path_to_save_data, 'features', cfg.model.name)
+    output_eig_dir = os.path.join(path_to_save_data, 'eig', cfg.spectral_clustering.which_matrix)
+    output_seg_dir = os.path.join(path_to_save_data, 'multi_region_segmentation', cfg.spectral_clustering.which_matrix)
+    output_bbox = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg.spectral_clustering.which_matrix, 'bboxes.pth')
+    output_bbox_features = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg.spectral_clustering.which_matrix, 'bbox_features.pth')
+    output_bbox_clusters = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg.spectral_clustering.which_matrix, 'bbox_clusters.pth')
+    output_segmaps = os.path.join(path_to_save_data, 'semantic_segmentations', 'patches', cfg.spectral_clustering.which_matrix, 'segmaps')
+    output_crf_segmaps = os.path.join(path_to_save_data, 'semantic_segmentations', 'patches', cfg.spectral_clustering.which_matrix, 'crf_segmaps')
+    
+    if cfg.precomputed.mode == "precomputed":
+        log.info("Some precomputed steps are provided - need to check each step")
+        # check the next step only if the previous step is provided (since snext steps depends on the previous one)
+        if cfg.precomputed.features != "":
+            output_feat_dir = cfg.precomputed.features
+            if cfg.precomputed.eig != "":
+                output_eig_dir = cfg.precomputed.eig
+                if cfg.precomputed.multi_region_segmentation != "":
+                    output_seg_dir = cfg.precomputed.multi_region_segmentation
+                    if cfg.precomputed.bboxes != "":
+                        output_bbox = cfg.precomputed.bboxes
+                        if cfg.precomputed.bbox_features != "":
+                            output_bbox_features = cfg.precomputed.bbox_features
+                            if cfg.precomputed.bbox_clusters != "":
+                                output_bbox_clusters = cfg.precomputed.bbox_clusters
+                                if cfg.precomputed.segmaps != "":
+                                    output_segmaps = cfg.precomputed.segmaps
+                                    if cfg.precomputed.crf_segmaps != "":
+                                        output_crf_segmaps = cfg.precomputed.crf_segmaps
 
     log.info(f'images_list={images_list}')
     log.info(f'images_root={images_root}')
     log.info(f'output_feat_dir={output_feat_dir}')
+    log.info(f'output_eig_dir={output_eig_dir}')
+    log.info(f'output_seg_dir={output_seg_dir}')
+    log.info(f'output_bbox={output_bbox}')
+    log.info(f'output_bbox_features={output_bbox_features}')
+    log.info(f'output_bbox_clusters={output_bbox_clusters}')
+    log.info(f'output_segmaps={output_segmaps}')
+    log.info(f'output_crf_segmaps={output_crf_segmaps}')
 
+
+    # Extract Features
+    log.info("STEP 1/8: extract features")
 
     extract.extract_features(
         images_list = images_list,
@@ -52,9 +88,6 @@ def pipeline(cfg: DictConfig) -> None:
 
     # Compute Eigenvectors - spectral clustering step
     log.info("STEP 2/8: extract eigenvectors (spectral clustering)")
-
-    # Set the directories
-    output_eig_dir = os.path.join(path_to_save_data, 'eig', cfg.spectral_clustering.which_matrix)
 
     # TODO: figure out how to pass data... cannot read from saved directory??? need to copy data from NAS outputs to data1
     # NOTE: Reading from output_feat_dir seems to work... 
@@ -80,9 +113,6 @@ def pipeline(cfg: DictConfig) -> None:
     # Extract segments
     log.info("STEP 3/8: extract segments ")
 
-    # Set the directories
-    output_seg_dir = os.path.join(path_to_save_data, 'multi_region_segmentation', cfg.spectral_clustering.which_matrix)
-
     extract.extract_multi_region_segmentations(
         features_dir = output_feat_dir,
         eigs_dir = output_eig_dir,
@@ -100,14 +130,10 @@ def pipeline(cfg: DictConfig) -> None:
     # Extract bounding boxes
     log.info("STEP 4/8: extract bounding boxes ")
 
-    # Set the directories
-    output_bbox_dir = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg.spectral_clustering.which_matrix, 'bboxes.pth')
-
-
     extract.extract_bboxes(
         features_dir = output_feat_dir,
         segmentations_dir = output_seg_dir,
-        output_file = output_bbox_dir,
+        output_file = output_bbox,
         num_erode = cfg.bbox.num_erode,
         num_dilate = cfg.bbox.num_dilate,
         skip_bg_index= cfg.bbox.skip_bg_index,
@@ -115,16 +141,46 @@ def pipeline(cfg: DictConfig) -> None:
     )
 
 
+
     # Extract bounding box features
+    log.info("STEP 5/8: extract bounding box features ")
+
+    extract.extract_bbox_features(
+        images_root = images_root,
+        bbox_file = output_bbox,
+        model_name = cfg.model.name,
+        output_file = output_bbox_features
+    )
 
 
-    # Extract clusters
+
+    # # Extract clusters
+    # log.info("STEP 6/8: extract clusters ")
+
+    # extract.extract_bbox_clusters(
+    #     bbox_features_file = output_bbox_features,
+    #     output_file = output_bbox_clusters,
+    #     num_clusters = cfg.bbox.num_clusters,
+    #     seed = cfg.bbox.seed,
+    #     pca_dim = cfg.bbox.pca_dim
+    # )
 
 
-    # Create semantic segmentations
+
+    # # Create semantic segmentations
+    # log.info("STEP 7/8: create semantic segmentation ")
+
+    # extract.extract_semantic_segmentations(
+    #     segmentations_dir = output_seg_dir,
+    #     bbox_clusters_file = output_bbox_clusters,
+    #     output_dir = output_segmaps
+    # )
 
 
     # Create crf segmentations (optional)
+
+
+    # Evaluate degmentation of evaluation is on
 
     
 @hydra.main(version_base=None, config_path="./configs", config_name="defaults")

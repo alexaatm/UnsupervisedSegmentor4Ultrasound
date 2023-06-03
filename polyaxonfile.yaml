@@ -11,17 +11,26 @@ build:
   build_steps:
     - pip install -r requirements.txt
     - pip install markupsafe==2.0.1 --force
-    
+    - pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
+ 
+# environment:
+#   resources:
+#     gpu:
+#       requests: 1
+#       limits: 1
+#     cpu:
+#       requests: 4
+#       limits: 12
+#     memory:
+#       requests: 9000
+#       limits: 17000
 
 params:
   dataset: liver2_mini
   model: dino_vits8
-  # matrix: laplacian
-  # downsample: 16
-  # n_seg: 15
-  # n_erode: 2
-  # n_dilate: 5
-  # data_root: ../../data"
+  num_clusters: 3
+  precomputed: liver2_mini
+  # put num_processing to be the value of requested cpu cores
 
 
 run:
@@ -30,5 +39,8 @@ run:
         wandb=server \
         dataset={{ dataset }} \
         model={{ model }} \
-        loader=defaults
+        loader=defaults \
+        bbox.num_clusters={{ num_clusters }} \
+        precomputed={{ precomputed }} 
+
 
