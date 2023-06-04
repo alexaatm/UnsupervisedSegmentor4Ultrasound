@@ -8,6 +8,7 @@ defaults:
   - multi_region_segmentation: defaults
   - bbox: defaults
   - precomputed: defaults
+  - crf: defaults
   - _self_
 
 hydra:

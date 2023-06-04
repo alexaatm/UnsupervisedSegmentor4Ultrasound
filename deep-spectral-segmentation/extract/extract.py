@@ -602,6 +602,8 @@ def extract_bbox_clusters(
             --output_file "./data/VOC2012/multi_region_bboxes/fixed/bbox_clusters_e2_d5_pca_32.pth" \
     """
 
+    utils.make_output_dir(str(Path(output_file).parent), check_if_empty=False)
+
     # Load bounding boxes
     bbox_list = torch.load(bbox_features_file)
     total_num_boxes = sum(len(d['bboxes']) for d in bbox_list)
@@ -611,7 +613,7 @@ def extract_bbox_clusters(
     print(f'Stacking and normalizing features')
     all_features = torch.cat([bbox_dict['features'] for bbox_dict in bbox_list], dim=0)  # (numBbox, D)
     all_features = all_features / torch.norm(all_features, dim=-1, keepdim=True)  # (numBbox, D)f
-    all_features = all_features.numpy()
+    # all_features = all_features.numpy()
 
     # tensors need to be detached
     all_features = all_features.detach().numpy()
