@@ -165,20 +165,38 @@ def pipeline(cfg: DictConfig) -> None:
     )
 
 
-    # # Create semantic segmentations
-    # log.info("STEP 7/8: create semantic segmentation ")
+    # Create semantic segmentations
+    log.info("STEP 7/8: create semantic segmentation ")
 
-    # extract.extract_semantic_segmentations(
-    #     segmentations_dir = output_seg_dir,
-    #     bbox_clusters_file = output_bbox_clusters,
-    #     output_dir = output_segmaps
-    # )
+    extract.extract_semantic_segmentations(
+        segmentations_dir = output_seg_dir,
+        bbox_clusters_file = output_bbox_clusters,
+        output_dir = output_segmaps
+    )
 
 
     # Create crf segmentations (optional)
+    log.info("STEP 8/8 [optional]: create CRF semantic segmentation ")
+
+    extract.extract_crf_segmentations(
+        images_list = images_list,
+        images_root = images_root,
+        segmentations_dir = output_segmaps,
+        output_dir = output_crf_segmaps,
+        num_classes =  cfg.crf.num_classes,
+        downsample_factor = cfg.crf.downsample_factor,
+        multiprocessing = cfg.crf.multiprocessing,
+        # CRF parameters
+        w1 = cfg.crf.w1,
+        alpha = cfg.crf.alpha,
+        beta = cfg.crf.beta,
+        w2 = cfg.crf.w2,
+        gamma = cfg.crf.gamma,
+        it= cfg.crf.it
+    )
 
 
-    # Evaluate degmentation of evaluation is on
+    # Evaluate segmentation if evaluation is on
 
     
 @hydra.main(version_base=None, config_path="./configs", config_name="defaults")
