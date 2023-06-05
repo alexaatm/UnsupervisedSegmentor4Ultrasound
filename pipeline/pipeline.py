@@ -7,7 +7,7 @@ import wandb
 from polyaxon_client.tracking import Experiment, get_data_paths, get_outputs_path
 
 from extract import extract
-
+from vis import vis_utils
 
 # A logger for this file
 log = logging.getLogger(__name__)
@@ -193,6 +193,21 @@ def pipeline(cfg: DictConfig) -> None:
         w2 = cfg.crf.w2,
         gamma = cfg.crf.gamma,
         it= cfg.crf.it
+    )
+
+
+    # Visualize final segmentations
+    log.info("Plot final segmentations")
+
+    output_segm_plots = os.path.join(path_to_save_data, 'plots', 'crf_segmaps')
+
+
+    vis_utils.plot_segmentation(
+        images_list = images_list,
+        images_root = images_root,
+        segmentations_dir = output_crf_segmaps,
+        bbox_file = output_bbox,
+        output_dir = output_segm_plots
     )
 
 
