@@ -29,7 +29,7 @@ def pipeline(cfg: DictConfig) -> None:
 
     # Directories
     images_list = os.path.join(main_data_dir, cfg.dataset.name, 'lists', 'images.txt')
-    images_root = os.path.join(main_data_dir, cfg.dataset.name, 'images')
+    images_root = os.path.join(main_data_dir, cfg.dataset.name, cfg.dataset.images_root)
 
     # Set default output directories
     output_feat_dir = os.path.join(path_to_save_data, 'features', cfg.model.name)

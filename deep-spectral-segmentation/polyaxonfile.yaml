@@ -13,14 +13,14 @@ build:
     - pip install markupsafe==2.0.1 --force
     - pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu117
  
-# environment:
-#   resources:
+environment:
+  resources:
 #     gpu:
 #       requests: 1
 #       limits: 1
-#     cpu:
-#       requests: 4
-#       limits: 12
+    # cpu:
+    #   requests: 4
+    #   limits: 12
 #     memory:
 #       requests: 9000
 #       limits: 17000
@@ -28,9 +28,10 @@ build:
 params:
   dataset: liver2_mini
   model: dino_vits8
-  num_clusters: 3
-  precomputed: liver2_mini
-  # put num_processing to be the value of requested cpu cores
+  num_clusters: 5
+  precomputed: defaults
+  # num_processing: 4
+  # make num_processing be equal to env resiurces value
 
 
 run:
@@ -41,6 +42,12 @@ run:
         model={{ model }} \
         loader=defaults \
         bbox.num_clusters={{ num_clusters }} \
-        precomputed={{ precomputed }} 
+        precomputed={{ precomputed }}  \
+        precomputed.mode=precomputed \
+        precomputed.features=/outputs/oleksandra_tmenova/SegmPipelineUS/experiments/110511/liver2_mini/features/dino_vits8
+        # crf.multiprocessing={{ num_processing }} \
+        # multi_region_segmentation.multiprocessing={{ num_processing }} \
+        # spectral_clustering.multiprocessing={{ num_processing }} \
+
 
 

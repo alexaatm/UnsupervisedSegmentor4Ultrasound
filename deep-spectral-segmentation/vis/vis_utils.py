@@ -17,7 +17,7 @@ def plot_segmentation(
     images_root: str,
     segmentations_dir: str,
     bbox_file: str = None,
-    output_dir: str = "./output_plots"
+    output_dir: str = "./output_plots/segm"
 ):
     utils.make_output_dir(output_dir, check_if_empty=False)
 
