@@ -81,7 +81,7 @@ def extract_features(
         id = Path(files[0]).stem
         output_file = Path(output_dir) / f'{id}.pth'
         if output_file.is_file():
-            pbar.write(f'Skipping existing file {str(output_file)}')
+            # pbar.write(f'Skipping existing file {str(output_file)}')
             continue
 
         # Reshape image
@@ -146,9 +146,9 @@ def _extract_eig(
     # Load
     output_file = str(Path(output_dir) / f'{image_id}.pth')
     if Path(output_file).is_file():
-        print(f'Skipping existing file {str(output_file)}')
+        # print(f'Skipping existing file {str(output_file)}')
         return  # skip because already generated
-
+    
     # Load affinity matrix
     if torch.cuda.is_available():
         feats = data_dict[which_features].squeeze().cuda()
