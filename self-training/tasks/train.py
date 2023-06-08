@@ -248,7 +248,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
 
             attn_maps = []
             for idx in rand_val_samples:
-                sample =  val_dataset[idx]
+                # sample =  val_dataset[idx]
                 image, _, fname = val_dataset[idx]
                 attn_map_plot = utils.extract_attention_map_dino_per_image(model, patch_size, image)
                 attn_maps.append(attn_map_plot)
@@ -540,10 +540,10 @@ def train_triplet(cfg: DictConfig) -> None:
 def run_experiment(cfg: DictConfig) -> None:
     print(f'cfg.wandb.mode is={cfg.wandb.mode}')
 
-    if cfg.wandb.mode=='server':
-        # login to wandb using locally stored key, remove the key to prevent it from being logged
-        wandb.login(key=cfg.wandb.key)
-        cfg.wandb.key=""
+    # if cfg.wandb.mode=='server':
+    # login to wandb using locally stored key, remove the key to prevent it from being logged
+    wandb.login(key=cfg.wandb.key)
+    cfg.wandb.key=""
         
     log.info(OmegaConf.to_yaml(cfg))
     log.info("Current working directory  : {}".format(os.getcwd()))
