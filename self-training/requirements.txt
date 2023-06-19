@@ -13,4 +13,3 @@ polyaxon_client==0.6.1
 torchsummary
 torchinfo
 opencv-python-headless
---extra-index-url https://pypi.ngc.nvidia.com

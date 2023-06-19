@@ -144,3 +144,4 @@ self-training/multirun/
 ImageNet-Datasets-Downloader/
 UltrasondConfienceMap/
 myenv/
+.pai_simulator/
