@@ -13,3 +13,4 @@ polyaxon_client==0.6.1
 omegaconf
 hydra-core
 SimpleCRF
+scikit-learn

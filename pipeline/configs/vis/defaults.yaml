@@ -1,0 +1,3 @@
+eigen: False
+crf_segmaps: False
+dino_attn_maps: False

@@ -9,8 +9,12 @@ defaults:
   - bbox: defaults
   - precomputed: defaults
   - crf: defaults
+  - vis: defaults
+  - pipeline_steps: defaults 
   - _self_
 
 hydra:
   run:
     dir: ./outputs/pipeline/${dataset.name}/${now:%Y-%m-%d}--${now:%H-%M-%S}
+
+only_vis: False
