@@ -72,8 +72,9 @@ def get_model_from_path(model_name, ckpt_path, just_backbone=False):
             # get the backbone
             model, input_dim = dinoLightningModule.get_dino_backbone(model_name)
 
-             # load the backbone model from the checkpoint
-            checkpoint = torch.load(ckpt_path)
+            # load the backbone model from the checkpoint
+            device='cuda' if torch.cuda.is_available() else 'cpu'
+            checkpoint = torch.load(ckpt_path, map_location=torch.device(device))
             print(checkpoint.keys())
             state_dict = checkpoint['state_dict']
 
