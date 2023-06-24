@@ -2,9 +2,7 @@ version: 1
 kind: group
 framework: pytorch
 tags:
-  - dinov1_vits8
-  - LIVER_REDUCED
-  - 10 epochs
+  - triplet
   - group_exp
 build:
   image: pytorchlightning/pytorch_lightning:base-xla-py3.7-torch1.12
@@ -20,44 +18,40 @@ environment:
       requests: 12
       limits: 48
     memory:
-      requests: 32768
+      requests: 24576
       limits: 64000
     gpu:
       requests: 1
       limits: 1
-  # node_selector:
-      # gpuMemory: "24"
-  
 
 params:
-  batch_size: 8
-  exp_name: train_dinoLightningModule
-  backbone: dino_vits8
-  epochs: 10
+  batch_size: 48
+  exp_name: train_triplet
+  epochs: 300
   loader_num_workers: 8
   dataset_input_size: 256
-  train_lr: 1e-5
-  train_weight_decay: 1e-5
+  train_lr: 1e-3
+  loader: triplet_patch
+  train: triplet
+  train_triplet_loss_margin: 10
 
 hptuning:
   concurrency: 1
   matrix:
     pretrained_weights:
-      values: [False, True]
+      values: [True]
     dataset:
-      values: [liver_reduced]
-    fraction_layers_to_freeze:
-      values: [0.0]
-    loader:
-      values: [defaults,patch64]
-    
+      values: [liver_reduced,carotid_mutinfo]
+    backbone:
+      values: [resnet,dino_vits16]
 
 run:
   cmd: python -m tasks.train \
-      wandb.setup.project=SSL-fine-tuning \
+      wandb.setup.project=self-train \
       wandb=server \
       dataset={{ dataset }} \
       experiment.name={{ exp_name }} \
+      train={{ train }}
       train.backbone={{ backbone }} \
       train.epochs={{ epochs }} \
       train.pretrained_weights={{ pretrained_weights }} \
@@ -66,6 +60,4 @@ run:
       dataset.input_size={{ dataset_input_size }} \
       loader={{ loader }} \
       train.lr={{ train_lr }} \
-      train.weight_decay={{ train_weight_decay }} \
-      train.fraction_layers_to_freeze={{ fraction_layers_to_freeze }}
-
+      train.triplet_loss_margin={{ train_triplet_loss_margin }}
