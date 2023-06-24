@@ -49,6 +49,33 @@ def get_model(name: str):
     model = model.eval()
     return model, val_transform, patch_size, num_heads
 
+def get_model_from_checkpoint(model_name: str, ckpt_path: str, just_backbone=False):
+    if 'dino' in model_name:
+        if just_backbone:
+            # get the backbone
+            model = torch.hub.load('facebookresearch/dino:main', model_name, pretrained=False)
+            input_dim = model.embed_dim
+
+            # load the backbone model from the checkpoint
+            device='cuda' if torch.cuda.is_available() else 'cpu'
+            checkpoint = torch.load(ckpt_path, map_location=torch.device(device))
+            print(checkpoint.keys())
+            state_dict = checkpoint['state_dict']
+
+             # remove `backbone.` prefix induced by multicrop wrapper
+            state_dict = {k.replace("backbone.", ""): v for k, v in state_dict.items()}
+
+            # use strict=False to ignore projection head layers..
+            model.load_state_dict(state_dict, strict=False)
+            model.fc = torch.nn.Identity()
+            num_heads = model.blocks[0].attn.num_heads
+            patch_size = model.patch_embed.patch_size
+
+            val_transform = get_transform(model_name)
+    else:
+        raise ValueError(f'Cannot get model: {model_name}')
+    model = model.eval()
+    return model, val_transform, patch_size, num_heads
 
 def get_transform(name: str):
     if any(x in name for x in ('dino', 'mocov3', 'convnext', )):
