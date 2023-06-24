@@ -592,20 +592,15 @@ def extract_attention_maps_dino(cfg: DictConfig) -> None:
         # print(f'sample shape: {sample.shape}')
         sample = sample.to(accelerator.device)
 
-        print(f'--- sample shape: {sample.shape}')
 
         # # # # # # ATTENTION MAPS DINO 
 
         # get self-attention
         attentions = model.get_last_selfattention(sample)
-        print(f'--- attn shape: {attentions.shape}')
-
         nh = attentions.shape[1] # number of head
 
         # we keep only the output patch attention
         attentions = attentions[0, :, 0, 1:].reshape(nh, -1)
-        print(f'--- attn shape after reshaping: {attentions.shape}')
-
 
         # we keep only a certain percentage of the mass
         val, idx = torch.sort(attentions)
@@ -735,6 +730,7 @@ def extract_attention_maps_dino_patches(cfg: DictConfig, input_patch_size: int =
         sample = sample[:, :h, :w]
         h_featmap = sample.shape[-2] // patch_size
         w_featmap = sample.shape[-1] // patch_size
+        sample = sample.to(accelerator.device)
 
         # print(f'--- sample shape: {sample.shape}')
 
@@ -743,8 +739,18 @@ def extract_attention_maps_dino_patches(cfg: DictConfig, input_patch_size: int =
         num_patches_h, num_patches_w, _, _, _ = patches.size()
         patches = patches.contiguous().view(-1, sample.size(0), input_patch_size, input_patch_size)
 
-        # Initialize empty attention maps
-        attentions = []
+         # Get self-attention
+        attentions = model.get_last_selfattention(sample)
+        nh = attentions.shape[1]  # number of heads
+
+        # Initialize empty attention map
+        attn_map = torch.zeros((nh, h_featmap * patch_size, w_featmap * patch_size), device=sample.device)
+
+         # Compute attention maps for each patch and fill the attention map
+        for patch_idx, patch_attentions in enumerate(attentions[0]):
+            row_idx = patch_idx // num_patches_w
+            col_idx = patch_idx % num_patches_w
+            attn_map[:, row_idx * patch_size : (row_idx + 1) * patch_size, col_idx * patch_size : (col_idx + 1) * patch_size] = patch_attentions[0, 1:]
 
         # Compute attention maps for each patch
         for patch_idx, patch in enumerate(patches):
