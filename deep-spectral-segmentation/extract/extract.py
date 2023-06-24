@@ -26,6 +26,7 @@ def extract_features(
     batch_size: int,
     output_dir: str,
     which_block: int = -1,
+    model_checkpoint: str = ""
 ):
     """
     Extract features from a list of images.
@@ -44,8 +45,12 @@ def extract_features(
 
     # Models
     model_name = model_name.lower()
-    model, val_transform, patch_size, num_heads = utils.get_model(model_name)
 
+    if model_checkpoint=="":
+        model, val_transform, patch_size, num_heads = utils.get_model(model_name)
+    else:
+        model, val_transform, patch_size,  num_heads = utils.get_model_from_checkpoint(model_name, model_checkpoint, just_backbone=True)
+    
     # Add hook
     if 'dino' in model_name or 'mocov3' in model_name:
         feat_out = {}
@@ -69,7 +74,7 @@ def extract_features(
     accelerator = Accelerator(cpu, mixed_precision="fp16")
     # model, dataloader = accelerator.prepare(model, dataloader)
     model = model.to(accelerator.device)
-    print('accelerator device=', accelerator.device)
+    # print('accelerator device=', accelerator.device)
 
 
     # Process

@@ -7,6 +7,7 @@ import wandb
 from polyaxon_client.tracking import Experiment, get_data_paths, get_outputs_path
 
 from extract import extract
+from extract import extract_utils as utils
 from vis import vis_utils
 
 # A logger for this file
@@ -76,18 +77,39 @@ def pipeline(cfg: DictConfig) -> None:
     # Extract Features
     log.info("STEP 1/8: extract features")
 
+    if not cfg.pipeline_steps.dino_features:
+        log.info("Step was not selected")
+        exit()
+
     extract.extract_features(
         images_list = images_list,
         images_root = images_root,
         output_dir = output_feat_dir,
         model_name = cfg.model.name,
-        batch_size = cfg.loader.batch_size
+        batch_size = cfg.loader.batch_size,
+        model_checkpoint=cfg.model.checkpoint
     )
+
+    # Visualize Dino Attention Maps
+    if cfg.vis.dino_attn_maps:
+        log.info("Plot dino attention maps")
+        output_dino_plots = os.path.join(path_to_save_data, 'plots', 'dino_attn_maps')
+        vis_utils.plot_dino_attn_maps(
+            images_list = images_list,
+            images_root = images_root,
+            model_checkpoint=cfg.model.checkpoint,
+            model_name = cfg.model.name,
+            output_dir = output_dino_plots
+        )
 
 
 
     # Compute Eigenvectors - spectral clustering step
     log.info("STEP 2/8: extract eigenvectors (spectral clustering)")
+
+    if not cfg.pipeline_steps.eigen:
+        log.info("Step was not selected")
+        exit()
 
     # TODO: figure out how to pass data... cannot read from saved directory??? need to copy data from NAS outputs to data1
     # NOTE: Reading from output_feat_dir seems to work... 
@@ -108,10 +130,24 @@ def pipeline(cfg: DictConfig) -> None:
         image_ssd_beta = cfg.spectral_clustering.image_ssd_beta,
     )
 
-
+    # Visualize eigenvectors
+    if cfg.vis.eigen:
+        log.info("Plot eigenvectors")
+        output_eig_plots = os.path.join(path_to_save_data, 'plots', 'eigen')
+        vis_utils.plot_eigenvectors(
+            images_list = images_list,
+            images_root = images_root,
+            eigenvevtors_dir = output_eig_dir,
+            features_dir = output_feat_dir,
+            output_dir = output_eig_plots
+        )
 
     # Extract segments
     log.info("STEP 3/8: extract segments ")
+
+    if not cfg.pipeline_steps.segments:
+        log.info("Step was not selected")
+        exit()
 
     extract.extract_multi_region_segmentations(
         features_dir = output_feat_dir,
@@ -130,6 +166,10 @@ def pipeline(cfg: DictConfig) -> None:
     # Extract bounding boxes
     log.info("STEP 4/8: extract bounding boxes ")
 
+    if not cfg.pipeline_steps.bbox:
+        log.info("Step was not selected")
+        exit()
+
     extract.extract_bboxes(
         features_dir = output_feat_dir,
         segmentations_dir = output_seg_dir,
@@ -145,6 +185,10 @@ def pipeline(cfg: DictConfig) -> None:
     # Extract bounding box features
     log.info("STEP 5/8: extract bounding box features ")
 
+    if not cfg.pipeline_steps.bbox_features:
+        log.info("Step was not selected")
+        exit()
+
     extract.extract_bbox_features(
         images_root = images_root,
         bbox_file = output_bbox,
@@ -155,6 +199,10 @@ def pipeline(cfg: DictConfig) -> None:
 
     # Extract clusters
     log.info("STEP 6/8: extract clusters ")
+
+    if not cfg.pipeline_steps.clusters:
+        log.info("Step was not selected")
+        exit()
 
     extract.extract_bbox_clusters(
         bbox_features_file = output_bbox_features,
@@ -168,6 +216,10 @@ def pipeline(cfg: DictConfig) -> None:
     # Create semantic segmentations
     log.info("STEP 7/8: create semantic segmentation ")
 
+    if not cfg.pipeline_steps.sem_segm:
+        log.info("Step was not selected")
+        exit()
+
     extract.extract_semantic_segmentations(
         segmentations_dir = output_seg_dir,
         bbox_clusters_file = output_bbox_clusters,
@@ -177,6 +229,10 @@ def pipeline(cfg: DictConfig) -> None:
 
     # Create crf segmentations (optional)
     log.info("STEP 8/8 [optional]: create CRF semantic segmentation ")
+
+    if not cfg.pipeline_steps.crf_segm:
+        log.info("Step was not selected")
+        exit()
 
     extract.extract_crf_segmentations(
         images_list = images_list,
@@ -195,23 +251,98 @@ def pipeline(cfg: DictConfig) -> None:
         it= cfg.crf.it
     )
 
-
     # Visualize final segmentations
-    log.info("Plot final segmentations")
-
-    output_segm_plots = os.path.join(path_to_save_data, 'plots', 'crf_segmaps')
-
-
-    vis_utils.plot_segmentation(
-        images_list = images_list,
-        images_root = images_root,
-        segmentations_dir = output_crf_segmaps,
-        bbox_file = output_bbox,
-        output_dir = output_segm_plots
-    )
+    if cfg.vis.crf_segmaps:
+        log.info("Plot final segmentations")
+        output_segm_plots = os.path.join(path_to_save_data, 'plots', 'crf_segmaps')
+        vis_utils.plot_segmentation(
+            images_list = images_list,
+            images_root = images_root,
+            segmentations_dir = output_crf_segmaps,
+            bbox_file = output_bbox,
+            output_dir = output_segm_plots
+        )
 
 
     # Evaluate segmentation if evaluation is on
+
+# Pipeline for deep spectral segmentation steps
+def vis_pipeline(cfg: DictConfig) -> None:
+    log.info("Starting the visualisaion...")
+
+    # Set the directories
+    if cfg.wandb.mode=='server':
+        # use polyaxon paths
+        main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
+        path_to_save_data = os.path.join(get_outputs_path(), cfg.dataset.name)
+    else:
+        # use default local data
+        main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
+        path_to_save_data = os.path.join(os.getcwd())
+
+
+    # Directories
+    images_list = os.path.join(main_data_dir, cfg.dataset.name, 'lists', 'images.txt')
+    images_root = os.path.join(main_data_dir, cfg.dataset.name, cfg.dataset.images_root)
+    log.info(f'images_list={images_list}')
+    log.info(f'images_root={images_root}')
+
+    if cfg.precomputed.mode == "precomputed":
+        log.info("Some precomputed steps are provided - need to check each step")
+        # check the next step only if the previous step is provided (since snext steps depends on the previous one)
+        if cfg.precomputed.features != "":
+            output_feat_dir = cfg.precomputed.features
+            log.info(f'feat_dir={output_feat_dir}')
+            if cfg.precomputed.eig != "":
+                output_eig_dir = cfg.precomputed.eig
+                log.info(f'eig_dir={output_eig_dir}')
+                if cfg.precomputed.multi_region_segmentation != "":
+                    output_seg_dir = cfg.precomputed.multi_region_segmentation
+                    log.info(f'seg_dir={output_seg_dir}')
+                    if cfg.precomputed.bboxes != "":
+                        output_bbox = cfg.precomputed.bboxes
+                        log.info(f'bbox={output_bbox}')
+                        if cfg.precomputed.segmaps != "":
+                            output_segmaps = cfg.precomputed.segmaps
+                            log.info(f'segmaps={output_segmaps}')
+                            if cfg.precomputed.crf_segmaps != "":
+                                output_crf_segmaps = cfg.precomputed.crf_segmaps
+                                log.info(f'crf_segmaps={output_crf_segmaps}')
+
+    # VISUALIZATIONS
+
+    if cfg.vis.eigen:
+        log.info("Plot eigenvectors")
+        output_eig_plots = os.path.join(path_to_save_data, 'plots', 'eigen')
+        vis_utils.plot_eigenvectors(
+            images_list = images_list,
+            images_root = images_root,
+            eigenvevtors_dir = output_eig_dir,
+            features_dir = output_feat_dir,
+            output_dir = output_eig_plots
+        )
+
+    if cfg.vis.dino_attn_maps:
+        log.info("Plot dino attention maps")
+        output_dino_plots = os.path.join(path_to_save_data, 'plots', 'dino_attn_maps')
+        vis_utils.plot_dino_attn_maps(
+            images_list = images_list,
+            images_root = images_root,
+            model_checkpoint=cfg.model.checkpoint,
+            model_name = cfg.model.name,
+            output_dir = output_dino_plots
+        )
+
+    if cfg.vis.crf_segmaps:
+        log.info("Plot final segmentations")
+        output_segm_plots = os.path.join(path_to_save_data, 'plots', 'crf_segmaps')
+        vis_utils.plot_segmentation(
+            images_list = images_list,
+            images_root = images_root,
+            segmentations_dir = output_crf_segmaps,
+            bbox_file = output_bbox,
+            output_dir = output_segm_plots
+        )
 
     
 @hydra.main(version_base=None, config_path="./configs", config_name="defaults")
@@ -230,7 +361,10 @@ def run_pipeline(cfg: DictConfig) -> None:
 
     # run = wandb.init(config=wandb_config, project = cfg.wandb.setup.project, settings=wandb.Settings(start_method='thread'))
     
-    pipeline(cfg)    
+    if cfg.only_vis:
+        vis_pipeline(cfg)
+    else:
+        pipeline(cfg)    
 
     # wandb.finish()
 
