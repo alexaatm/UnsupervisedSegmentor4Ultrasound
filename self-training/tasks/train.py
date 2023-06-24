@@ -265,12 +265,13 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         devices=1,
         accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         callbacks=[
-            ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
-                            save_top_k=4, filename=path_to_save_ckpt + '/{epoch}-{step}-{val_loss:.2f}'),
-            ModelCheckpoint(every_n_epochs=10, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
+            # ModelCheckpoint(save_weights_only=False, mode='min', monitor='val_loss',
+            #                 save_top_k=5, filename=path_to_save_ckpt + '/{epoch}-{step}-{val_loss:.2f}'),
+            # ModelCheckpoint(every_n_epochs=1, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
+            ModelCheckpoint(save_weights_only=True, save_top_k=-1, filename=path_to_save_ckpt + '/{epoch}-{step}-{train_loss:.2f}-{val_loss:.2f}'),
             LearningRateMonitor('epoch'),
             LogDinoInputViewsCallback(),
-            EarlyStopping(monitor="val_loss", mode="min", patience = 25, verbose=True),
+            EarlyStopping(monitor="val_loss", mode="min", patience = 10, verbose=True),
             LogDinoAttentionMapsForCheckpointsCallback()
         ],
         logger=wandb_logger,
