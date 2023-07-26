@@ -1,0 +1,3 @@
+name: carotid-mini-val-TEST
+input_size: 256
+images_root: images

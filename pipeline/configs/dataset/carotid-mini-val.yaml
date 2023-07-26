@@ -1,0 +1,4 @@
+name: carotid-mini-val
+input_size: 256
+images_root: images
+list: lists/images.txt
