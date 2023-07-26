@@ -9,8 +9,9 @@ torchvision
 tqdm
 pymatting
 wandb
-polyaxon_client==0.6.1
+# polyaxon_client==0.6.1
 omegaconf
 hydra-core
 SimpleCRF
 scikit-learn
+# pip install markupsafe==2.0.1 --force
