@@ -1,8 +1,0 @@
-setup:
-    project: pipelineTEST
-    entity: alexaatm
-    mode: online
-watch:
-    log: all
-    log_freq: 1
-mode: local

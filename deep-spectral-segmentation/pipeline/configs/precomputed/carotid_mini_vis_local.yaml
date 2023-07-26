@@ -1,7 +1,0 @@
-mode: precomputed
-features: "C:/Users/Tmenova/personal/tum/thesis/thesis-codebase/deep-spectral-segmentation/outputs/pipeline/carotid-mini/2023-06-14--11-57-28/features/dino_vits8" 
-eig: "C:/Users/Tmenova/personal/tum/thesis/thesis-codebase/deep-spectral-segmentation/outputs/pipeline/carotid-mini/2023-06-14--11-57-28/eig/laplacian" 
-multi_region_segmentation: ""
-bboxes: ""
-segmaps: ""
-crf_segmaps: ""

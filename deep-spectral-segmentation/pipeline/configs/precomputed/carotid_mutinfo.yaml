@@ -1,9 +1,0 @@
-mode: precomputed
-features: /outputs/oleksandra_tmenova/SegmPipelineUS/experiments/110825/carotid_mutinfo/features/dino_vits8
-eig: "" 
-multi_region_segmentation: ""
-bboxes: ""
-bbox_features: ""
-bbox_clusters: ""
-segmaps: ""
-crf_segmaps: ""
