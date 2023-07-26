@@ -35,7 +35,7 @@ def pipeline(cfg: DictConfig) -> None:
     # Set default output directories
     output_feat_dir = os.path.join(path_to_save_data, 'features', cfg.model.name)
     output_eig_dir = os.path.join(path_to_save_data, 'eig', cfg.spectral_clustering.which_matrix)
-    output_seg_dir = os.path.join(path_to_save_data, 'multi_region_segmentation', cfg.spectral_clustering.which_matrix)
+    output_multi_region_seg = os.path.join(path_to_save_data, 'multi_region_segmentation', cfg.spectral_clustering.which_matrix)
     output_bbox = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg.spectral_clustering.which_matrix, 'bboxes.pth')
     output_bbox_features = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg.spectral_clustering.which_matrix, 'bbox_features.pth')
     output_bbox_clusters = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg.spectral_clustering.which_matrix, 'bbox_clusters.pth')
@@ -50,7 +50,7 @@ def pipeline(cfg: DictConfig) -> None:
             if cfg.precomputed.eig != "":
                 output_eig_dir = cfg.precomputed.eig
                 if cfg.precomputed.multi_region_segmentation != "":
-                    output_seg_dir = cfg.precomputed.multi_region_segmentation
+                    output_multi_region_seg = cfg.precomputed.multi_region_segmentation
                     if cfg.precomputed.bboxes != "":
                         output_bbox = cfg.precomputed.bboxes
                         if cfg.precomputed.bbox_features != "":
@@ -66,7 +66,7 @@ def pipeline(cfg: DictConfig) -> None:
     log.info(f'images_root={images_root}')
     log.info(f'output_feat_dir={output_feat_dir}')
     log.info(f'output_eig_dir={output_eig_dir}')
-    log.info(f'output_seg_dir={output_seg_dir}')
+    log.info(f'output_multi_region_seg={output_multi_region_seg}')
     log.info(f'output_bbox={output_bbox}')
     log.info(f'output_bbox_features={output_bbox_features}')
     log.info(f'output_bbox_clusters={output_bbox_clusters}')
@@ -152,7 +152,7 @@ def pipeline(cfg: DictConfig) -> None:
     extract.extract_multi_region_segmentations(
         features_dir = output_feat_dir,
         eigs_dir = output_eig_dir,
-        output_dir = output_seg_dir,
+        output_dir = output_multi_region_seg,
         adaptive = cfg.multi_region_segmentation.adaptive,
         non_adaptive_num_segments = cfg.multi_region_segmentation.non_adaptive_num_segments,
         infer_bg_index = cfg.multi_region_segmentation.infer_bg_index,
@@ -160,6 +160,18 @@ def pipeline(cfg: DictConfig) -> None:
         num_eigenvectors = cfg.multi_region_segmentation.num_eigenvectors,
         multiprocessing = cfg.multi_region_segmentation.multiprocessing
     )
+
+    # Visualize multi-region segmentations
+    if cfg.vis.multiregion_segmaps:
+        log.info("Plot multi region segmentations")
+        output_segm_plots = os.path.join(path_to_save_data, 'plots', 'multiregion_segmaps')
+        vis_utils.plot_segmentation(
+            images_list = images_list,
+            images_root = images_root,
+            segmentations_dir = output_multi_region_seg,
+            bbox_file = None,
+            output_dir = output_segm_plots
+        )
 
 
 
@@ -172,7 +184,7 @@ def pipeline(cfg: DictConfig) -> None:
 
     extract.extract_bboxes(
         features_dir = output_feat_dir,
-        segmentations_dir = output_seg_dir,
+        segmentations_dir = output_multi_region_seg,
         output_file = output_bbox,
         num_erode = cfg.bbox.num_erode,
         num_dilate = cfg.bbox.num_dilate,
@@ -221,7 +233,7 @@ def pipeline(cfg: DictConfig) -> None:
         exit()
 
     extract.extract_semantic_segmentations(
-        segmentations_dir = output_seg_dir,
+        segmentations_dir = output_multi_region_seg,
         bbox_clusters_file = output_bbox_clusters,
         output_dir = output_segmaps
     )
@@ -297,8 +309,8 @@ def vis_pipeline(cfg: DictConfig) -> None:
                 output_eig_dir = cfg.precomputed.eig
                 log.info(f'eig_dir={output_eig_dir}')
                 if cfg.precomputed.multi_region_segmentation != "":
-                    output_seg_dir = cfg.precomputed.multi_region_segmentation
-                    log.info(f'seg_dir={output_seg_dir}')
+                    output_multi_region_seg = cfg.precomputed.multi_region_segmentation
+                    log.info(f'multi_region_seg={output_multi_region_seg}')
                     if cfg.precomputed.bboxes != "":
                         output_bbox = cfg.precomputed.bboxes
                         log.info(f'bbox={output_bbox}')
@@ -341,6 +353,17 @@ def vis_pipeline(cfg: DictConfig) -> None:
             images_root = images_root,
             segmentations_dir = output_crf_segmaps,
             bbox_file = output_bbox,
+            output_dir = output_segm_plots
+        )
+
+    if cfg.vis.multiregion_segmaps:
+        log.info("Plot multi region segmentations")
+        output_segm_plots = os.path.join(path_to_save_data, 'plots', 'multiregion_segmaps')
+        vis_utils.plot_segmentation(
+            images_list = images_list,
+            images_root = images_root,
+            segmentations_dir = output_multi_region_seg,
+            bbox_file = None,
             output_dir = output_segm_plots
         )
 
