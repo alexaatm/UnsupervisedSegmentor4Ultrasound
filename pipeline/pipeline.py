@@ -230,13 +230,25 @@ def pipeline(cfg: DictConfig) -> None:
 
     if not cfg.pipeline_steps.sem_segm:
         log.info("Step was not selected")
-        exit()
+        # exit()
 
-    extract.extract_semantic_segmentations(
-        segmentations_dir = output_multi_region_seg,
-        bbox_clusters_file = output_bbox_clusters,
-        output_dir = output_segmaps
-    )
+        extract.extract_semantic_segmentations(
+            segmentations_dir = output_multi_region_seg,
+            bbox_clusters_file = output_bbox_clusters,
+            output_dir = output_segmaps
+        )
+
+        # Visualize segmentations
+        if cfg.vis.segmaps:
+            log.info("Plot segmentations")
+            output_segm_plots = os.path.join(path_to_save_data, 'plots', 'segmaps')
+            vis_utils.plot_segmentation(
+                images_list = images_list,
+                images_root = images_root,
+                segmentations_dir = output_segmaps,
+                bbox_file = None,
+                output_dir = output_segm_plots
+            )
 
 
     # Create crf segmentations (optional)
@@ -249,7 +261,7 @@ def pipeline(cfg: DictConfig) -> None:
     extract.extract_crf_segmentations(
         images_list = images_list,
         images_root = images_root,
-        segmentations_dir = output_segmaps,
+        segmentations_dir = output_segmaps if cfg.pipeline_steps.sem_segm else output_multi_region_seg,
         output_dir = output_crf_segmaps,
         num_classes =  cfg.crf.num_classes,
         downsample_factor = cfg.crf.downsample_factor,
@@ -263,7 +275,7 @@ def pipeline(cfg: DictConfig) -> None:
         it= cfg.crf.it
     )
 
-    # Visualize final segmentations
+    # Visualize final crf segmentations
     if cfg.vis.crf_segmaps:
         log.info("Plot final segmentations")
         output_segm_plots = os.path.join(path_to_save_data, 'plots', 'crf_segmaps')
@@ -363,6 +375,18 @@ def vis_pipeline(cfg: DictConfig) -> None:
             images_list = images_list,
             images_root = images_root,
             segmentations_dir = output_multi_region_seg,
+            bbox_file = None,
+            output_dir = output_segm_plots
+        )
+    
+    # Visualize segmentations
+    if cfg.vis.segmaps:
+        log.info("Plot segmentations")
+        output_segm_plots = os.path.join(path_to_save_data, 'plots', 'segmaps')
+        vis_utils.plot_segmentation(
+            images_list = images_list,
+            images_root = images_root,
+            segmentations_dir = output_segmaps,
             bbox_file = None,
             output_dir = output_segm_plots
         )
