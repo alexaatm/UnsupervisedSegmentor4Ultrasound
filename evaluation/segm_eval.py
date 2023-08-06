@@ -2,16 +2,15 @@
 Evaluation functions for assessing the segmentation.
 Adapted from: https://github.com/lukemelas/deep-spectral-segmentation
 
-What is changed is enabling to perform this evaluataion on any given labeled dataset.
+What is changed is enabling to perform this evaluataion on any given 
+labeled dataset. See evaluation/dataset.py  - a dataset class that stores 
+images, predictions and ground truth. Additionally, wandb logging of 
+segmentations, metrics in tables and IoU confusion matrices is done.
 """
 
 import os
 from pathlib import Path
-from typing import Iterable, Optional
-
-import hydra
 import numpy as np
-import torch
 import wandb
 from matplotlib.cm import get_cmap
 from omegaconf import DictConfig, OmegaConf

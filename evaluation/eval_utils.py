@@ -26,6 +26,7 @@ def hungarian_match(flat_preds, flat_targets, preds_k, targets_k, metric='acc', 
     for out_c, gt_c in match:
         res.append((out_c, gt_c))
 
+    # return a list of tuples (matches classes) and a full IoU matrix
     return res, results
 
 
@@ -37,6 +38,7 @@ def majority_vote(flat_preds, flat_targets, preds_k, targets_k, n_jobs=16):
     # TODO: visualize confusion matrix
     results = np.argmax(iou_mat_resahped, axis=1)
     match = np.array(list(zip(range(preds_k), results)))
+    # return a list of tuples (matches classes) and a full IoU matrix
     return match, iou_mat_resahped
 
 
