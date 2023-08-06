@@ -156,3 +156,7 @@ Ubuntu.appx
 self-training/tasks/configs/wandb/defaults.yaml
 slurm_scripts/*.out
 slurm_scripts/*.err
+slurm_scripts/logs
+evaluation/__pycache__/
+evaluation/outputs/
+configs/
