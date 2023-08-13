@@ -160,3 +160,4 @@ slurm_scripts/logs
 evaluation/__pycache__/
 evaluation/outputs/
 configs/
+evaluation/demo_*
