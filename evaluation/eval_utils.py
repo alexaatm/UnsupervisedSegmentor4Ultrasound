@@ -1,7 +1,7 @@
 """
 Utility functions for evaluating the segmentation.
 Source: https://github.com/lukemelas/deep-spectral-segmentation
-ALl credits for this code go to their respective authors
+All credits for this code go to their respective authors
 """
 
 import numpy as np

@@ -170,7 +170,7 @@ def main(cfg: DictConfig):
     print(match)
 
     # Visualize
-    img_list, img_list2 = visualize(cfg.dataset.dataset_dir, cfg.dataset.n_classes, cfg.vis_dir, 1)
+    img_list, img_list2 = visualize(cfg.dataset.dataset_dir, cfg.dataset.n_classes, cfg.vis_dir, cfg.vis_rand_k)
 
     if cfg.wandb:
         wandb.log({'mIoU': eval_stats['mIoU']})
@@ -179,9 +179,10 @@ def main(cfg: DictConfig):
         wandb.log({'IoU_matrix': eval_stats['IoU_matrix']})
 
         # Log confusion matrix and other metrics to wandb
-        class_names = [f'class{i}' for i in range(cfg.dataset.n_classes)]
-        iou_df = pd.DataFrame(data=eval_stats['IoU_matrix'], index=class_names, columns=class_names)
-        wandb.log({'IoU_heatmap': wandb.plots.HeatMap(class_names, class_names, iou_df, show_text=True)})
+        class_names = [f'GT_class{i}' for i in range(cfg.dataset.n_classes)]
+        pseudolabel_names = [f'PL_class{i}' for i in range(cfg.dataset.n_clusters)]
+        iou_df = pd.DataFrame(data=eval_stats['IoU_matrix'], index=pseudolabel_names, columns=class_names)
+        wandb.log({'IoU_heatmap': wandb.plots.HeatMap(pseudolabel_names, class_names, iou_df, show_text=True)})
 
         # Log Jaccard index table
         wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names)})
