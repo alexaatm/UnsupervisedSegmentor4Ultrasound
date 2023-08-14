@@ -1,4 +1,4 @@
-adaptive: False,
+adaptive: False
 non_adaptive_num_segments: 4
 infer_bg_index: True
 kmeans_baseline: False
