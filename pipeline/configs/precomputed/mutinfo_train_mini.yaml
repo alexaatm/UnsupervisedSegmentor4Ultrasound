@@ -1,0 +1,9 @@
+mode: precomputed
+features: "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/deep-spectral-segmentation/outputs/pipeline/mutinfo_train_mini/2023-08-12--15-04-22/features/dino_vits8"
+eig: "thesis-codebase/deep-spectral-segmentation/outputs/pipeline/mutinfo_train_mini/2023-08-12--15-04-22/eig/laplacian"
+multi_region_segmentation: ""
+bboxes: ""
+bbox_features: ""
+bbox_clusters: ""
+segmaps: ""
+crf_segmaps: ""

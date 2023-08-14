@@ -1,0 +1,10 @@
+mode: precomputed
+features: "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/deep-spectral-segmentation/outputs/pipeline/mutinfo_val_carotid/2023-08-13--19-37-19/features/dino_vits8"
+eig: "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/deep-spectral-segmentation/outputs/pipeline/mutinfo_val_carotid/2023-08-13--19-37-19/eig/laplacian"
+multi_region_segmentation: "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/deep-spectral-segmentation/outputs/pipeline/mutinfo_val_carotid/2023-08-13--19-37-19/multi_region_segmentation/laplacian"
+bboxes: "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/deep-spectral-segmentation/outputs/pipeline/mutinfo_val_carotid/2023-08-13--19-37-19/multi_region_bboxes/laplacian/bboxes.pth"
+bbox_features: ""
+bbox_clusters: ""
+segmaps: ""
+crf_segmaps: ""
+crf_multi_region: "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/deep-spectral-segmentation/outputs/pipeline/mutinfo_val_carotid/2023-08-13--20-47-28/semantic_segmentations/laplacian/crf_multi_region"

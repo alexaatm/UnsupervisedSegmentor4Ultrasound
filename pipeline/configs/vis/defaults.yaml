@@ -3,3 +3,4 @@ crf_segmaps: False
 dino_attn_maps: False
 multiregion_segmaps: False
 segmaps: False
+crf_multi_region: False

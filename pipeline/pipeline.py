@@ -39,8 +39,10 @@ def pipeline(cfg: DictConfig) -> None:
     output_bbox = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg.spectral_clustering.which_matrix, 'bboxes.pth')
     output_bbox_features = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg.spectral_clustering.which_matrix, 'bbox_features.pth')
     output_bbox_clusters = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg.spectral_clustering.which_matrix, 'bbox_clusters.pth')
-    output_segmaps = os.path.join(path_to_save_data, 'semantic_segmentations', 'patches', cfg.spectral_clustering.which_matrix, 'segmaps')
-    output_crf_segmaps = os.path.join(path_to_save_data, 'semantic_segmentations', 'patches', cfg.spectral_clustering.which_matrix, 'crf_segmaps')
+    output_segmaps = os.path.join(path_to_save_data, 'semantic_segmentations', cfg.spectral_clustering.which_matrix, 'segmaps')
+    output_crf_segmaps = os.path.join(path_to_save_data, 'semantic_segmentations', cfg.spectral_clustering.which_matrix, 'crf_segmaps')
+    output_crf_multi_region = os.path.join(path_to_save_data, 'semantic_segmentations', cfg.spectral_clustering.which_matrix, 'crf_multi_region')
+
     
     if cfg.precomputed.mode == "precomputed":
         log.info("Some precomputed steps are provided - need to check each step")
@@ -51,16 +53,18 @@ def pipeline(cfg: DictConfig) -> None:
                 output_eig_dir = cfg.precomputed.eig
                 if cfg.precomputed.multi_region_segmentation != "":
                     output_multi_region_seg = cfg.precomputed.multi_region_segmentation
-                    if cfg.precomputed.bboxes != "":
-                        output_bbox = cfg.precomputed.bboxes
-                        if cfg.precomputed.bbox_features != "":
-                            output_bbox_features = cfg.precomputed.bbox_features
-                            if cfg.precomputed.bbox_clusters != "":
-                                output_bbox_clusters = cfg.precomputed.bbox_clusters
-                                if cfg.precomputed.segmaps != "":
-                                    output_segmaps = cfg.precomputed.segmaps
-                                    if cfg.precomputed.crf_segmaps != "":
-                                        output_crf_segmaps = cfg.precomputed.crf_segmaps
+                    if cfg.precomputed.multi_region_segmentation != "":
+                        output_crf_multi_region = cfg.precomputed.crf_multi_region                  
+                        if cfg.precomputed.bboxes != "":
+                            output_bbox = cfg.precomputed.bboxes
+                            if cfg.precomputed.bbox_features != "":
+                                output_bbox_features = cfg.precomputed.bbox_features
+                                if cfg.precomputed.bbox_clusters != "":
+                                    output_bbox_clusters = cfg.precomputed.bbox_clusters
+                                    if cfg.precomputed.segmaps != "":
+                                        output_segmaps = cfg.precomputed.segmaps
+                                        if cfg.precomputed.crf_segmaps != "":
+                                            output_crf_segmaps = cfg.precomputed.crf_segmaps
 
     log.info(f'images_list={images_list}')
     log.info(f'images_root={images_root}')
@@ -72,6 +76,7 @@ def pipeline(cfg: DictConfig) -> None:
     log.info(f'output_bbox_clusters={output_bbox_clusters}')
     log.info(f'output_segmaps={output_segmaps}')
     log.info(f'output_crf_segmaps={output_crf_segmaps}')
+    log.info(f'output_crf_multi_region={output_crf_multi_region}')
 
 
     # Extract Features
@@ -173,6 +178,43 @@ def pipeline(cfg: DictConfig) -> None:
             output_dir = output_segm_plots
         )
 
+        # Create crf segmentations (optional)
+    log.info("[optional]: create CRF semantic segmentation ")
+
+    # Improve multi-region segmentations using crf
+    if not cfg.pipeline_steps.crf_multi_region:
+        log.info("Step was not selected")
+        # exit()
+    else:
+        extract.extract_crf_segmentations(
+            images_list = images_list,
+            images_root = images_root,
+            segmentations_dir = output_multi_region_seg,
+            output_dir = output_crf_multi_region,
+            num_classes =  cfg.crf.num_classes,
+            downsample_factor = cfg.crf.downsample_factor,
+            multiprocessing = cfg.crf.multiprocessing,
+            # CRF parameters
+            w1 = cfg.crf.w1,
+            alpha = cfg.crf.alpha,
+            beta = cfg.crf.beta,
+            w2 = cfg.crf.w2,
+            gamma = cfg.crf.gamma,
+            it= cfg.crf.it
+        )
+
+        # Visualize final crf segmentations
+        if cfg.vis.crf_multi_region:
+            log.info("Plot crf multi region segmentations")
+            output_segm_plots = os.path.join(path_to_save_data, 'plots', 'crf_multi_region')
+            vis_utils.plot_segmentation(
+                images_list = images_list,
+                images_root = images_root,
+                segmentations_dir = output_crf_multi_region,
+                bbox_file = None,
+                output_dir = output_segm_plots
+            )
+
 
 
     # Extract bounding boxes
@@ -180,76 +222,76 @@ def pipeline(cfg: DictConfig) -> None:
 
     if not cfg.pipeline_steps.bbox:
         log.info("Step was not selected")
-        exit()
-
-    extract.extract_bboxes(
-        features_dir = output_feat_dir,
-        segmentations_dir = output_multi_region_seg,
-        output_file = output_bbox,
-        num_erode = cfg.bbox.num_erode,
-        num_dilate = cfg.bbox.num_dilate,
-        skip_bg_index= cfg.bbox.skip_bg_index,
-        downsample_factor = cfg.bbox.downsample_factor,
-    )
-
-
-
-    # Extract bounding box features
-    log.info("STEP 5/8: extract bounding box features ")
-
-    if not cfg.pipeline_steps.bbox_features:
-        log.info("Step was not selected")
-        exit()
-
-    extract.extract_bbox_features(
-        images_root = images_root,
-        bbox_file = output_bbox,
-        model_name = cfg.model.name,
-        output_file = output_bbox_features
-    )
-
-
-    # Extract clusters
-    log.info("STEP 6/8: extract clusters ")
-
-    if not cfg.pipeline_steps.clusters:
-        log.info("Step was not selected")
-        exit()
-
-    extract.extract_bbox_clusters(
-        bbox_features_file = output_bbox_features,
-        output_file = output_bbox_clusters,
-        num_clusters = cfg.bbox.num_clusters,
-        seed = cfg.bbox.seed,
-        pca_dim = cfg.bbox.pca_dim
-    )
-
-
-    # Create semantic segmentations
-    log.info("STEP 7/8: create semantic segmentation ")
-
-    if not cfg.pipeline_steps.sem_segm:
-        log.info("Step was not selected")
         # exit()
+    else:
 
-        extract.extract_semantic_segmentations(
+        extract.extract_bboxes(
+            features_dir = output_feat_dir,
             segmentations_dir = output_multi_region_seg,
-            bbox_clusters_file = output_bbox_clusters,
-            output_dir = output_segmaps
+            output_file = output_bbox,
+            num_erode = cfg.bbox.num_erode,
+            num_dilate = cfg.bbox.num_dilate,
+            skip_bg_index= cfg.bbox.skip_bg_index,
+            downsample_factor = cfg.bbox.downsample_factor,
         )
 
-        # Visualize segmentations
-        if cfg.vis.segmaps:
-            log.info("Plot segmentations")
-            output_segm_plots = os.path.join(path_to_save_data, 'plots', 'segmaps')
-            vis_utils.plot_segmentation(
-                images_list = images_list,
+
+
+        # Extract bounding box features
+        log.info("STEP 5/8: extract bounding box features ")
+
+        if not cfg.pipeline_steps.bbox_features:
+            log.info("Step was not selected")
+            # exit()
+        else:
+            extract.extract_bbox_features(
                 images_root = images_root,
-                segmentations_dir = output_segmaps,
-                bbox_file = None,
-                output_dir = output_segm_plots
+                bbox_file = output_bbox,
+                model_name = cfg.model.name,
+                output_file = output_bbox_features
             )
 
+
+            # Extract clusters
+            log.info("STEP 6/8: extract clusters ")
+
+            if not cfg.pipeline_steps.clusters:
+                log.info("Step was not selected")
+                # exit()
+            else:
+                extract.extract_bbox_clusters(
+                    bbox_features_file = output_bbox_features,
+                    output_file = output_bbox_clusters,
+                    num_clusters = cfg.bbox.num_clusters,
+                    seed = cfg.bbox.seed,
+                    pca_dim = cfg.bbox.pca_dim
+                )
+
+
+                # Create semantic segmentations
+                log.info("STEP 7/8: create semantic segmentation ")
+
+                if not cfg.pipeline_steps.sem_segm:
+                    log.info("Step was not selected")
+                    # exit()
+                else:
+                    extract.extract_semantic_segmentations(
+                        segmentations_dir = output_multi_region_seg,
+                        bbox_clusters_file = output_bbox_clusters,
+                        output_dir = output_segmaps
+                    )
+
+                    # Visualize segmentations
+                    if cfg.vis.segmaps:
+                        log.info("Plot semantic segmentations")
+                        output_segm_plots = os.path.join(path_to_save_data, 'plots', 'segmaps')
+                        vis_utils.plot_segmentation(
+                            images_list = images_list,
+                            images_root = images_root,
+                            segmentations_dir = output_segmaps,
+                            bbox_file = None,
+                            output_dir = output_segm_plots
+                        )
 
     # Create crf segmentations (optional)
     log.info("STEP 8/8 [optional]: create CRF semantic segmentation ")
@@ -277,13 +319,13 @@ def pipeline(cfg: DictConfig) -> None:
 
     # Visualize final crf segmentations
     if cfg.vis.crf_segmaps:
-        log.info("Plot final segmentations")
+        log.info("Plot crf semantic segmentations")
         output_segm_plots = os.path.join(path_to_save_data, 'plots', 'crf_segmaps')
         vis_utils.plot_segmentation(
             images_list = images_list,
             images_root = images_root,
             segmentations_dir = output_crf_segmaps,
-            bbox_file = output_bbox,
+            bbox_file = None,
             output_dir = output_segm_plots
         )
 

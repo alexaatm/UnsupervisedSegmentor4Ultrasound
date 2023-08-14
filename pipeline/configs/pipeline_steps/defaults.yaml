@@ -6,3 +6,4 @@ bbox_features: False
 clusters: False
 sem_segm: False
 crf_segm: False
+crf_multi_region: False
