@@ -86,7 +86,7 @@ def extract_features(
         id = Path(files[0]).stem
         output_file = Path(output_dir) / f'{id}.pth'
         if output_file.is_file():
-            # pbar.write(f'Skipping existing file {str(output_file)}')
+            pbar.write(f'Skipping existing file {str(output_file)}')
             continue
 
         # Reshape image
@@ -151,7 +151,7 @@ def _extract_eig(
     # Load
     output_file = str(Path(output_dir) / f'{image_id}.pth')
     if Path(output_file).is_file():
-        # print(f'Skipping existing file {str(output_file)}')
+        print(f'Skipping existing file {str(output_file)}')
         return  # skip because already generated
     
     # Load affinity matrix
@@ -557,19 +557,22 @@ def extract_bbox_features(
 
     utils.make_output_dir(str(Path(output_file).parent), check_if_empty=False)
 
+
+
     # Load bounding boxes
     bbox_list = torch.load(bbox_file)
     total_num_boxes = sum(len(d['bboxes']) for d in bbox_list)
     print(f'Loaded bounding box list. There are {total_num_boxes} total bounding boxes.')
-
     # Device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = 'cpu'
     # device = 'cuda'
 
     # Models
     model_name_lower = model_name.lower()
     model, val_transform, patch_size, num_heads = utils.get_model(model_name_lower)
-    model.eval().to(device)
+    model.eval()
+    model = model.to(device)
 
     # Loop over boxes
     for bbox_dict in tqdm(bbox_list):
@@ -583,7 +586,8 @@ def extract_bbox_features(
         features_crops = []
         for (xmin, ymin, xmax, ymax) in bboxes:
             image_crop = image[:, :, ymin:ymax, xmin:xmax]
-            features_crop = model(image_crop).squeeze().cpu()
+            with torch.no_grad():
+                features_crop = model(image_crop).squeeze().cpu()
             features_crops.append(features_crop)
         bbox_dict['features'] = torch.stack(features_crops, dim=0)
     
