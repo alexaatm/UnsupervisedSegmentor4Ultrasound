@@ -1,7 +1,0 @@
-mode: precomputed
-features: "" 
-eig: "" 
-multi_region_segmentation: ""
-bboxes: ""
-segmaps: ""
-crf_segmaps: ""

@@ -1,8 +1,0 @@
-dino_features: False
-eigen: False
-segments: False
-bbox: False
-bbox_features: False
-clusters: False
-sem_segm: False
-crf_segm: False

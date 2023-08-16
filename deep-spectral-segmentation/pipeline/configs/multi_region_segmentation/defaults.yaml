@@ -1,6 +1,0 @@
-adaptive: False,
-non_adaptive_num_segments: 4
-infer_bg_index: True
-kmeans_baseline: False
-num_eigenvectors: 1_000_000
-multiprocessing: 0
