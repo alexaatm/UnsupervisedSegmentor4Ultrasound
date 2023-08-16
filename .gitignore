@@ -156,3 +156,4 @@ Ubuntu.appx
 self-training/tasks/configs/wandb/defaults.yaml
 slurm_scripts/*.out
 slurm_scripts/*.err
+cutler_env/
