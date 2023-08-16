@@ -288,8 +288,8 @@ def main(cfg: DictConfig):
     # Evaluate
     dataset = EvalDataset(cfg.dataset.dataset_dir, cfg.dataset.gt_dir, cfg.dataset.pred_dir)
     eval_stats, matches, preds = evaluate_dataset(dataset, cfg.dataset.n_classes, cfg.dataset.get('n_clusters', None))
-    print(eval_stats)
-    print(matches)
+    print("eval stats:", eval_stats)
+    print("matches:", matches)
 
 
     # Visualize some image evaluation samples
@@ -326,9 +326,7 @@ def main(cfg: DictConfig):
             # log matches for every sample in dataset - in a table
             row_data = [id] + [None] * cfg.dataset.n_classes
             for pr, gt in match:
-                print(f"pred {pr}, gt {gt}")
                 row_data[1 + gt] = pr if row_data[1 + gt] is None else row_data[1 + gt]
-                print(f'row data: ', row_data)
             match_table.add_data(*row_data)
 
             # log IoU heatmaps and remapped preds only for selected samples
@@ -338,7 +336,6 @@ def main(cfg: DictConfig):
                 # pseudolabel_names = [f'PL_class{i}' for i in np.unique(pred)]
 
                 # log IoU heatmaps - individually (cannot log wandb heatmaps in a wandb table...)
-                print(f'IoU numpy size: {np.shape(iou_m)}')
                 iou_df = pd.DataFrame(data=iou_m, index=pseudolabel_names, columns=class_names_all)
                 heatmap = wandb.plots.HeatMap(class_names_all,pseudolabel_names, iou_df, show_text=True)
                 wandb.log({f"Sample IoU Heatmap {id}": heatmap})
