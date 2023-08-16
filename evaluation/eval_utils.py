@@ -37,7 +37,8 @@ def majority_vote(flat_preds, flat_targets, preds_k, targets_k, n_jobs=16):
     iou_mat_resahped = iou_mat.reshape((targets_k, preds_k)).T
     # TODO: visualize confusion matrix
     results = np.argmax(iou_mat_resahped, axis=1)
-    match = np.array(list(zip(range(preds_k), results)))
+    # match = np.array(list(zip(range(preds_k), results)))
+    match = list(zip(range(preds_k), results))
     # return a list of tuples (matches classes) and a full IoU matrix
     return match, iou_mat_resahped
 
