@@ -7,12 +7,18 @@ from pathlib import Path
 
 
 class EvalDataset(Dataset):
-    def __init__(self, root_dir):
+    def __init__(self, root_dir, gt_dir = "", pred_dir = ""):
         self.root_dir = root_dir
         self.image_dir = os.path.join(root_dir, 'images')
-        self.gt_dir = os.path.join(root_dir, 'ground_truth')
-        self.pred_dir = os.path.join(root_dir, 'predictions')
+        self.gt_dir = gt_dir if gt_dir!="" else os.path.join(root_dir, 'ground_truth')
+        self.pred_dir = pred_dir if pred_dir!="" else os.path.join(root_dir, 'predictions')
         self.image_list = os.listdir(self.image_dir)
+
+        print("root:", self.root_dir)
+        print("image_dir:", self.image_dir)
+        print("gt_dir:", self.gt_dir)
+        print("pred_dir:", self.pred_dir)
+
 
     def __len__(self):
         return len(self.image_list)
