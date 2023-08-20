@@ -55,7 +55,7 @@ def evaluate_dataset(dataset, n_classes, n_clusters):
         pred_unique = np.unique(pred)
         print(f'GT unique labels: {gt_unique}')
         print(f'PRED unique labels: {pred_unique}')
-        if np.array_equal(gt_unique,pred_unique):
+        if np.array_equal(gt_unique,pred_unique) and n_clusters==n_classes:
         # if len(gt_unique)==len(pred_unique):
             print('Using hungarian algorithm for matching')
             match, iou_mat  = eval_utils.hungarian_match(pred, gt, preds_k=n_clusters, targets_k=n_classes, metric='iou')
@@ -192,7 +192,40 @@ def visualize(dataset, inds_to_vis, vis_dir: str = './vis'):
     for i, (image, target, mask, metadata) in enumerate(pbar):
         image = np.array(image)
         target = np.array(target)
+        mask = np.array(mask)
         target[target == 255] = 0  # set the "unknown" regions to background for visualization
+        
+
+        # Check if sizes correspond
+        H_im, W_im = image.shape[:2]
+        H_gt, W_gt = target.shape
+        H_pr, W_pr = mask.shape
+
+        H = np.max([H_im, H_gt, H_pr])
+        W = np.max([W_im, W_gt, W_pr])
+
+        print(f'Image shape: {image.shape}')
+        print(f'Gt shape: {target.shape}')
+        print(f'Pred shape: {mask.shape}')
+
+
+        if (H_gt!= H or W_gt!=W):
+            print("GT needs to be resized")
+            gt_im_res = cv2.resize(target, dsize=(W, H), interpolation=cv2.INTER_NEAREST)  # (H, W)
+            gt_im_res[:target.shape[0], :target.shape[1]] = target  # replace with the initial groundtruth version, just in case they are different
+            target = gt_im_res
+
+        if (H_pr!= H or W_pr!=W):
+            print("PRED needs to be resized")
+            pred_im_res = cv2.resize(mask, dsize=(W, H), interpolation=cv2.INTER_NEAREST)  # (H, W)
+            pred_im_res[:mask.shape[0], :mask.shape[1]] = mask  # replace with the initial prediction version, just in case they are different
+            mask = pred_im_res
+
+        print(f'After:')
+        print(f'Image shape: {image.shape}')
+        print(f'Gt shape: {target.shape}')
+        print(f'Pred shape: {mask.shape}')
+        
         # Overlay mask on image
         image_pred_overlay = label2rgb(label=mask, image=image, colors=colors[np.unique(mask)[1:]], bg_label=0, alpha=0.45)
         image_target_overlay = label2rgb(label=target, image=image, colors=colors[np.unique(target)[1:]], bg_label=0, alpha=0.45)
