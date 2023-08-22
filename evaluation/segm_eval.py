@@ -33,7 +33,7 @@ import datetime
 import pandas as pd
 import random
 
-def evaluate_dataset(dataset, n_classes, n_clusters):
+def evaluate_dataset(dataset, n_classes, n_clusters, thresh):
     
     if n_clusters is None:
         n_clusters = n_classes
@@ -58,10 +58,10 @@ def evaluate_dataset(dataset, n_classes, n_clusters):
         if np.array_equal(gt_unique,pred_unique) and n_clusters==n_classes:
         # if len(gt_unique)==len(pred_unique):
             print('Using hungarian algorithm for matching')
-            match, iou_mat  = eval_utils.hungarian_match(pred, gt, preds_k=n_clusters, targets_k=n_classes, metric='iou')
+            match, iou_mat  = eval_utils.hungarian_match(pred, gt, preds_k=n_clusters, targets_k=n_classes, metric='iou', thresh=thresh)
         else:
             print('Using majority voting for matching')
-            match, iou_mat = eval_utils.majority_vote(pred, gt, preds_k=n_clusters, targets_k=n_classes)
+            match, iou_mat = eval_utils.majority_vote_unique(pred, gt, preds_k=n_clusters, targets_k=n_classes, thresh=thresh)
         print(f'Optimal matching: {match}')
         matches.append(match)
         iou_matrices.append(iou_mat)
@@ -94,7 +94,7 @@ def evaluate_dataset(dataset, n_classes, n_clusters):
     
     return eval_result, matches, remapped_preds
 
-def evaluate_dataset_old(dataset, n_classes, n_clusters):
+def evaluate_dataset_with_single_matching(dataset, n_classes, n_clusters, thresh):
     # dataset = EvalDataset(dataset_dir)
     
     # Add background class
@@ -132,10 +132,10 @@ def evaluate_dataset_old(dataset, n_classes, n_clusters):
     # Do hungarian matching 
     if n_clusters == n_classes:
         print('Using hungarian algorithm for matching')
-        match, iou_mat  = eval_utils.hungarian_match(all_preds, all_gt, preds_k=n_clusters, targets_k=n_classes, metric='iou')
+        match, iou_mat  = eval_utils.hungarian_match(all_preds, all_gt, preds_k=n_clusters, targets_k=n_classes, metric='iou', thresh=thresh)
     else:
         print('Using majority voting for matching')
-        match, iou_mat = eval_utils.majority_vote(all_preds, all_gt, preds_k=n_clusters, targets_k=n_classes)
+        match, iou_mat = eval_utils.majority_vote(all_preds, all_gt, preds_k=n_clusters, targets_k=n_classes, thresh=thresh)
     print(f'Optimal matching: {match}')
 
     # Remap predictions
@@ -190,214 +190,222 @@ def visualize(dataset, inds_to_vis, vis_dir: str = './vis'):
 
     pbar = tqdm(dataset, total=len(dataset), desc='Saving visualizations: ')
     for i, (image, target, mask, metadata) in enumerate(pbar):
-        image = np.array(image)
-        target = np.array(target)
-        mask = np.array(mask)
-        target[target == 255] = 0  # set the "unknown" regions to background for visualization
-        
-
-        # Check if sizes correspond
-        H_im, W_im = image.shape[:2]
-        H_gt, W_gt = target.shape
-        H_pr, W_pr = mask.shape
-
-        H = np.max([H_im, H_gt, H_pr])
-        W = np.max([W_im, W_gt, W_pr])
-
-        print(f'Image shape: {image.shape}')
-        print(f'Gt shape: {target.shape}')
-        print(f'Pred shape: {mask.shape}')
-
-
-        if (H_gt!= H or W_gt!=W):
-            print("GT needs to be resized")
-            gt_im_res = cv2.resize(target, dsize=(W, H), interpolation=cv2.INTER_NEAREST)  # (H, W)
-            gt_im_res[:target.shape[0], :target.shape[1]] = target  # replace with the initial groundtruth version, just in case they are different
-            target = gt_im_res
-
-        if (H_pr!= H or W_pr!=W):
-            print("PRED needs to be resized")
-            pred_im_res = cv2.resize(mask, dsize=(W, H), interpolation=cv2.INTER_NEAREST)  # (H, W)
-            pred_im_res[:mask.shape[0], :mask.shape[1]] = mask  # replace with the initial prediction version, just in case they are different
-            mask = pred_im_res
-
-        print(f'After:')
-        print(f'Image shape: {image.shape}')
-        print(f'Gt shape: {target.shape}')
-        print(f'Pred shape: {mask.shape}')
-        
-        # Overlay mask on image
-        image_pred_overlay = label2rgb(label=mask, image=image, colors=colors[np.unique(mask)[1:]], bg_label=0, alpha=0.45)
-        image_target_overlay = label2rgb(label=target, image=image, colors=colors[np.unique(target)[1:]], bg_label=0, alpha=0.45)
-        
-        # Save 
-        image_id = metadata["id"]
-        path_pred = vis_dir / 'pred' / f'{image_id}-pred.png'
-        path_target = vis_dir / 'target' / f'{image_id}-target.png'
-        path_pred.parent.mkdir(exist_ok=True, parents=True)
-        path_target.parent.mkdir(exist_ok=True, parents=True)
-
-        pred_img = Image.fromarray((image_pred_overlay * 255).astype(np.uint8))
-        pred_img.save(str(path_pred))
-        target_img = Image.fromarray((image_target_overlay * 255).astype(np.uint8))
-        target_img.save(str(path_target))
         if i in inds_to_vis:
+            image = np.array(image)
+            target = np.array(target)
+            mask = np.array(mask)
+            target[target == 255] = 0  # set the "unknown" regions to background for visualization
+            
+
+            # Check if sizes correspond
+            H_im, W_im = image.shape[:2]
+            H_gt, W_gt = target.shape
+            H_pr, W_pr = mask.shape
+
+            H = np.max([H_im, H_gt, H_pr])
+            W = np.max([W_im, W_gt, W_pr])
+
+            # print(f'Image shape: {image.shape}')
+            # print(f'Gt shape: {target.shape}')
+            # print(f'Pred shape: {mask.shape}')
+
+
+            if (H_gt!= H or W_gt!=W):
+                print("GT needs to be resized")
+                gt_im_res = cv2.resize(target, dsize=(W, H), interpolation=cv2.INTER_NEAREST)  # (H, W)
+                gt_im_res[:target.shape[0], :target.shape[1]] = target  # replace with the initial groundtruth version, just in case they are different
+                target = gt_im_res
+
+            if (H_pr!= H or W_pr!=W):
+                print("PRED needs to be resized")
+                pred_im_res = cv2.resize(mask, dsize=(W, H), interpolation=cv2.INTER_NEAREST)  # (H, W)
+                pred_im_res[:mask.shape[0], :mask.shape[1]] = mask  # replace with the initial prediction version, just in case they are different
+                mask = pred_im_res
+
+            # print(f'After:')
+            # print(f'Image shape: {image.shape}')
+            # print(f'Gt shape: {target.shape}')
+            # print(f'Pred shape: {mask.shape}')
+            
+            # Overlay mask on image
+            image_pred_overlay = label2rgb(label=mask, image=image, colors=colors[np.unique(mask)[1:]], bg_label=0, alpha=0.45)
+            image_target_overlay = label2rgb(label=target, image=image, colors=colors[np.unique(target)[1:]], bg_label=0, alpha=0.45)
+            
+            # Save samples
+            image_id = metadata["id"]
+            path_pred = vis_dir / 'pred' / f'{image_id}-pred.png'
+            path_target = vis_dir / 'target' / f'{image_id}-target.png'
+            path_pred.parent.mkdir(exist_ok=True, parents=True)
+            path_target.parent.mkdir(exist_ok=True, parents=True)
+
+            pred_img = Image.fromarray((image_pred_overlay * 255).astype(np.uint8))
+            pred_img.save(str(path_pred))
+            target_img = Image.fromarray((image_target_overlay * 255).astype(np.uint8))
+            target_img.save(str(path_target))
             img_list.append([image_id, image, pred_img, target_img])
+
 
     print(f'Saved visualizations to {vis_dir.absolute()}')
     return img_list, legend_img
 
 
-# @hydra.main(version_base=None, config_path="./configs", config_name="defaults")
-def main_old(cfg: DictConfig):
-    # Logging
-    if cfg.wandb:
-        wandb.login(key=cfg.wandb.key)
-        cfg.wandb.key=""
-        wandb.init(name ="eval_" + cfg.dataset.name + "_" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'), project=cfg.wandb.setup.project, config=OmegaConf.to_container(cfg), save_code=True)
-        cfg = DictConfig(wandb.config.as_dict())  # get the config back from wandb for hyperparameter sweeps
-
-    # Configuration
-    print(OmegaConf.to_yaml(cfg))
-    print(f'Current working directory: {os.getcwd()}')
-
-    # Evaluate
-    dataset = EvalDataset(cfg.dataset.dataset_dir, cfg.dataset.gt_dir, cfg.dataset.pred_dir)
-    eval_stats, match = evaluate_dataset_old(dataset, cfg.dataset.n_classes, cfg.dataset.get('n_clusters', None))
-    print(eval_stats)
-    print(match)
-
-    # Visualize
-    img_list, img_list2, _, _ = visualize(cfg.dataset.dataset_dir, cfg.dataset.n_classes, cfg.vis_dir, cfg.vis_rand_k)
-
-    if cfg.wandb:
-        wandb.log({'mIoU': eval_stats['mIoU']})
-        wandb.log({'jac': eval_stats['jaccards_all_categs']}) 
-        wandb.log({'match': match})
-        wandb.log({'IoU_matrix': eval_stats['IoU_matrix']})
-
-        # Log confusion matrix and other metrics to wandb
-        class_names = [f'GT_class{i}' for i in range(cfg.dataset.n_classes)]
-        pseudolabel_names = [f'PL_class{i}' for i in range(cfg.dataset.n_clusters)]
-        iou_df = pd.DataFrame(data=eval_stats['IoU_matrix'], index=pseudolabel_names, columns=class_names)
-        wandb.log({'IoU_heatmap': wandb.plots.HeatMap(pseudolabel_names, class_names, iou_df, show_text=True)})
-
-        # Log Jaccard index table
-        wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names)})
-
-        # Log segment matchings
-        pred_gt_list = [[pr, gt] for pr, gt in match]
-        wandb.log({"match_table": wandb.Table(data=pred_gt_list, columns=['Pseudo label','Ground Truth label'])})
-
-        # Log example images
-        img_table = wandb.Table(columns=['ID', 'Image', 'Pred', 'Ground_Truth'])
-        for img_id, img, pred, gt in img_list:
-            img_table.add_data(img_id, wandb.Image(img), wandb.Image(pred), wandb.Image(gt))
-        wandb.log({"Example Images" : img_table})
-
-        # Visualize labels using wandb
-        img_table2 = wandb.Table(columns=['ID', 'Image'])
-        for img_id, img, pred, gt in img_list2:
-            mask_img = wandb.Image(img, masks = {
-                "prediction" : {"mask_data" : pred},
-                "groud_truth" : {"mask_data" : gt},
-            })
-            img_table2.add_data(img_id, mask_img)
-        wandb.log({"Example Images2" : img_table2})
-
 @hydra.main(version_base=None, config_path="./configs", config_name="defaults")
 def main(cfg: DictConfig):
-    # Logging
-    if cfg.wandb:
-        wandb.login(key=cfg.wandb.key)
-        cfg.wandb.key=""
-        wandb.init(name ="eval_" + cfg.dataset.name + "_" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'), project=cfg.wandb.setup.project, config=OmegaConf.to_container(cfg), save_code=True)
-        cfg = DictConfig(wandb.config.as_dict())  # get the config back from wandb for hyperparameter sweeps
+    if cfg.eval_per_image:
+        # Evaluate per image
 
-    # Configuration
-    print(OmegaConf.to_yaml(cfg))
-    print(f'Current working directory: {os.getcwd()}')
+        # Logging
+        if cfg.wandb:
+            wandb.login(key=cfg.wandb.key)
+            cfg.wandb.key=""
+            wandb.init(name ="eval_" + cfg.dataset.name + "_" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'), project=cfg.wandb.setup.project, config=OmegaConf.to_container(cfg), save_code=True)
+            cfg = DictConfig(wandb.config.as_dict())  # get the config back from wandb for hyperparameter sweeps
 
-    # Evaluate
-    dataset = EvalDataset(cfg.dataset.dataset_dir, cfg.dataset.gt_dir, cfg.dataset.pred_dir)
-    eval_stats, matches, preds = evaluate_dataset(dataset, cfg.dataset.n_classes, cfg.dataset.get('n_clusters', None))
-    print("eval stats:", eval_stats)
-    print("matches:", matches)
+        # Configuration
+        print(OmegaConf.to_yaml(cfg))
+        print(f'Current working directory: {os.getcwd()}')
+
+        # Evaluate
+        dataset = EvalDataset(cfg.dataset.dataset_dir, cfg.dataset.gt_dir, cfg.dataset.pred_dir)
+        eval_stats, matches, preds = evaluate_dataset(dataset, cfg.dataset.n_classes, cfg.dataset.get('n_clusters', None), cfg.iou_thresh)
+        print("eval stats:", eval_stats)
+        print("matches:", matches)
 
 
-    # Visualize some image evaluation samples
-    if cfg.vis_rand_k > len(dataset): # a safeguard for a case when more samples are asked than is in dataset
-        inds_to_vis = [0]
-    elif cfg.vis_rand_k > 0:
-        inds_to_vis = random.sample(range(len(dataset)), cfg.vis_rand_k)
+        # Visualize some image evaluation samples
+        random.seed(1) 
+        if cfg.vis_rand_k > len(dataset): # a safeguard for a case when more samples are asked than is in dataset
+            inds_to_vis = [0]
+        elif cfg.vis_rand_k > 0:
+            inds_to_vis = random.sample(range(len(dataset)), cfg.vis_rand_k)
+        else:
+            inds_to_vis = [-1] #no images will be sampled
+
+        print("sample images to visualize in wandb: ", inds_to_vis)
+
+        # Visualize
+        img_list, legend = visualize(dataset, inds_to_vis, cfg.vis_dir)
+
+        if cfg.wandb:
+            wandb.log({'mIoU': eval_stats['mIoU']})
+
+            # Log metrics and sample evaluation results
+            class_names_all = [f'GT_class{i}' for i in range(cfg.dataset.n_classes)]
+            pseudolabel_names = [f'PL_class{i}' for i in range(cfg.dataset.n_clusters)]
+            
+            # Table for logging segment matching
+            match_table = wandb.Table(columns = ['ID'] + class_names_all)
+    
+            # Table for logging corrected labels using wandb
+            remapped_pred_table = wandb.Table(columns=['ID', 'Image'])
+
+            # Go through dataset and log data
+            for i, (sample, iou_m, match, remapped_pred) in enumerate(zip(dataset, eval_stats['IoU_matrix'], matches, preds)):
+                im, target, pred, metadata = sample
+                id = metadata['id']
+
+                # log matches for every sample in dataset - in a table
+                row_data = [id] + [None] * cfg.dataset.n_classes
+                for pr, gt in match:
+                    row_data[1 + gt] = pr if row_data[1 + gt] is None else row_data[1 + gt]
+                match_table.add_data(*row_data)
+
+                # log IoU heatmaps and remapped preds only for selected samples
+                if i in inds_to_vis:
+                    # get lists of unique labels to name the columns of heatmaps (may be different for each image)
+                    # class_names = [f'GT_class{i}' for i in np.unique(target)]
+                    # pseudolabel_names = [f'PL_class{i}' for i in np.unique(pred)]
+
+                    # log IoU heatmaps - individually (cannot log wandb heatmaps in a wandb table...)
+                    iou_df = pd.DataFrame(data=iou_m, index=pseudolabel_names, columns=class_names_all)
+                    heatmap = wandb.plots.HeatMap(class_names_all,pseudolabel_names, iou_df, show_text=True)
+                    wandb.log({f"Sample IoU Heatmap {id}": heatmap})
+
+                    # log remapped predictions - in a table
+                    mask_img = wandb.Image(im, masks = {
+                    "groud_truth" : {"mask_data" : target},
+                    "prediction" : {"mask_data" : pred},
+                    "remapped_pred" : {"mask_data" : remapped_pred},
+                    })
+                    remapped_pred_table.add_data(id, mask_img)
+
+            # Log completed tables
+            wandb.log({"match_table": match_table})
+            wandb.log({"Example Images After Remapping" : remapped_pred_table})
+
+            # Log Jaccard index table
+            wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names_all)})
+
+            # Log example images with overlayed segmentation
+            img_table = wandb.Table(columns=['ID', 'Image', 'Pred', 'Ground_Truth'])
+            for img_id, img, pred, gt in img_list:
+                img_table.add_data(img_id, wandb.Image(img), wandb.Image(pred), wandb.Image(gt))
+            wandb.log({"Example Images" : img_table})
+
+            # Log legend to interprete example images
+            wandb.log({"Legend CLass-Color": wandb.Image(legend)})
+
+            wandb.finish()
+
     else:
-        inds_to_vis = [-1] #no images will be sampled
+        # Evaluate over the whole dataset
 
-    print("sample images to visualize in wandb: ", inds_to_vis)
+        # Logging
+        if cfg.wandb:
+            wandb.login(key=cfg.wandb.key)
+            cfg.wandb.key=""
+            wandb.init(name ="eval_" + cfg.dataset.name + "_" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'), project=cfg.wandb.setup.project, config=OmegaConf.to_container(cfg), save_code=True)
+            cfg = DictConfig(wandb.config.as_dict())  # get the config back from wandb for hyperparameter sweeps
 
-    # Visualize
-    img_list, legend = visualize(dataset, inds_to_vis, cfg.vis_dir)
+        # Configuration
+        print(OmegaConf.to_yaml(cfg))
+        print(f'Current working directory: {os.getcwd()}')
 
-    if cfg.wandb:
-        wandb.log({'mIoU': eval_stats['mIoU']})
+        # Evaluate
+        dataset = EvalDataset(cfg.dataset.dataset_dir, cfg.dataset.gt_dir, cfg.dataset.pred_dir)
+        eval_stats, match = evaluate_dataset_with_single_matching(dataset, cfg.dataset.n_classes, cfg.dataset.get('n_clusters', None), cfg.iou_thresh)
+        print(eval_stats)
+        print(match)
 
-        # Log metrics and sample evaluation results
-        class_names_all = [f'GT_class{i}' for i in range(cfg.dataset.n_classes)]
-        pseudolabel_names = [f'PL_class{i}' for i in range(cfg.dataset.n_clusters)]
-        
-        # Table for logging segment matching
-        match_table = wandb.Table(columns = ['ID'] + class_names_all)
-   
-        # Table for logging corrected labels using wandb
-        remapped_pred_table = wandb.Table(columns=['ID', 'Image'])
+        # Visualize some image evaluation samples
+        random.seed(1)
+        if cfg.vis_rand_k > len(dataset): # a safeguard for a case when more samples are asked than is in dataset
+            inds_to_vis = [0]
+        elif cfg.vis_rand_k > 0:
+            inds_to_vis = random.sample(range(len(dataset)), cfg.vis_rand_k)
+        else:
+            inds_to_vis = [-1] #no images will be sampled
 
-        # Go through dataset and log data
-        for i, (sample, iou_m, match, remapped_pred) in enumerate(zip(dataset, eval_stats['IoU_matrix'], matches, preds)):
-            im, target, pred, metadata = sample
-            id = metadata['id']
+        print("sample images to visualize in wandb: ", inds_to_vis)
+        img_list, legend = visualize(dataset, inds_to_vis, cfg.vis_dir)
 
-            # log matches for every sample in dataset - in a table
-            row_data = [id] + [None] * cfg.dataset.n_classes
-            for pr, gt in match:
-                row_data[1 + gt] = pr if row_data[1 + gt] is None else row_data[1 + gt]
-            match_table.add_data(*row_data)
 
-            # log IoU heatmaps and remapped preds only for selected samples
-            if i in inds_to_vis:
-                # get lists of unique labels to name the columns of heatmaps (may be different for each image)
-                # class_names = [f'GT_class{i}' for i in np.unique(target)]
-                # pseudolabel_names = [f'PL_class{i}' for i in np.unique(pred)]
+        if cfg.wandb:
+            wandb.log({'mIoU': eval_stats['mIoU']})
 
-                # log IoU heatmaps - individually (cannot log wandb heatmaps in a wandb table...)
-                iou_df = pd.DataFrame(data=iou_m, index=pseudolabel_names, columns=class_names_all)
-                heatmap = wandb.plots.HeatMap(class_names_all,pseudolabel_names, iou_df, show_text=True)
-                wandb.log({f"Sample IoU Heatmap {id}": heatmap})
+            # Log confusion matrix and other metrics to wandb
+            class_names = [f'GT_class{i}' for i in range(cfg.dataset.n_classes)]
+            pseudolabel_names = [f'PL_class{i}' for i in range(cfg.dataset.n_clusters)]
+            iou_df = pd.DataFrame(data=eval_stats['IoU_matrix'], index=pseudolabel_names, columns=class_names)
+            wandb.log({'IoU_heatmap': wandb.plots.HeatMap(class_names, pseudolabel_names, iou_df, show_text=True)})
 
-                # log remapped predictions - in a table
-                mask_img = wandb.Image(im, masks = {
-                "groud_truth" : {"mask_data" : target},
-                "prediction" : {"mask_data" : pred},
-                "remapped_pred" : {"mask_data" : remapped_pred},
-                })
-                remapped_pred_table.add_data(id, mask_img)
+            # Log Jaccard index table
+            wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names)})
 
-        # Log completed tables
-        wandb.log({"match_table": match_table})
-        wandb.log({"Example Images After Remapping" : remapped_pred_table})
+            # Log segment matchings
+            pred_gt_list = [[pr, gt] for pr, gt in match]
+            wandb.log({"match_table": wandb.Table(data=pred_gt_list, columns=['Pseudo label','Ground Truth label'])})
 
-        # Log Jaccard index table
-        wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names_all)})
+            # Log example images
+            img_table = wandb.Table(columns=['ID', 'Image', 'Pred', 'Ground_Truth'])
+            for img_id, img, pred, gt in img_list:
+                img_table.add_data(img_id, wandb.Image(img), wandb.Image(pred), wandb.Image(gt))
+            wandb.log({"Example Images" : img_table})
 
-        # Log example images with overlayed segmentation
-        img_table = wandb.Table(columns=['ID', 'Image', 'Pred', 'Ground_Truth'])
-        for img_id, img, pred, gt in img_list:
-            img_table.add_data(img_id, wandb.Image(img), wandb.Image(pred), wandb.Image(gt))
-        wandb.log({"Example Images" : img_table})
+            # Log legend to interprete example images
+            wandb.log({"Legend CLass-Color": wandb.Image(legend)})
 
-        # Log legend to interprete example images
-        wandb.log({"Legend CLass-Color": wandb.Image(legend)})
-
-        wandb.finish()
+            wandb.finish()
 
 if __name__ == '__main__':
     main()
