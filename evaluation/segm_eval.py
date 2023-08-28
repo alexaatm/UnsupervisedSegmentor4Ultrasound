@@ -135,7 +135,7 @@ def evaluate_dataset_with_single_matching(dataset, n_classes, n_clusters, thresh
         match, iou_mat  = eval_utils.hungarian_match(all_preds, all_gt, preds_k=n_clusters, targets_k=n_classes, metric='iou', thresh=thresh)
     else:
         print('Using majority voting for matching')
-        match, iou_mat = eval_utils.majority_vote(all_preds, all_gt, preds_k=n_clusters, targets_k=n_classes, thresh=thresh)
+        match, iou_mat = eval_utils.majority_vote_unique(all_preds, all_gt, preds_k=n_clusters, targets_k=n_classes, thresh=thresh)
     print(f'Optimal matching: {match}')
 
     # Remap predictions
@@ -258,7 +258,8 @@ def main(cfg: DictConfig):
         if cfg.wandb:
             wandb.login(key=cfg.wandb.key)
             cfg.wandb.key=""
-            wandb.init(name ="eval_" + cfg.dataset.name + "_" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'), project=cfg.wandb.setup.project, config=OmegaConf.to_container(cfg), save_code=True)
+            wandb.init(name ="eval_" + cfg.dataset.name + "_" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'), project=cfg.wandb.setup.project, config=OmegaConf.to_container(cfg), save_code=True,
+                       tags=['fixed',cfg.wandb.tag])
             cfg = DictConfig(wandb.config.as_dict())  # get the config back from wandb for hyperparameter sweeps
 
         # Configuration
@@ -354,7 +355,8 @@ def main(cfg: DictConfig):
         if cfg.wandb:
             wandb.login(key=cfg.wandb.key)
             cfg.wandb.key=""
-            wandb.init(name ="eval_" + cfg.dataset.name + "_" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'), project=cfg.wandb.setup.project, config=OmegaConf.to_container(cfg), save_code=True)
+            wandb.init(name ="eval_" + cfg.dataset.name + "_" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'), project=cfg.wandb.setup.project, config=OmegaConf.to_container(cfg), save_code=True,
+                tags=['fixed', cfg.wandb.tag, 'majority_vote_unique'])
             cfg = DictConfig(wandb.config.as_dict())  # get the config back from wandb for hyperparameter sweeps
 
         # Configuration
@@ -364,8 +366,8 @@ def main(cfg: DictConfig):
         # Evaluate
         dataset = EvalDataset(cfg.dataset.dataset_dir, cfg.dataset.gt_dir, cfg.dataset.pred_dir)
         eval_stats, match = evaluate_dataset_with_single_matching(dataset, cfg.dataset.n_classes, cfg.dataset.get('n_clusters', None), cfg.iou_thresh)
-        print(eval_stats)
-        print(match)
+        # print(eval_stats)
+        # print(match)
 
         # Visualize some image evaluation samples
         random.seed(1)
