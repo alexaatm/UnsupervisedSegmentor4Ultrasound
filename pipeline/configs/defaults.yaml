@@ -17,4 +17,6 @@ hydra:
   run:
     dir: ./outputs/pipeline/${dataset.name}/${now:%Y-%m-%d}--${now:%H-%M-%S}
 
+custom_path_to_save_data: ""
+
 only_vis: False

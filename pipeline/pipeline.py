@@ -25,7 +25,11 @@ def pipeline(cfg: DictConfig) -> None:
     else:
         # use default local data
         main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
-        path_to_save_data = os.path.join(os.getcwd())
+
+        if cfg.custom_path_to_save_data!="":
+            path_to_save_data = cfg.custom_path_to_save_data
+        else:
+            path_to_save_data = os.path.join(os.getcwd())
 
 
     # Directories
