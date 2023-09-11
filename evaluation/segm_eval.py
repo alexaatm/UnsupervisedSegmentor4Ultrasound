@@ -34,8 +34,10 @@ import pandas as pd
 import random
 
 def evaluate_dataset(dataset, n_classes, n_clusters, thresh):
-    
-    if n_clusters is None:
+
+    if dataset.n_clusters is not None:
+        n_clusters = dataset.n_clusters
+    elif n_clusters is None:
         n_clusters = n_classes
     
     # Iterate
@@ -99,7 +101,9 @@ def evaluate_dataset_with_single_matching(dataset, n_classes, n_clusters, thresh
     
     # Add background class
     # n_classes = cfg.n_classes + 1 #TODO: check if you need this
-    if n_clusters is None:
+    if dataset.n_clusters is not None:
+        n_clusters = dataset.n_clusters
+    elif n_clusters is None:
         n_clusters = n_classes
 
     # Iterate
@@ -173,7 +177,11 @@ def visualize(dataset, inds_to_vis, vis_dir: str = './vis'):
     vis_dir = Path(vis_dir)
 
     # Get colors (using 21 as number of classes by default)
-    colors = get_cmap('tab20', 21).colors[:,:3]
+    # TODO: what to do when need more colors https://stackoverflow.com/questions/8389636/creating-over-20-unique-legend-colors-using-matplotlib
+    colors1 = get_cmap('tab20', 21).colors[:,:3]
+    colors2 = get_cmap('tab20b', 21).colors[:,:3]
+    colors = np.concatenate((colors1, colors2), axis=0)
+
 
     # Create a legend image
     legend_image = np.zeros((len(colors) * 20, 100, 3), dtype=np.uint8)
@@ -292,7 +300,13 @@ def main(cfg: DictConfig):
 
             # Log metrics and sample evaluation results
             class_names_all = [f'GT_class{i}' for i in range(cfg.dataset.n_classes)]
-            pseudolabel_names = [f'PL_class{i}' for i in range(cfg.dataset.n_clusters)]
+            if dataset.n_clusters is not None:
+                n_clusters = dataset.n_clusters
+            elif cfg.dataset.n_clusters is not None:
+                n_clusters = cfg.dataset.n_clusters
+            else:
+                n_clusters = n_classes
+            pseudolabel_names = [f'PL_class{i}' for i in range(n_clusters)]
             
             # Table for logging segment matching
             match_table = wandb.Table(columns = ['ID'] + class_names_all)
@@ -387,7 +401,13 @@ def main(cfg: DictConfig):
 
             # Log confusion matrix and other metrics to wandb
             class_names = [f'GT_class{i}' for i in range(cfg.dataset.n_classes)]
-            pseudolabel_names = [f'PL_class{i}' for i in range(cfg.dataset.n_clusters)]
+            if dataset.n_clusters is not None:
+                n_clusters = dataset.n_clusters
+            elif cfg.dataset.n_clusters is not None:
+                n_clusters = cfg.dataset.n_clusters
+            else:
+                n_clusters = n_classes
+            pseudolabel_names = [f'PL_class{i}' for i in range(n_clusters)]
             iou_df = pd.DataFrame(data=eval_stats['IoU_matrix'], index=pseudolabel_names, columns=class_names)
             wandb.log({'IoU_heatmap': wandb.plots.HeatMap(class_names, pseudolabel_names, iou_df, show_text=True)})
 

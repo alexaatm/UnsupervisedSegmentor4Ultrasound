@@ -44,6 +44,7 @@ class EvalDataset(Dataset):
         return (image, ground_truth, prediction, metadata)
     
     def check_sizes_and_resize(self):
+        segm_num = 0
         for img_name_full in tqdm(self.image_list):
             img_name = img_name_full[:-4]
             img_path = os.path.join(self.image_dir, img_name_full)
@@ -53,6 +54,12 @@ class EvalDataset(Dataset):
             image = np.array(Image.open(img_path).convert("RGB"))
             gt = np.array(Image.open(gt_path).convert('L'))
             pred = np.array(Image.open(pred_path).convert('L'))
+            
+            # get the number of unique labels to determine the number of segments per image
+            unique_labels = np.unique(pred)
+            current_segm_num = np.max(unique_labels)
+            if current_segm_num > segm_num:
+                segm_num = current_segm_num
 
             # Check if sizes correspond
             H_im, W_im = image.shape[:2]
@@ -73,5 +80,7 @@ class EvalDataset(Dataset):
                 pred_im_res = cv2.resize(pred, dsize=(W, H), interpolation=cv2.INTER_NEAREST)  # (H, W)
                 # pred_im_res[:pred.shape[0], :pred.shape[1]] = pred  # replace with the initial prediction version, just in case they are different
                 Image.fromarray(pred_im_res).convert('L').save(pred_path)
+        
+        self.n_clusters = segm_num
 
             
