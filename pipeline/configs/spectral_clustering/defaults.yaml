@@ -9,3 +9,4 @@ image_downsample_factor: null
 image_color_lambda: 0.0
 multiprocessing: 0
 image_ssd_beta: 0.0
+image_dino_gamma: 1.0

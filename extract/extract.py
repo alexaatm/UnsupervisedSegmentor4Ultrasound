@@ -141,6 +141,7 @@ def _extract_eig(
     image_downsample_factor: Optional[int] = None,
     image_color_lambda: float = 10,
     image_ssd_beta: float = 0.0,
+    image_dino_gamma: float = 0.0,
 ):
     index, features_file = inp
 
@@ -154,13 +155,24 @@ def _extract_eig(
         print(f'Skipping existing file {str(output_file)}')
         return  # skip because already generated
     
-    # Load affinity matrix
-    if torch.cuda.is_available():
-        feats = data_dict[which_features].squeeze().cuda()
+    # Get sizes
+    B, C, H, W, P, H_patch, W_patch, H_pad, W_pad = utils.get_image_sizes(data_dict)
+    if image_downsample_factor is None:
+        image_downsample_factor = P
+    H_pad_lr, W_pad_lr = H_pad // image_downsample_factor, W_pad // image_downsample_factor
+
+    if image_dino_gamma > 0:
+        # Load affinity matrix
+        if torch.cuda.is_available():
+            feats = data_dict[which_features].squeeze().cuda()
+        else:
+            feats = data_dict[which_features].squeeze().cpu()
+        if normalize:
+            feats = F.normalize(feats, p=2, dim=-1)
     else:
-        feats = data_dict[which_features].squeeze().cpu()
-    if normalize:
-        feats = F.normalize(feats, p=2, dim=-1)
+        # empty features
+        feats = np.zeros((H_pad_lr, W_pad_lr), dtype = np.float32)
+
 
     # Eigenvectors of affinity matrix
     if which_matrix == 'affinity_torch':
@@ -189,25 +201,24 @@ def _extract_eig(
     # Eigenvectors of matting laplacian matrix
     elif which_matrix in ['matting_laplacian', 'laplacian']:
 
-        # Get sizes
-        B, C, H, W, P, H_patch, W_patch, H_pad, W_pad = utils.get_image_sizes(data_dict)
-        if image_downsample_factor is None:
-            image_downsample_factor = P
-        H_pad_lr, W_pad_lr = H_pad // image_downsample_factor, W_pad // image_downsample_factor
+        if image_dino_gamma > 0:
+            # Upscale features to match the resolution
+            if (H_patch, W_patch) != (H_pad_lr, W_pad_lr):
+                feats = F.interpolate(
+                    feats.T.reshape(1, -1, H_patch, W_patch), 
+                    size=(H_pad_lr, W_pad_lr), mode='bilinear', align_corners=False
+                ).reshape(-1, H_pad_lr * W_pad_lr).T
 
-        # Upscale features to match the resolution
-        if (H_patch, W_patch) != (H_pad_lr, W_pad_lr):
-            feats = F.interpolate(
-                feats.T.reshape(1, -1, H_patch, W_patch), 
-                size=(H_pad_lr, W_pad_lr), mode='bilinear', align_corners=False
-            ).reshape(-1, H_pad_lr * W_pad_lr).T
-
-        ### Feature affinities 
-        W_feat = (feats @ feats.T)
-        if threshold_at_zero:
-            W_feat = (W_feat * (W_feat > 0))
-        W_feat = W_feat / W_feat.max()  # NOTE: If features are normalized, this naturally does nothing
-        W_feat = W_feat.cpu().numpy()
+            ### Feature affinities 
+            W_feat = (feats @ feats.T)
+            if threshold_at_zero:
+                W_feat = (W_feat * (W_feat > 0))
+            W_feat = W_feat / W_feat.max()  # NOTE: If features are normalized, this naturally does nothing
+            W_feat = W_feat.cpu().numpy()
+        
+        else:
+            # No dino affinities
+            W_feat = 0
         
         ### Color affinities 
         # If we are fusing with color affinites, then load the image and compute
@@ -249,8 +260,6 @@ def _extract_eig(
             if (W_ssd.shape != W_feat.shape):
                 # print("W_ssd.shape=",W_ssd.shape, "W_feat.shape=", W_feat.shape )
                 W_ssd = utils.interpolate_2Darray(W_ssd, W_feat.shape)
-                
-            
 
         
         else:
@@ -259,7 +268,7 @@ def _extract_eig(
             W_ssd = 0
 
         # Combine
-        W_comb = W_feat + W_color * image_color_lambda + W_ssd * image_ssd_beta  # combination
+        W_comb = image_dino_gamma * W_feat + W_color * image_color_lambda + W_ssd * image_ssd_beta  # combination
         D_comb = np.array(utils.get_diagonal(W_comb).todense())  # is dense or sparse faster? not sure, should check
 
         # Extract eigenvectors
@@ -300,6 +309,7 @@ def extract_eigs(
     image_color_lambda: float = 0.0,
     multiprocessing: int = 0,
     image_ssd_beta: float = 0.0,
+    image_dino_gamma: float = 0.0,
 ):
     """
     Extracts eigenvalues from features.
@@ -315,7 +325,7 @@ def extract_eigs(
     utils.make_output_dir(output_dir, check_if_empty=False)
     kwargs = dict(K=K, which_matrix=which_matrix, which_features=which_features, which_color_matrix=which_color_matrix,
                  normalize=normalize, threshold_at_zero=threshold_at_zero, images_root=images_root, output_dir=output_dir, 
-                 image_downsample_factor=image_downsample_factor, image_color_lambda=image_color_lambda, lapnorm=lapnorm, image_ssd_beta=image_ssd_beta)
+                 image_downsample_factor=image_downsample_factor, image_color_lambda=image_color_lambda, lapnorm=lapnorm, image_ssd_beta=image_ssd_beta, image_dino_gamma=image_dino_gamma)
     print(kwargs)
     fn = partial(_extract_eig, **kwargs)
     inputs = list(enumerate(sorted(Path(features_dir).iterdir())))
