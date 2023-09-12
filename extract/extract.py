@@ -26,7 +26,8 @@ def extract_features(
     batch_size: int,
     output_dir: str,
     which_block: int = -1,
-    model_checkpoint: str = ""
+    model_checkpoint: str = "",
+    only_dict: bool = False
 ):
     """
     Extract features from a list of images.
@@ -63,7 +64,7 @@ def extract_features(
     # Dataset
     filenames = Path(images_list).read_text().splitlines()
     dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=val_transform)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=8)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=0)
     print(f'Dataset size: {len(dataset)}')
     print(f'Dataloader size: {len(dataloader)}')
 
@@ -74,11 +75,12 @@ def extract_features(
     accelerator = Accelerator(cpu, mixed_precision="fp16")
     # model, dataloader = accelerator.prepare(model, dataloader)
     model = model.to(accelerator.device)
-    # print('accelerator device=', accelerator.device)
+    print('accelerator device=', accelerator.device)
 
 
     # Process
     pbar = tqdm(dataloader, desc='Processing')
+    print(dataloader)
     for i, (images, files, indices) in enumerate(pbar):
         output_dict = {}
 
@@ -100,17 +102,20 @@ def extract_features(
         images = images.to(accelerator.device)
 
         # Forward and collect features into output dict
-        if 'dino' in model_name or 'mocov3' in model_name:
-            # accelerator.unwrap_model(model).get_intermediate_layers(images)[0].squeeze(0)
-            model.get_intermediate_layers(images)[0].squeeze(0)
-            # output_dict['out'] = out
-            output_qkv = feat_out["qkv"].reshape(B, T, 3, num_heads, -1 // num_heads).permute(2, 0, 3, 1, 4)
-            # output_dict['q'] = output_qkv[0].transpose(1, 2).reshape(B, T, -1)[:, 1:, :]
-            output_dict['k'] = output_qkv[1].transpose(1, 2).reshape(B, T, -1)[:, 1:, :]
-            # output_dict['v'] = output_qkv[2].transpose(1, 2).reshape(B, T, -1)[:, 1:, :]
-        else:
-            raise ValueError(model_name)
-
+        if not only_dict:
+            if 'dino' in model_name or 'mocov3' in model_name:
+                with torch.no_grad():
+                    # accelerator.unwrap_model(model).get_intermediate_layers(images)[0].squeeze(0)
+                    model.get_intermediate_layers(images)[0].squeeze(0)
+                # output_dict['out'] = out
+                output_qkv = feat_out["qkv"].reshape(B, T, 3, num_heads, -1 // num_heads).permute(2, 0, 3, 1, 4)
+                # output_dict['q'] = output_qkv[0].transpose(1, 2).reshape(B, T, -1)[:, 1:, :]
+                output_dict['k'] = output_qkv[1].transpose(1, 2).reshape(B, T, -1)[:, 1:, :]
+                # output_dict['v'] = output_qkv[2].transpose(1, 2).reshape(B, T, -1)[:, 1:, :]
+            else:
+                raise ValueError(model_name)
+            output_dict = {k: (v.detach().cpu() if torch.is_tensor(v) else v) for k, v in output_dict.items()}
+            
         # Metadata
         output_dict['indices'] = indices[0]
         output_dict['file'] = files[0]
@@ -118,7 +123,6 @@ def extract_features(
         output_dict['model_name'] = model_name
         output_dict['patch_size'] = patch_size
         output_dict['shape'] = (B, C, H, W)
-        output_dict = {k: (v.detach().cpu() if torch.is_tensor(v) else v) for k, v in output_dict.items()}
 
         # Save
         accelerator.save(output_dict, str(output_file))
@@ -257,9 +261,9 @@ def _extract_eig(
             W_ssd, p = utils.ssd_patchwise_affinity_knn(image_resized, patch_size, n_neighbors=[80, 40], distance_weights=[8.0, 4.0]) # [8, 4]
             
             # Check the size
-            if (W_ssd.shape != W_feat.shape):
+            if (W_ssd.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
                 # print("W_ssd.shape=",W_ssd.shape, "W_feat.shape=", W_feat.shape )
-                W_ssd = utils.interpolate_2Darray(W_ssd, W_feat.shape)
+                W_ssd = utils.interpolate_2Darray(W_ssd, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
 
         
         else:

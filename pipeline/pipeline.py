@@ -53,22 +53,22 @@ def pipeline(cfg: DictConfig) -> None:
         # check the next step only if the previous step is provided (since snext steps depends on the previous one)
         if cfg.precomputed.features != "":
             output_feat_dir = cfg.precomputed.features
-            if cfg.precomputed.eig != "":
-                output_eig_dir = cfg.precomputed.eig
+        if cfg.precomputed.eig != "":
+            output_eig_dir = cfg.precomputed.eig
+            if cfg.precomputed.multi_region_segmentation != "":
+                output_multi_region_seg = cfg.precomputed.multi_region_segmentation
                 if cfg.precomputed.multi_region_segmentation != "":
-                    output_multi_region_seg = cfg.precomputed.multi_region_segmentation
-                    if cfg.precomputed.multi_region_segmentation != "":
-                        output_crf_multi_region = cfg.precomputed.crf_multi_region                  
-                        if cfg.precomputed.bboxes != "":
-                            output_bbox = cfg.precomputed.bboxes
-                            if cfg.precomputed.bbox_features != "":
-                                output_bbox_features = cfg.precomputed.bbox_features
-                                if cfg.precomputed.bbox_clusters != "":
-                                    output_bbox_clusters = cfg.precomputed.bbox_clusters
-                                    if cfg.precomputed.segmaps != "":
-                                        output_segmaps = cfg.precomputed.segmaps
-                                        if cfg.precomputed.crf_segmaps != "":
-                                            output_crf_segmaps = cfg.precomputed.crf_segmaps
+                    output_crf_multi_region = cfg.precomputed.crf_multi_region                  
+                    if cfg.precomputed.bboxes != "":
+                        output_bbox = cfg.precomputed.bboxes
+                        if cfg.precomputed.bbox_features != "":
+                            output_bbox_features = cfg.precomputed.bbox_features
+                            if cfg.precomputed.bbox_clusters != "":
+                                output_bbox_clusters = cfg.precomputed.bbox_clusters
+                                if cfg.precomputed.segmaps != "":
+                                    output_segmaps = cfg.precomputed.segmaps
+                                    if cfg.precomputed.crf_segmaps != "":
+                                        output_crf_segmaps = cfg.precomputed.crf_segmaps
 
     log.info(f'images_list={images_list}')
     log.info(f'images_root={images_root}')
@@ -88,30 +88,32 @@ def pipeline(cfg: DictConfig) -> None:
 
     if not cfg.pipeline_steps.dino_features:
         log.info("Step was not selected")
-        exit()
-
-    extract.extract_features(
-        images_list = images_list,
-        images_root = images_root,
-        output_dir = output_feat_dir,
-        model_name = cfg.model.name,
-        batch_size = cfg.loader.batch_size,
-        model_checkpoint=cfg.model.checkpoint
-    )
-
-    # Visualize Dino Attention Maps
-    if cfg.vis.dino_attn_maps:
-        log.info("Plot dino attention maps")
-        output_dino_plots = os.path.join(path_to_save_data, 'plots', 'dino_attn_maps')
-        vis_utils.plot_dino_attn_maps(
+        if cfg.spectral_clustering.image_dino_gamma > 0:
+            log.info("cfg.spectral_clustering.image_dino_gamma=",cfg.spectral_clustering.image_dino_gamma)
+            log.info("Dino features were selected. Set cfg.pipeline_steps.dino_features to True")
+            exit()
+    else:
+        extract.extract_features(
             images_list = images_list,
             images_root = images_root,
-            model_checkpoint=cfg.model.checkpoint,
+            output_dir = output_feat_dir,
             model_name = cfg.model.name,
-            output_dir = output_dino_plots
+            batch_size = cfg.loader.batch_size,
+            model_checkpoint=cfg.model.checkpoint,
+            only_dict = True if cfg.spectral_clustering.image_dino_gamma == 0.0 else False
         )
 
-
+        # Visualize Dino Attention Maps
+        if cfg.vis.dino_attn_maps:
+            log.info("Plot dino attention maps")
+            output_dino_plots = os.path.join(path_to_save_data, 'plots', 'dino_attn_maps')
+            vis_utils.plot_dino_attn_maps(
+                images_list = images_list,
+                images_root = images_root,
+                model_checkpoint=cfg.model.checkpoint,
+                model_name = cfg.model.name,
+                output_dir = output_dino_plots
+            )
 
     # Compute Eigenvectors - spectral clustering step
     log.info("STEP 2/8: extract eigenvectors (spectral clustering)")
