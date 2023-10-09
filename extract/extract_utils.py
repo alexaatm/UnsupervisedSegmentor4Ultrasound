@@ -329,3 +329,65 @@ def interpolate_2Darray(input_2Darray, output_size):
   image_from_array = Image.fromarray(input_2Darray).resize((output_size[0],output_size[1]), Image.BILINEAR)
   array_from_image = np.array(image_from_array)
   return array_from_image
+
+
+def var_patchwise_affinity_knn(image, patch_size, n_neighbors=[8, 4], distance_weights=[2.0, 0.1]):
+  """
+  Computes a SSD-based affinity matrix for patches of a single image.
+  Note that this function requires pymattin and scipy.
+
+  step 1 - split image into patches
+  step 2 - calculate variance of each patch
+  step 3 - calculate position arrays for distance weighing
+  step 4 - apply knn approach, concatenating patch variances with weighted position arrays (different for diff distance weights)
+  step 5 - assemble affinity matrix
+
+  par: image - ndarray, of size compatible with the patch size, normalized
+  par: patch_size - a tuple (patch_height, patch_width)
+  
+  based on: https://github.com/pymatting/pymatting/blob/master/pymatting/laplacian/knn_laplacian.py
+  """
+  try:
+    from pymatting.util.kdtree import knn
+  except:
+        raise ImportError(
+            'Please install pymatting to compute KNN affinity matrices:\n'
+            'pip3 install pymatting'
+        )
+  
+  patches=reshape_split(image, patch_size)
+  
+#   patches_2d = patches.reshape(patches.shape[0],-1)
+
+#   n_patches=patches_2d.shape[0]
+  n_patches = len(patches)
+  n_height=image.shape[0]//patch_size[0]
+  n_width=image.shape[1]//patch_size[1]
+
+  var_patchwise = []  
+  for p in patches:
+    var_patchwise.append(np.var(p))
+  x = np.tile(np.linspace(0, 1, n_width), n_height)
+  y = np.repeat(np.linspace(0, 1, n_height), n_width)
+
+  i, j = [], []
+
+  for k, distance_weight in zip(n_neighbors, distance_weights):
+    xs=(distance_weight * x)[:, None]
+    ys=(distance_weight * y)[:, None]
+    f = np.concatenate((var_patchwise, xs, ys), axis = 1, dtype=np.float32)
+    distances, neighbors = knn(f, f, k=k)
+    i.append(np.repeat(np.arange(n_patches), k))
+    j.append(neighbors.flatten())
+
+  ij = np.concatenate(i + j)
+  ji = np.concatenate(j + i)
+  coo_data = np.ones(2 * sum(n_neighbors) * n_patches)
+
+  # This is our affinity matrix
+  W = scipy.sparse.csr_matrix((coo_data, (ij, ji)), (n_patches, n_patches)) 
+
+  # Convert to dense numpy array
+  W = np.array(W.todense().astype(np.float32))
+
+  return W, patches
