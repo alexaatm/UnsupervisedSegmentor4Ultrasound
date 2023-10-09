@@ -10,6 +10,20 @@ from extract import extract
 from extract import extract_utils as utils
 from vis import vis_utils
 
+from torchvision import transforms
+
+# for evaluation, need to add thesis-codebase script to the python path
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+print(current_dir)
+thesis_codebase_folder = os.path.join(current_dir, '..', '..')
+print(thesis_codebase_folder)
+sys.path.append(thesis_codebase_folder)
+
+# Now you can use absolute imports in your script
+# from evaluation.segm_eval import evaluate_dataset,evaluate_dataset_with_single_matching,visualize
+from evaluation import segm_eval
+
 # A logger for this file
 log = logging.getLogger(__name__)
 
@@ -33,8 +47,16 @@ def pipeline(cfg: DictConfig) -> None:
 
 
     # Directories
-    images_list = os.path.join(main_data_dir, cfg.dataset.name, 'lists', 'images.txt')
-    images_root = os.path.join(main_data_dir, cfg.dataset.name, cfg.dataset.images_root)
+    if cfg.dataset.dataset_root:
+        images_list = os.path.join(main_data_dir, cfg.dataset.dataset_root, cfg.dataset.list)
+        images_root = os.path.join(main_data_dir, cfg.dataset.dataset_root, cfg.dataset.images_root)
+        dataset_dir = os.path.join(main_data_dir, cfg.dataset.dataset_root)
+        gt_dir = os.path.join(main_data_dir, cfg.dataset.dataset_root,cfg.dataset.gt_dir)
+    else:
+        images_list = os.path.join(main_data_dir, cfg.dataset.name, 'lists', 'images.txt')
+        images_root = os.path.join(main_data_dir, cfg.dataset.name, cfg.dataset.images_root)
+        dataset_dir = os.path.join(main_data_dir, cfg.dataset.name)
+        gt_dir = os.path.join(main_data_dir, cfg.dataset.name,cfg.dataset.gt_dir)
 
     # Set default output directories
     output_feat_dir = os.path.join(path_to_save_data, 'features', cfg.model.name)
@@ -336,8 +358,256 @@ def pipeline(cfg: DictConfig) -> None:
             output_dir = output_segm_plots
         )
 
-
     # Evaluate segmentation if evaluation is on
+    if cfg.pipeline_steps.eval:
+        log.info("EVALUATION (1/2) (crf_multi_region)")
+        evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_crf_multi_region, tag="crf_multi_region")
+        log.info("EVALUATION (2/2) (crf_segmaps)")
+        evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_crf_segmaps,  tag="crf_segmaps")
+
+        
+# Evaluation
+def evaluate(cfg: DictConfig, dataset_dir, gt_dir="", pred_dir="", tag=""):
+
+    if cfg.eval.eval_per_image:
+        # Evaluate per image
+
+        # Logging
+        if cfg.wandb:
+            wandb.login(key=cfg.wandb.key)
+            cfg.wandb.key=""
+            cfg.wandb.tag="deep_spectral"
+            wandb.init(name ="eval_" + cfg.dataset.name + "_" + segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'), project=cfg.wandb.setup.project, config=OmegaConf.to_container(cfg), save_code=True,
+                       tags=['pipeline_eval',cfg.wandb.tag, tag, 'eval_per_image'])
+            cfg = DictConfig(wandb.config.as_dict())  # get the config back from wandb for hyperparameter sweeps
+
+        # Configuration
+        print(OmegaConf.to_yaml(cfg))
+        print(f'Current working directory: {os.getcwd()}')
+
+        # Evaluate
+        if "CAROTID_MIXED" in dataset_dir:
+            # make square
+            resize = transforms.Resize((cfg.dataset.input_size, cfg.dataset.input_size))
+        else:
+            # only resize
+            resize = transforms.Resize(cfg.dataset.input_size)
+        dataset = segm_eval.EvalDataset(dataset_dir, gt_dir, pred_dir, transform = resize)
+        eval_stats, matches, preds = segm_eval.evaluate_dataset(dataset, cfg.dataset.n_classes, cfg.dataset.get('n_clusters', None), cfg.eval.iou_thresh)
+        print("eval stats:", eval_stats)
+        print("matches:", matches)
+
+
+        # Visualize some image evaluation samples
+        segm_eval.random.seed(1) 
+        if cfg.eval.vis_rand_k > len(dataset): # a safeguard for a case when more samples are asked than is in dataset
+            inds_to_vis = [0]
+        elif cfg.eval.vis_rand_k > 0:
+            inds_to_vis = segm_eval.random.sample(range(len(dataset)), cfg.eval.vis_rand_k)
+        else:
+            inds_to_vis = [-1] #no images will be sampled
+
+        print("sample images to visualize in wandb: ", inds_to_vis)
+
+        # Visualize
+        img_list, legend = segm_eval.visualize(dataset, inds_to_vis, cfg.eval.vis_dir)
+
+        if cfg.wandb:
+            wandb.log({'mIoU': eval_stats['mIoU']})
+            wandb.log({'Pixel_Accuracy': eval_stats['Pixel_Accuracy']})
+            wandb.log({'Dice': eval_stats['Dice']})
+            wandb.log({'Precision': eval_stats['Precision']})
+            wandb.log({'Recall': eval_stats['Recall']})
+
+            # Log metrics and sample evaluation results
+            class_names_all = [f'GT_class{i}' for i in range(cfg.dataset.n_classes)]
+            if dataset.n_clusters is not None:
+                n_clusters = dataset.n_clusters
+            elif cfg.dataset.n_clusters is not None:
+                n_clusters = cfg.dataset.n_clusters
+            else:
+                n_clusters = cfg.dataset.n_classes
+            pseudolabel_names = [f'PL_class{i}' for i in range(n_clusters)]
+            
+            # Table for logging segment matching
+            match_table = wandb.Table(columns = ['ID'] + class_names_all)
+    
+            # Table for logging corrected labels using wandb
+            remapped_pred_table = wandb.Table(columns=['ID', 'Image'])
+
+            # Go through dataset and log data
+            for i, (sample, iou_m, match, remapped_pred) in enumerate(zip(dataset, eval_stats['IoU_matrix'], matches, preds)):
+                im, target, pred, metadata = sample
+                id = metadata['id']
+
+                # log matches for every sample in dataset - in a table
+                row_data = [id] + [None] * cfg.dataset.n_classes
+                for pr, gt in match:
+                    row_data[1 + gt] = pr if row_data[1 + gt] is None else row_data[1 + gt]
+                match_table.add_data(*row_data)
+
+                # log IoU heatmaps and remapped preds only for selected samples
+                if i in inds_to_vis:
+                    # get lists of unique labels to name the columns of heatmaps (may be different for each image)
+                    # class_names = [f'GT_class{i}' for i in np.unique(target)]
+                    # pseudolabel_names = [f'PL_class{i}' for i in np.unique(pred)]
+
+                    # log IoU heatmaps - individually (cannot log wandb heatmaps in a wandb table...)
+                    iou_df = segm_eval.pd.DataFrame(data=iou_m, index=pseudolabel_names, columns=class_names_all)
+                    heatmap = wandb.plots.HeatMap(class_names_all,pseudolabel_names, iou_df, show_text=True)
+                    wandb.log({f"Sample IoU Heatmap {id}": heatmap})
+
+                    # log remapped predictions - in a table
+                    mask_img = wandb.Image(im, masks = {
+                    "groud_truth" : {"mask_data" : target},
+                    "prediction" : {"mask_data" : pred},
+                    "remapped_pred" : {"mask_data" : remapped_pred},
+                    })
+                    remapped_pred_table.add_data(id, mask_img)
+
+            # Log completed tables
+            wandb.log({"match_table": match_table})
+            wandb.log({"Example Images After Remapping" : remapped_pred_table})
+
+            # Log Jaccard index table
+            wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names_all)})
+            wandb.log({"pix_acc_table": wandb.Table(data=[eval_stats['pix_acc_all_categs']], columns=class_names_all)})
+            wandb.log({"dice_table": wandb.Table(data=[eval_stats['dice_all_categs']], columns=class_names_all)})
+            wandb.log({"precision_table": wandb.Table(data=[eval_stats['precision_all_categs']], columns=class_names_all)})
+            wandb.log({"recall_table": wandb.Table(data=[eval_stats['recall_all_categs']], columns=class_names_all)})
+
+
+            # Log example images with overlayed segmentation
+            img_table = wandb.Table(columns=['ID', 'Image', 'Pred', 'Ground_Truth'])
+            for img_id, img, pred, gt in img_list:
+                img_table.add_data(img_id, wandb.Image(img), wandb.Image(pred), wandb.Image(gt))
+            wandb.log({"Example Images" : img_table})
+
+            # Log legend to interprete example images
+            wandb.log({"Legend Class-Color": wandb.Image(legend)})
+
+            wandb.finish()
+
+    if cfg.eval.eval_per_dataset:
+        # Evaluate over the whole dataset
+
+        # Logging
+        if cfg.wandb:
+            wandb.login(key=cfg.wandb.key)
+            cfg.wandb.key=""
+            cfg.wandb.tag="deep_spectral"
+            wandb.init(name ="eval_" + cfg.dataset.name + "_" + segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'), project=cfg.wandb.setup.project, config=OmegaConf.to_container(cfg), save_code=True,
+                tags=['pipeline_eval', cfg.wandb.tag, tag, 'eval_per_dataset'])
+            cfg = DictConfig(wandb.config.as_dict())  # get the config back from wandb for hyperparameter sweeps
+
+        # Configuration
+        print(OmegaConf.to_yaml(cfg))
+        print(f'Current working directory: {os.getcwd()}')
+
+        # Evaluate
+        if "CAROTID_MIXED" in dataset_dir:
+            # make square
+            resize = transforms.Resize((cfg.dataset.input_size, cfg.dataset.input_size))
+        else:
+            # only resize
+            resize = transforms.Resize(cfg.dataset.input_size)
+        dataset = segm_eval.EvalDataset(dataset_dir, gt_dir, pred_dir, transform = resize)
+        eval_stats, match = segm_eval.evaluate_dataset_with_single_matching(dataset, cfg.dataset.n_classes, cfg.dataset.get('n_clusters', None), cfg.eval.iou_thresh)
+        # print(eval_stats)
+        # print(match)
+
+        # Visualize some image evaluation samples
+        segm_eval.random.seed(1)
+        if cfg.eval.vis_rand_k > len(dataset): # a safeguard for a case when more samples are asked than is in dataset
+            inds_to_vis = [0]
+        elif cfg.eval.vis_rand_k > 0:
+            inds_to_vis = segm_eval.random.sample(range(len(dataset)), cfg.eval.vis_rand_k)
+        else:
+            inds_to_vis = [-1] #no images will be sampled
+
+        print("sample images to visualize in wandb: ", inds_to_vis)
+        img_list, legend = segm_eval.visualize(dataset, inds_to_vis, cfg.eval.vis_dir)
+
+
+        if cfg.wandb:
+            wandb.log({'mIoU': eval_stats['mIoU']})
+            wandb.log({'Pixel_Accuracy': eval_stats['Pixel_Accuracy']})
+            wandb.log({'Dice': eval_stats['Dice']})
+            wandb.log({'Precision': eval_stats['Precision']})
+            wandb.log({'Recall': eval_stats['Recall']})
+
+            # Log confusion matrix and other metrics to wandb
+            class_names_all = [f'GT_class{i}' for i in range(cfg.dataset.n_classes)]
+            if dataset.n_clusters is not None:
+                n_clusters = dataset.n_clusters
+            elif cfg.dataset.n_clusters is not None:
+                n_clusters = cfg.dataset.n_clusters
+            else:
+                n_clusters = cfg.dataset.n_classes
+            pseudolabel_names = [f'PL_class{i}' for i in range(n_clusters)]
+            iou_df = segm_eval.pd.DataFrame(data=eval_stats['IoU_matrix'], index=pseudolabel_names, columns=class_names_all)
+            wandb.log({'IoU_heatmap': wandb.plots.HeatMap(class_names_all, pseudolabel_names, iou_df, show_text=True)})
+
+            # Log Jaccard index table
+            wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names_all)})
+            wandb.log({"pix_acc_table": wandb.Table(data=[eval_stats['pix_acc_all_categs']], columns=class_names_all)})
+            wandb.log({"dice_table": wandb.Table(data=[eval_stats['dice_all_categs']], columns=class_names_all)})
+            wandb.log({"precision_table": wandb.Table(data=[eval_stats['precision_all_categs']], columns=class_names_all)})
+            wandb.log({"recall_table": wandb.Table(data=[eval_stats['recall_all_categs']], columns=class_names_all)})
+
+
+            # Log segment matchings
+            pred_gt_list = [[pr, gt] for pr, gt in match]
+            wandb.log({"match_table": wandb.Table(data=pred_gt_list, columns=['Pseudo label','Ground Truth label'])})
+
+            # Log example images
+            img_table = wandb.Table(columns=['ID', 'Image', 'Pred', 'Ground_Truth'])
+            for img_id, img, pred, gt in img_list:
+                img_table.add_data(img_id, wandb.Image(img), wandb.Image(pred), wandb.Image(gt))
+            wandb.log({"Example Images" : img_table})
+
+            # Log legend to interprete example images
+            wandb.log({"Legend CLass-Color": wandb.Image(legend)})
+
+            wandb.finish()
+ 
+# Evaluation only pipeline
+def eval_pipeline(cfg: DictConfig) -> None:
+    log.info("Starting the evaluation-only pipeline...")
+
+    # Set the directories
+    if cfg.wandb.mode=='server':
+        # use polyaxon paths
+        main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
+        path_to_save_data = os.path.join(get_outputs_path(), cfg.dataset.name)
+    else:
+        # use default local data
+        main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
+
+        if cfg.custom_path_to_save_data!="":
+            path_to_save_data = cfg.custom_path_to_save_data
+        else:
+            path_to_save_data = os.path.join(os.getcwd())
+
+
+    # Directories
+    if cfg.dataset.dataset_root:
+        dataset_dir = os.path.join(main_data_dir, cfg.dataset.dataset_root)
+        gt_dir = os.path.join(main_data_dir, cfg.dataset.dataset_root,cfg.dataset.gt_dir)
+
+    else:
+        dataset_dir = os.path.join(main_data_dir, cfg.dataset.name)
+        gt_dir = os.path.join(main_data_dir, cfg.dataset.name,cfg.dataset.gt_dir)
+
+    # Set default output directories
+    output_crf_multi_region = os.path.join(path_to_save_data, 'semantic_segmentations', cfg.spectral_clustering.which_matrix, 'crf_multi_region')
+    output_crf_segmaps = os.path.join(path_to_save_data, 'semantic_segmentations', cfg.spectral_clustering.which_matrix, 'crf_segmaps')
+
+    # evaluate
+    log.info("EVALUATION (1/2) (crf_multi_region)")
+    evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_crf_multi_region, tag="crf_multi_region")
+    log.info("EVALUATION (2/2) (crf_segmaps)")
+    evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_crf_segmaps, tag="crf_segmaps")
 
 # Pipeline for deep spectral segmentation steps
 def vis_pipeline(cfg: DictConfig) -> None:
@@ -439,16 +709,15 @@ def vis_pipeline(cfg: DictConfig) -> None:
             bbox_file = None,
             output_dir = output_segm_plots
         )
-
     
 @hydra.main(version_base=None, config_path="./configs", config_name="defaults")
 def run_pipeline(cfg: DictConfig) -> None:
-    print(f'cfg.wandb.mode is={cfg.wandb.mode}')
+    # print(f'cfg.wandb.mode is={cfg.wandb.mode}')
 
-    if cfg.wandb.mode=='server':
+    # if cfg.wandb.mode=='server':
         # login to wandb using locally stored key, remove the key to prevent it from being logged
-        wandb.login(key=cfg.wandb.key)
-        cfg.wandb.key=""
+        # wandb.login(key=cfg.wandb.key)
+        # cfg.wandb.key=""
         
     log.info(OmegaConf.to_yaml(cfg))
     log.info("Current working directory  : {}".format(os.getcwd()))
@@ -459,6 +728,8 @@ def run_pipeline(cfg: DictConfig) -> None:
     
     if cfg.only_vis:
         vis_pipeline(cfg)
+    elif cfg.only_eval:
+        eval_pipeline(cfg)
     else:
         pipeline(cfg)    
 
