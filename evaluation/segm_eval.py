@@ -20,10 +20,13 @@ from tqdm import tqdm, trange
 import cv2
 
 # evaluation utilities
-import eval_utils
+# import eval_utils
+from . import eval_utils
 
 # for reading a dataset with groundth truth and labels
-from dataset import EvalDataset
+# from dataset import EvalDataset
+from .dataset import EvalDataset
+
 
 # logging
 import hydra
@@ -44,6 +47,7 @@ def evaluate_dataset(dataset, n_classes, n_clusters, thresh):
     tp = [0] * n_classes
     fp = [0] * n_classes
     fn = [0] * n_classes
+    tn = [0] * n_classes
 
     matches = []
     iou_matrices = []
@@ -81,16 +85,35 @@ def evaluate_dataset(dataset, n_classes, n_clusters, thresh):
             tp[i_part] += np.sum(tmp_gt & tmp_pred)
             fp[i_part] += np.sum(~tmp_gt & tmp_pred)
             fn[i_part] += np.sum(tmp_gt & ~tmp_pred)
+            tn[i_part] += np.sum(~tmp_gt & ~tmp_pred)
+
 
     # Calculate Jaccard index
     jac = [0] * n_classes
+    pix_acc = [0] * n_classes
+    dice = [0] * n_classes
+    precision = [0] * n_classes
+    recall = [0] * n_classes
+
     for i_part in range(0, n_classes):
         jac[i_part] = float(tp[i_part]) / max(float(tp[i_part] + fp[i_part] + fn[i_part]), 1e-8)
+        pix_acc[i_part] = float(tp[i_part] + tn[i_part]) / max(float(tp[i_part] + fp[i_part] + fn[i_part] + tn[i_part]), 1e-8)
+        dice[i_part] = float(2 * tp[i_part]) / max(float(2 * tp[i_part] + fp[i_part] + fn[i_part]), 1e-8)
+        precision[i_part] = float(tp[i_part]) / max(float(tp[i_part] + fp[i_part]), 1e-8)
+        recall[i_part] = float(tp[i_part]) / max(float(tp[i_part] + fn[i_part]), 1e-8)
 
     # Print results
     eval_result = dict()
     eval_result['jaccards_all_categs'] = jac
     eval_result['mIoU'] = np.mean(jac)
+    eval_result['pix_acc_all_categs'] = pix_acc
+    eval_result['Pixel_Accuracy'] = np.mean(pix_acc)
+    eval_result['dice_all_categs'] = dice
+    eval_result['Dice'] = np.mean(dice)
+    eval_result['precision_all_categs'] = precision
+    eval_result['Precision'] = np.mean(precision)
+    eval_result['recall_all_categs'] = recall
+    eval_result['Recall'] = np.mean(recall)
     eval_result['IoU_matrix'] = iou_matrices
     print('Evaluation of semantic segmentation ')
     
@@ -110,11 +133,15 @@ def evaluate_dataset_with_single_matching(dataset, n_classes, n_clusters, thresh
     tp = [0] * n_classes
     fp = [0] * n_classes
     fn = [0] * n_classes
+    tn = [0] * n_classes
+
 
     # Load all pixel embeddings
     # TODO: change to size from the dataset
-    all_preds = np.zeros((len(dataset) * 500 * 500), dtype=np.float32)
-    all_gt = np.zeros((len(dataset) * 500 * 500), dtype=np.float32)
+    max_size=max(dataset.H, dataset.W)
+    # max_size=500
+    all_preds = np.zeros((len(dataset) * max_size * max_size), dtype=np.float32)
+    all_gt = np.zeros((len(dataset) * max_size * max_size), dtype=np.float32)
     offset_ = 0
 
     for i in trange(len(dataset), desc='Concatenating all predictions'):
@@ -155,17 +182,35 @@ def evaluate_dataset_with_single_matching(dataset, n_classes, n_clusters, thresh
         tp[i_part] += np.sum(tmp_all_gt & tmp_pred)
         fp[i_part] += np.sum(~tmp_all_gt & tmp_pred)
         fn[i_part] += np.sum(tmp_all_gt & ~tmp_pred)
+        tn[i_part] += np.sum(~tmp_all_gt & ~tmp_pred)
+
 
     # Calculate Jaccard index
     jac = [0] * n_classes
+    pix_acc = [0] * n_classes
+    dice = [0] * n_classes
+    precision = [0] * n_classes
+    recall = [0] * n_classes
     for i_part in range(0, n_classes):
         jac[i_part] = float(tp[i_part]) / max(float(tp[i_part] + fp[i_part] + fn[i_part]), 1e-8)
+        pix_acc[i_part] = float(tp[i_part] + tn[i_part]) / max(float(tp[i_part] + fp[i_part] + fn[i_part] + tn[i_part]), 1e-8)
+        dice[i_part] = float(2 * tp[i_part]) / max(float(2 * tp[i_part] + fp[i_part] + fn[i_part]), 1e-8)
+        precision[i_part] = float(tp[i_part]) / max(float(tp[i_part] + fp[i_part]), 1e-8)
+        recall[i_part] = float(tp[i_part]) / max(float(tp[i_part] + fn[i_part]), 1e-8)
 
     # Print results
     eval_result = dict()
     eval_result['jaccards_all_categs'] = jac
     eval_result['mIoU'] = np.mean(jac)
     eval_result['IoU_matrix'] = iou_mat
+    eval_result['pix_acc_all_categs'] = pix_acc
+    eval_result['Pixel_Accuracy'] = np.mean(pix_acc)
+    eval_result['dice_all_categs'] = dice
+    eval_result['Dice'] = np.mean(dice)
+    eval_result['precision_all_categs'] = precision
+    eval_result['Precision'] = np.mean(precision)
+    eval_result['recall_all_categs'] = recall
+    eval_result['Recall'] = np.mean(recall)
     print('Evaluation of semantic segmentation ')
     
     return eval_result, match
@@ -297,6 +342,10 @@ def main(cfg: DictConfig):
 
         if cfg.wandb:
             wandb.log({'mIoU': eval_stats['mIoU']})
+            wandb.log({'Pixel_Accuracy': eval_stats['Pixel_Accuracy']})
+            wandb.log({'Dice': eval_stats['Dice']})
+            wandb.log({'Precision': eval_stats['Precision']})
+            wandb.log({'Recall': eval_stats['Recall']})
 
             # Log metrics and sample evaluation results
             class_names_all = [f'GT_class{i}' for i in range(cfg.dataset.n_classes)]
@@ -305,7 +354,7 @@ def main(cfg: DictConfig):
             elif cfg.dataset.n_clusters is not None:
                 n_clusters = cfg.dataset.n_clusters
             else:
-                n_clusters = n_classes
+                n_clusters = cfg.dataset.n_classes
             pseudolabel_names = [f'PL_class{i}' for i in range(n_clusters)]
             
             # Table for logging segment matching
@@ -350,6 +399,12 @@ def main(cfg: DictConfig):
 
             # Log Jaccard index table
             wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names_all)})
+            wandb.log({"pix_acc_table": wandb.Table(data=[eval_stats['pix_acc_all_categs']], columns=class_names_all)})
+            wandb.log({"dice_table": wandb.Table(data=[eval_stats['dice_all_categs']], columns=class_names_all)})
+            wandb.log({"precision_table": wandb.Table(data=[eval_stats['precision_all_categs']], columns=class_names_all)})
+            wandb.log({"recall_table": wandb.Table(data=[eval_stats['recall_all_categs']], columns=class_names_all)})
+
+
 
             # Log example images with overlayed segmentation
             img_table = wandb.Table(columns=['ID', 'Image', 'Pred', 'Ground_Truth'])
@@ -398,6 +453,10 @@ def main(cfg: DictConfig):
 
         if cfg.wandb:
             wandb.log({'mIoU': eval_stats['mIoU']})
+            wandb.log({'Pixel_Accuracy': eval_stats['Pixel_Accuracy']})
+            wandb.log({'Dice': eval_stats['Dice']})
+            wandb.log({'Precision': eval_stats['Precision']})
+            wandb.log({'Recall': eval_stats['Recall']})
 
             # Log confusion matrix and other metrics to wandb
             class_names = [f'GT_class{i}' for i in range(cfg.dataset.n_classes)]
@@ -406,13 +465,17 @@ def main(cfg: DictConfig):
             elif cfg.dataset.n_clusters is not None:
                 n_clusters = cfg.dataset.n_clusters
             else:
-                n_clusters = n_classes
+                n_clusters = cfg.dataset.n_classes
             pseudolabel_names = [f'PL_class{i}' for i in range(n_clusters)]
             iou_df = pd.DataFrame(data=eval_stats['IoU_matrix'], index=pseudolabel_names, columns=class_names)
             wandb.log({'IoU_heatmap': wandb.plots.HeatMap(class_names, pseudolabel_names, iou_df, show_text=True)})
 
             # Log Jaccard index table
             wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names)})
+            wandb.log({"pix_acc_table": wandb.Table(data=[eval_stats['pix_acc_all_categs']], columns=class_names_all)})
+            wandb.log({"dice_table": wandb.Table(data=[eval_stats['dice_all_categs']], columns=class_names_all)})
+            wandb.log({"precision_table": wandb.Table(data=[eval_stats['precision_all_categs']], columns=class_names_all)})
+            wandb.log({"recall_table": wandb.Table(data=[eval_stats['recall_all_categs']], columns=class_names_all)})
 
             # Log segment matchings
             pred_gt_list = [[pr, gt] for pr, gt in match]
