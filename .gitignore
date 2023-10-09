@@ -162,3 +162,8 @@ evaluation/outputs/
 configs/
 evaluation/demo_*
 cutler_env/
+evaluation/eval_analysis/artifacts
+slurm_scripts/single_eval.sh
+slurm_scripts/pipelinewitheval.sh
+slurm_scripts/deep_spectral_pipeline.sh
+slurm_scripts/cutler_inference.sh
