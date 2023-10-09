@@ -1,0 +1,9 @@
+name: carotid_mixed_val
+dataset_root: CAROTID_MIXED/val
+input_size: 256
+images_root: images
+list: lists/images.txt
+gt_dir: labels
+pred_dir: ""
+n_classes: 2
+n_clusters:
