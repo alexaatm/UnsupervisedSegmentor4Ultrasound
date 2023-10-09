@@ -1,0 +1,5 @@
+vis_dir: './eval/vis'
+vis_rand_k: 20
+eval_per_image: True
+eval_per_dataset: True
+iou_thresh: 0.0

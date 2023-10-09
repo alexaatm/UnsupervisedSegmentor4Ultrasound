@@ -7,3 +7,4 @@ clusters: True
 sem_segm: True
 crf_segm: True
 crf_multi_region: True
+eval : True
