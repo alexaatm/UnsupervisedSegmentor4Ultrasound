@@ -167,3 +167,7 @@ slurm_scripts/single_eval.sh
 slurm_scripts/pipelinewitheval.sh
 slurm_scripts/deep_spectral_pipeline.sh
 slurm_scripts/cutler_inference.sh
+slurm_scripts/*.out
+slurm_scripts/*.err
+slurm_scripts/*/*.out
+slurm_scripts/*/*.err
