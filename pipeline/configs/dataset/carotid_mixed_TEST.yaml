@@ -7,3 +7,4 @@ gt_dir: labels
 pred_dir: ""
 n_classes: 2
 n_clusters:
+features_dir: features/dino_vits8

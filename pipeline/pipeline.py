@@ -47,19 +47,24 @@ def pipeline(cfg: DictConfig) -> None:
 
 
     # Directories
-    if cfg.dataset.dataset_root:
+    if cfg.dataset.dataset_root is not None:
         images_list = os.path.join(main_data_dir, cfg.dataset.dataset_root, cfg.dataset.list)
         images_root = os.path.join(main_data_dir, cfg.dataset.dataset_root, cfg.dataset.images_root)
         dataset_dir = os.path.join(main_data_dir, cfg.dataset.dataset_root)
-        gt_dir = os.path.join(main_data_dir, cfg.dataset.dataset_root,cfg.dataset.gt_dir)
+        if cfg.dataset.gt_dir is not None:
+            gt_dir = os.path.join(main_data_dir, cfg.dataset.dataset_root,cfg.dataset.gt_dir)
     else:
         images_list = os.path.join(main_data_dir, cfg.dataset.name, 'lists', 'images.txt')
         images_root = os.path.join(main_data_dir, cfg.dataset.name, cfg.dataset.images_root)
         dataset_dir = os.path.join(main_data_dir, cfg.dataset.name)
-        gt_dir = os.path.join(main_data_dir, cfg.dataset.name,cfg.dataset.gt_dir)
+        if cfg.dataset.gt_dir is not None:
+            gt_dir = os.path.join(main_data_dir, cfg.dataset.name,cfg.dataset.gt_dir)
 
     # Set default output directories
-    output_feat_dir = os.path.join(path_to_save_data, 'features', cfg.model.name)
+    if cfg.dataset.features_dir is not None:
+        output_feat_dir = os.path.join(main_data_dir, cfg.dataset.dataset_root, cfg.dataset.features_dir)
+    else:
+        output_feat_dir = os.path.join(path_to_save_data, 'features', cfg.model.name)
     output_eig_dir = os.path.join(path_to_save_data, 'eig', cfg.spectral_clustering.which_matrix)
     output_multi_region_seg = os.path.join(path_to_save_data, 'multi_region_segmentation', cfg.spectral_clustering.which_matrix)
     output_bbox = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg.spectral_clustering.which_matrix, 'bboxes.pth')
@@ -73,7 +78,7 @@ def pipeline(cfg: DictConfig) -> None:
     if cfg.precomputed.mode == "precomputed":
         log.info("Some precomputed steps are provided - need to check each step")
         # check the next step only if the previous step is provided (since snext steps depends on the previous one)
-        if cfg.precomputed.features != "":
+        if cfg.precomputed.features != "" and cfg.dataset.features_dir == "" :
             output_feat_dir = cfg.precomputed.features
         if cfg.precomputed.eig != "":
             output_eig_dir = cfg.precomputed.eig
@@ -376,9 +381,8 @@ def evaluate(cfg: DictConfig, dataset_dir, gt_dir="", pred_dir="", tag=""):
         if cfg.wandb:
             wandb.login(key=cfg.wandb.key)
             cfg.wandb.key=""
-            cfg.wandb.tag="deep_spectral"
             wandb.init(name ="eval_" + cfg.dataset.name + "_" + segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'), project=cfg.wandb.setup.project, config=OmegaConf.to_container(cfg), save_code=True,
-                       tags=['pipeline_eval',cfg.wandb.tag, tag, 'eval_per_image'])
+                       tags=['pipeline_eval',cfg.wandb.tag, tag, 'eval_per_image', "deep_spectral"])
             cfg = DictConfig(wandb.config.as_dict())  # get the config back from wandb for hyperparameter sweeps
 
         # Configuration
@@ -495,9 +499,8 @@ def evaluate(cfg: DictConfig, dataset_dir, gt_dir="", pred_dir="", tag=""):
         if cfg.wandb:
             wandb.login(key=cfg.wandb.key)
             cfg.wandb.key=""
-            cfg.wandb.tag="deep_spectral"
             wandb.init(name ="eval_" + cfg.dataset.name + "_" + segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'), project=cfg.wandb.setup.project, config=OmegaConf.to_container(cfg), save_code=True,
-                tags=['pipeline_eval', cfg.wandb.tag, tag, 'eval_per_dataset'])
+                tags=['pipeline_eval', cfg.wandb.tag, tag, 'eval_per_dataset', "deep_spectral"])
             cfg = DictConfig(wandb.config.as_dict())  # get the config back from wandb for hyperparameter sweeps
 
         # Configuration
@@ -591,13 +594,18 @@ def eval_pipeline(cfg: DictConfig) -> None:
 
 
     # Directories
-    if cfg.dataset.dataset_root:
+    if cfg.dataset.dataset_root is not None:
         dataset_dir = os.path.join(main_data_dir, cfg.dataset.dataset_root)
-        gt_dir = os.path.join(main_data_dir, cfg.dataset.dataset_root,cfg.dataset.gt_dir)
+        if cfg.dataset.gt_dir is not None:
+            gt_dir = os.path.join(main_data_dir, cfg.dataset.dataset_root,cfg.dataset.gt_dir)
 
     else:
         dataset_dir = os.path.join(main_data_dir, cfg.dataset.name)
-        gt_dir = os.path.join(main_data_dir, cfg.dataset.name,cfg.dataset.gt_dir)
+        if cfg.dataset.gt_dir is not None:
+            gt_dir = os.path.join(main_data_dir, cfg.dataset.name,cfg.dataset.gt_dir)
+
+    
+
 
     # Set default output directories
     output_crf_multi_region = os.path.join(path_to_save_data, 'semantic_segmentations', cfg.spectral_clustering.which_matrix, 'crf_multi_region')

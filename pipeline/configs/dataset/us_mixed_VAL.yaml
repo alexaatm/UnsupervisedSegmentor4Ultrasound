@@ -1,0 +1,10 @@
+name: us_mixed_val
+dataset_root: US_MIXED/val
+input_size: 512
+images_root: images
+list: lists/images.txt
+gt_dir: labels
+pred_dir: ""
+n_classes: 7
+n_clusters:
+features_dir: ""
