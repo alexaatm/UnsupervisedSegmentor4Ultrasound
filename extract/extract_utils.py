@@ -13,6 +13,10 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from tqdm import tqdm
 
+import random
+import os
+import pytorch_lightning as pl
+
 
 class ImagesDataset(Dataset):
     """A very simple dataset for loading images."""
@@ -391,3 +395,18 @@ def var_patchwise_affinity_knn(image, patch_size, n_neighbors=[8, 4], distance_w
   W = np.array(W.todense().astype(np.float32))
 
   return W, patches
+
+def set_seed(seed: int = 1) -> None:
+    # ref: https://wandb.ai/sauravmaheshkar/RSNA-MICCAI/reports/How-to-Set-Random-Seeds-in-PyTorch-and-Tensorflow--VmlldzoxMDA2MDQy
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    # When running on the CuDNN backend, two further options must be set
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    # Set a fixed value for the hash seed
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    # additionally, ust in case, do
+    pl.seed_everything(1)
+    print(f"Random seed set as {seed}")

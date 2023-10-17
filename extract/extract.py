@@ -16,10 +16,10 @@ from torchvision.utils import draw_bounding_boxes
 from tqdm import tqdm
 from torchvision import transforms
 
-
 # import extract_utils as utils
 from extract import extract_utils as utils
 
+utils.set_seed(1)
 
 def extract_features(
     images_list: str,
@@ -403,7 +403,7 @@ def _extract_multi_region_segmentations(
         n_clusters = non_adaptive_num_segments
 
     # K-Means
-    kmeans = KMeans(n_clusters=n_clusters)
+    kmeans = KMeans(n_clusters=n_clusters, random_state=1)
 
     # Compute segments using eigenvector or baseline K-means
     if kmeans_baseline:
@@ -644,7 +644,7 @@ def extract_bbox_clusters(
     bbox_features_file: str,
     output_file: str,
     num_clusters: int = 20, 
-    seed: int = 0, 
+    seed: int = 1, 
     pca_dim: Optional[int] = 0,
 ):
     """
