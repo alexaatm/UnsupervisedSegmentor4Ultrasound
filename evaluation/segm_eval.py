@@ -42,7 +42,7 @@ def evaluate_dataset(dataset, n_classes, n_clusters, thresh):
         n_clusters = dataset.n_clusters
     elif n_clusters is None:
         n_clusters = n_classes
-    
+
     # Iterate
     tp = [0] * n_classes
     fp = [0] * n_classes
@@ -53,6 +53,15 @@ def evaluate_dataset(dataset, n_classes, n_clusters, thresh):
     iou_matrices = []
     remapped_preds = []
 
+    # metrics per image
+    miou_all = []
+    jac_all = []
+    pix_acc_all = []
+    dice_all = [] 
+    precision_all = []
+    recall_all = [] 
+
+
     for i in trange(len(dataset), desc='Iterating predictions'):
         image, gt, pred, metadata = dataset[i]
 
@@ -61,10 +70,13 @@ def evaluate_dataset(dataset, n_classes, n_clusters, thresh):
         pred_unique = np.unique(pred)
         print(f'GT unique labels: {gt_unique}')
         print(f'PRED unique labels: {pred_unique}')
-        if np.array_equal(gt_unique,pred_unique) and n_clusters==n_classes:
+        n_clusters_image = len(pred_unique)
+        n_classes_image = len(gt_unique)
+        if n_clusters_image == n_classes_image:
+        # if np.array_equal(gt_unique,pred_unique) and n_clusters==n_classes:
         # if len(gt_unique)==len(pred_unique):
             print('Using hungarian algorithm for matching')
-            match, iou_mat  = eval_utils.hungarian_match(pred, gt, preds_k=n_clusters, targets_k=n_classes, metric='iou', thresh=thresh)
+            match, iou_mat  = eval_utils.hungarian_match(pred, gt, preds_k=n_clusters_image, targets_k=n_classes_image, metric='iou', thresh=thresh)
         else:
             print('Using majority voting for matching')
             match, iou_mat = eval_utils.majority_vote_unique(pred, gt, preds_k=n_clusters, targets_k=n_classes, thresh=thresh)
@@ -78,42 +90,72 @@ def evaluate_dataset(dataset, n_classes, n_clusters, thresh):
             reordered_pred[pred == int(pred_i)] = int(target_i)
         remapped_preds.append(reordered_pred)
         
-        # TP, FP, and FN evaluation
+        # calculate TP, FP, FN, TN for a single image - to get an IoU per image
+        tp_image = [0] * n_classes
+        fp_image = [0] * n_classes
+        fn_image = [0] * n_classes
+        tn_image = [0] * n_classes
+        # metrics per image
+        jac_image_all_categs = [0] * n_classes
+        pix_acc_image_all_categs = [0] * n_classes
+        dice_image_all_categs = [0] * n_classes
+        precision_image_all_categs = [0] * n_classes
+        recall_image_all_categs = [0] * n_classes
+
+        # TP, FP, and FN evaluation, accumulated for ALL images
         for i_part in range(0, n_classes):
             tmp_gt = (gt == i_part) #get class i mask from ground truth
             tmp_pred = (reordered_pred == i_part) #get class i mask from predictions
-            tp[i_part] += np.sum(tmp_gt & tmp_pred)
-            fp[i_part] += np.sum(~tmp_gt & tmp_pred)
-            fn[i_part] += np.sum(tmp_gt & ~tmp_pred)
-            tn[i_part] += np.sum(~tmp_gt & ~tmp_pred)
+            # just for the current image
+            tp_image[i_part] += np.sum(tmp_gt & tmp_pred)
+            fp_image[i_part] += np.sum(~tmp_gt & tmp_pred)
+            fn_image[i_part] += np.sum(tmp_gt & ~tmp_pred)
+            tn_image[i_part] += np.sum(~tmp_gt & ~tmp_pred)
+            # accumulated for all
+            tp[i_part] += tp_image[i_part] 
+            fp[i_part] += fp_image[i_part] 
+            fn[i_part] += fn_image[i_part]
+            tn[i_part] += tn_image[i_part]
+
+            # calculate metrics per image
+            jac_image_all_categs[i_part] = float(tp_image[i_part]) / max(float(tp_image[i_part] + fp_image[i_part] + fn_image[i_part]), 1e-8)
+            pix_acc_image_all_categs[i_part] = float(tp_image[i_part] + tn_image[i_part]) / max(float(tp_image[i_part] + fp_image[i_part] + fn_image[i_part] + tn_image[i_part]), 1e-8)
+            dice_image_all_categs[i_part] = float(2 * tp_image[i_part]) / max(float(2 * tp_image[i_part] + fp_image[i_part] + fn_image[i_part]), 1e-8)
+            precision_image_all_categs[i_part] = float(tp_image[i_part]) / max(float(tp_image[i_part] + fp_image[i_part]), 1e-8)
+            recall_image_all_categs[i_part] = float(tp_image[i_part]) / max(float(tp_image[i_part] + fn_image[i_part]), 1e-8)
+
+        miou_image = np.mean(jac_image_all_categs)
+        pix_acc_image = np.mean(pix_acc_image_all_categs)
+        dice_image = np.mean(dice_image_all_categs)
+        precision_image = np.mean(precision_image_all_categs)
+        recall_image = np.mean(recall_image_all_categs)
+
+        miou_all.append(miou_image)
+        pix_acc_all.append(pix_acc_image)
+        dice_all.append(dice_image)
+        precision_all.append(precision_image)
+        recall_all.append(recall_image)
+        jac_all.append(jac_image_all_categs)
 
 
-    # Calculate Jaccard index
-    jac = [0] * n_classes
-    pix_acc = [0] * n_classes
-    dice = [0] * n_classes
-    precision = [0] * n_classes
-    recall = [0] * n_classes
-
-    for i_part in range(0, n_classes):
-        jac[i_part] = float(tp[i_part]) / max(float(tp[i_part] + fp[i_part] + fn[i_part]), 1e-8)
-        pix_acc[i_part] = float(tp[i_part] + tn[i_part]) / max(float(tp[i_part] + fp[i_part] + fn[i_part] + tn[i_part]), 1e-8)
-        dice[i_part] = float(2 * tp[i_part]) / max(float(2 * tp[i_part] + fp[i_part] + fn[i_part]), 1e-8)
-        precision[i_part] = float(tp[i_part]) / max(float(tp[i_part] + fp[i_part]), 1e-8)
-        recall[i_part] = float(tp[i_part]) / max(float(tp[i_part] + fn[i_part]), 1e-8)
-
-    # Print results
+    # Log results
     eval_result = dict()
-    eval_result['jaccards_all_categs'] = jac
-    eval_result['mIoU'] = np.mean(jac)
-    eval_result['pix_acc_all_categs'] = pix_acc
-    eval_result['Pixel_Accuracy'] = np.mean(pix_acc)
-    eval_result['dice_all_categs'] = dice
-    eval_result['Dice'] = np.mean(dice)
-    eval_result['precision_all_categs'] = precision
-    eval_result['Precision'] = np.mean(precision)
-    eval_result['recall_all_categs'] = recall
-    eval_result['Recall'] = np.mean(recall)
+    eval_result['jaccards_all_categs'] = np.mean(jac_all)
+    eval_result['mIoU'] = np.mean(miou_all)
+    eval_result['mIoU_std'] = np.std(miou_all)
+
+    eval_result['Pixel_Accuracy'] = np.mean(pix_acc_all)
+    eval_result['Pixel_Accuracy_std'] = np.std(pix_acc_all)
+
+    eval_result['Dice'] = np.mean(dice_all)
+    eval_result['Dice_std'] = np.std(dice_all)
+
+    eval_result['Precision'] = np.mean(precision_all)
+    eval_result['Precision_std'] = np.std(precision_all)
+
+    eval_result['Recall'] = np.mean(recall_all)
+    eval_result['Recall_std'] = np.std(recall_all)
+
     eval_result['IoU_matrix'] = iou_matrices
     print('Evaluation of semantic segmentation ')
     
@@ -342,10 +384,15 @@ def main(cfg: DictConfig):
 
         if cfg.wandb:
             wandb.log({'mIoU': eval_stats['mIoU']})
+            wandb.log({'mIoU_std': eval_stats['mIoU_std']})
             wandb.log({'Pixel_Accuracy': eval_stats['Pixel_Accuracy']})
+            wandb.log({'Pixel_Accuracy_std': eval_stats['Pixel_Accuracy_std']})
             wandb.log({'Dice': eval_stats['Dice']})
+            wandb.log({'Dice_std': eval_stats['Dice_std']})
             wandb.log({'Precision': eval_stats['Precision']})
+            wandb.log({'Precision_std': eval_stats['Precision_std']})
             wandb.log({'Recall': eval_stats['Recall']})
+            wandb.log({'Recall_std': eval_stats['Recall_std']})
 
             # Log metrics and sample evaluation results
             class_names_all = [f'GT_class{i}' for i in range(cfg.dataset.n_classes)]

@@ -37,9 +37,16 @@ class EvalDataset(Dataset):
         gt_path = os.path.join(self.gt_dir, img_name + ".png")
         pred_path = os.path.join(self.pred_dir, img_name + ".png")
 
-        image = np.array(self.transform(Image.open(img_path).convert("RGB")))
-        ground_truth = np.array(self.transform(Image.open(gt_path).convert('L')))
-        prediction = np.array(self.transform(Image.open(pred_path).convert('L')))
+        # assert(os.path.isfile(gt_path))
+
+        if self.transform is not None:
+            image = np.array(self.transform(Image.open(img_path).convert("RGB")))
+            ground_truth = np.array(self.transform(Image.open(gt_path).convert('L')))
+            prediction = np.array(self.transform(Image.open(pred_path).convert('L')))
+        else:
+            image = np.array(Image.open(img_path).convert("RGB"))
+            ground_truth = np.array(Image.open(gt_path).convert('L'))
+            prediction = np.array(Image.open(pred_path).convert('L'))
 
         metadata = {'id': Path(img_path).stem, 'path': img_path, 'shape': tuple(image.shape[:2])}
 
@@ -59,7 +66,11 @@ class EvalDataset(Dataset):
             
             # get the number of unique labels to determine the number of segments per image
             unique_labels = np.unique(pred)
-            current_segm_num = np.max(unique_labels)
+            print(f'unique labels per image: {unique_labels}')
+            # current_segm_num = np.max(unique_labels)
+            current_segm_num = len(unique_labels)
+            # current_segm_num = max(len(unique_labels), np.max(unique_labels))
+            print(f'current_segm_num: {current_segm_num}')
             if current_segm_num > segm_num:
                 segm_num = current_segm_num
 
@@ -84,7 +95,16 @@ class EvalDataset(Dataset):
                 Image.fromarray(pred_im_res).convert('L').save(pred_path)
         
         self.n_clusters = segm_num
+        print(f'self.n_clusters: {self.n_clusters}')
         self.H=H_im
         self.W=W_im
+
+
+# if __name__ == '__main__':
+#     root_dir = "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/data/US_MIXED/val"
+#     gt_dir = "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/data/US_MIXED/val/lables"
+#     pred_dir = "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/data/US_MIXED/val/predictions/maskcut_init_lr0.001_us_mixed_val_thresh0.0"
+
+#     d = EvalDataset(root_dir,gt_dir,pred_dir)
 
             

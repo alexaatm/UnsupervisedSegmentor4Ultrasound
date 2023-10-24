@@ -3,7 +3,7 @@
 #SBATCH --job-name=cutlrPr2L
 #SBATCH --output=cutlrPr2L-%A.out  # Standard output of the script (Can be absolute or relative path). %A adds the job id to the file name so you can launch the same script multiple times and get different logging files
 #SBATCH --error=cutlrPr2L-%A.err  # Standard error of the script
-#SBATCH --gres=gpu:1  # Number of GPUs if needed
+#SBATCH --gres=gpu:0  # Number of GPUs if needed
 #SBATCH --cpus-per-task=8  # Number of CPUs (Don't use more than 24 per GPU)
 #SBATCH --mem=4G  # Memory in GB (Don't use more than 126G per GPU) BEFORE: 36G
  
@@ -15,18 +15,22 @@ cd ../CutLER/cutler
 
 export DETECTRON2_DATASETS=/home/guests/oleksandra_tmenova/test/project/thesis-codebase/data
 
-model_weights=$1
-thresh=$2
-pred_name=$3
+dataset=$1
+model_weights=$2
+thresh=$3
+pred_name=$4
+tag=$5
+config=$6
 
-dataset="mutinfo_val_carotid"
+# dataset="mutinfo_val_carotid"
 # model_weights="/home/guests/oleksandra_tmenova/test/project/thesis-codebase/CutLER/cutler/outputs/self_train/mutinfo_train_carotid/round1/model_final.pth"
 # thresh=0.35
 # output_pred_name=cutler_imagenet_selftrain_r1_model_final_thresh"${thresh}"
 output_pred_name="${pred_name}"_thresh"${thresh}"
 output_pred_dir=outputs/inference/"${dataset}"/"${output_pred_name}"
-eval_per_image_values=(True False)
-tag='cutler'
+eval_per_image_values=(True) # (True False)
+# tag='cutler'
+# config=model_zoo/configs/CutLER-ImageNet/cascade_mask_rcnn_R_50_FPN_demo.yaml
 
 echo dataset="${dataset}"
 echo thresh="${thresh}"
@@ -44,9 +48,9 @@ fi
 echo "PREDICTION..."
 # mutinfo_val_carotid_main - predict using cutler imagenet model SELF TRAINED on mutinfo_train_carotid_train_r1,  checkpoint final
 python train_net.py --num-gpus 1 \
-  --config-file model_zoo/configs/CutLER-ImageNet/cascade_mask_rcnn_R_50_FPN_demo.yaml \
+  --config-file "${config}" \
   --test-dataset  "${dataset}"_main \
-  --eval-only TEST.DETECTIONS_PER_IMAGE 30 \
+  --eval-only TEST.DETECTIONS_PER_IMAGE 15 \
   MODEL.WEIGHTS "$model_weights" \
   OUTPUT_DIR "$output_pred_dir"\
 
