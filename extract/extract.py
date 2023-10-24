@@ -14,10 +14,12 @@ from sklearn.cluster import KMeans, MiniBatchKMeans
 from sklearn.decomposition import PCA
 from torchvision.utils import draw_bounding_boxes
 from tqdm import tqdm
+from torchvision import transforms
 
 # import extract_utils as utils
 from extract import extract_utils as utils
 
+utils.set_seed(1)
 
 def extract_features(
     images_list: str,
@@ -27,7 +29,8 @@ def extract_features(
     output_dir: str,
     which_block: int = -1,
     model_checkpoint: str = "",
-    only_dict: bool = False
+    only_dict: bool = False,
+    # input_size: int = 480,
 ):
     """
     Extract features from a list of images.
@@ -63,6 +66,7 @@ def extract_features(
 
     # Dataset
     filenames = Path(images_list).read_text().splitlines()
+    # transform = transforms.Compose([transforms.Resize(input_size), val_transform])
     dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=val_transform)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=0)
     print(f'Dataset size: {len(dataset)}')
@@ -146,7 +150,8 @@ def _extract_eig(
     image_color_lambda: float = 10,
     image_ssd_beta: float = 0.0,
     image_dino_gamma: float = 0.0,
-    max_knn_neigbors: int = 80
+    max_knn_neigbors: int = 80,
+    image_var: float = 0.0,
 ):
     index, features_file = inp
 
@@ -230,7 +235,7 @@ def _extract_eig(
         if image_color_lambda > 0:
 
             # Load image
-            image_file = str(Path(images_root) / f'{image_id}.jpg')
+            image_file = str(Path(images_root) / f'{image_id}.png')
             image_lr = Image.open(image_file).resize((W_pad_lr, H_pad_lr), Image.BILINEAR)
             image_lr = np.array(image_lr) / 255.
 
@@ -251,7 +256,7 @@ def _extract_eig(
         if image_ssd_beta > 0:
 
             # Load image
-            image_file = str(Path(images_root) / f'{image_id}.jpg')
+            image_file = str(Path(images_root) / f'{image_id}.png')
             image_resized = Image.open(image_file).resize((W_pad, H_pad), Image.BILINEAR) # NOTE: in PIL image shpae is (w, h) while in NP its (h, w)
             image_resized=np.array(image_resized.convert('RGB')) / 255.
             
@@ -273,8 +278,32 @@ def _extract_eig(
             # No ssd affinity
             W_ssd = 0
 
+        if image_var > 0:
+
+            # Load image
+            image_file = str(Path(images_root) / f'{image_id}.png')
+            image_resized = Image.open(image_file).resize((W_pad, H_pad), Image.BILINEAR) # NOTE: in PIL image shpae is (w, h) while in NP its (h, w)
+            image_resized=np.array(image_resized.convert('RGB')) / 255.
+            
+            # set patch size
+            patch_size = (8,8) # (H_patch, W_patch)
+            
+            # var patch-wise affinity matrix
+            W_var, p = utils.var_patchwise_affinity_knn(image_resized, patch_size, n_neighbors=[80, 40], distance_weights=[8.0, 4.0]) # [8, 4]
+            
+            # Check the size
+            if (W_var.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
+                # print("W_ssd.shape=",W_ssd.shape, "W_feat.shape=", W_feat.shape )
+                W_var = utils.interpolate_2Darray(W_var, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+
+        
+        else:
+
+            # No var patchwise  affinity
+            W_var = 0
+
         # Combine
-        W_comb = image_dino_gamma * W_feat + W_color * image_color_lambda + W_ssd * image_ssd_beta  # combination
+        W_comb = image_dino_gamma * W_feat + W_color * image_color_lambda + W_ssd * image_ssd_beta + W_var * image_var # combination
         D_comb = np.array(utils.get_diagonal(W_comb).todense())  # is dense or sparse faster? not sure, should check
 
         # Extract eigenvectors
@@ -316,7 +345,8 @@ def extract_eigs(
     multiprocessing: int = 0,
     image_ssd_beta: float = 0.0,
     image_dino_gamma: float = 0.0,
-    max_knn_neigbors: int = 80
+    max_knn_neigbors: int = 80,
+    image_var: float = 0.0,
 ):
     """
     Extracts eigenvalues from features.
@@ -333,7 +363,8 @@ def extract_eigs(
     kwargs = dict(K=K, which_matrix=which_matrix, which_features=which_features, which_color_matrix=which_color_matrix,
                  normalize=normalize, threshold_at_zero=threshold_at_zero, images_root=images_root, output_dir=output_dir, 
                  image_downsample_factor=image_downsample_factor, image_color_lambda=image_color_lambda, lapnorm=lapnorm, 
-                 image_ssd_beta=image_ssd_beta, image_dino_gamma=image_dino_gamma, max_knn_neigbors=max_knn_neigbors)
+                 image_ssd_beta=image_ssd_beta, image_dino_gamma=image_dino_gamma, max_knn_neigbors=max_knn_neigbors,
+                 image_var=image_var)
     print(kwargs)
     fn = partial(_extract_eig, **kwargs)
     inputs = list(enumerate(sorted(Path(features_dir).iterdir())))
@@ -377,7 +408,7 @@ def _extract_multi_region_segmentations(
         n_clusters = non_adaptive_num_segments
 
     # K-Means
-    kmeans = KMeans(n_clusters=n_clusters)
+    kmeans = KMeans(n_clusters=n_clusters, random_state=1)
 
     # Compute segments using eigenvector or baseline K-means
     if kmeans_baseline:
@@ -598,7 +629,7 @@ def extract_bbox_features(
         image_id = bbox_dict['id']
         bboxes = bbox_dict['bboxes_original_resolution']
         # Load image as tensor
-        image_filename = str(Path(images_root) / f'{image_id}.jpg')
+        image_filename = str(Path(images_root) / f'{image_id}.png')
         image = val_transform(Image.open(image_filename).convert('RGB'))  # (3, H, W)
         image = image.unsqueeze(0).to(device)  # (1, 3, H, W)
         features_crops = []
@@ -618,7 +649,7 @@ def extract_bbox_clusters(
     bbox_features_file: str,
     output_file: str,
     num_clusters: int = 20, 
-    seed: int = 0, 
+    seed: int = 1, 
     pca_dim: Optional[int] = 0,
 ):
     """
@@ -740,7 +771,7 @@ def _extract_crf_segmentations(
         return  # skip because already generated
 
     # Load image and segmap
-    image_file = str(Path(images_root) / f'{id}.jpg')
+    image_file = str(Path(images_root) / f'{id}.png')
     image = np.array(Image.open(image_file).convert('RGB'))  # (H_patch, W_patch, 3)
     segmap = np.array(Image.open(segmap_path))  # (H_patch, W_patch)
      

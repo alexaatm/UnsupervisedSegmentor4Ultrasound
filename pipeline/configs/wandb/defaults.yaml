@@ -1,7 +1,9 @@
 setup:
-    project: pipelineTEST
+    project: pipeline
     entity: alexaatm
-    mode: online
+    mode: offline
+key: 163fac3be1f95e6eeb5964f1743469286a0421ae
+tag: ''
 watch:
     log: all
     log_freq: 1

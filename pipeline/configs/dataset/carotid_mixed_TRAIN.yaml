@@ -1,0 +1,5 @@
+name: carotid_mixed_train
+dataset_root: CAROTID_MIXED/train
+input_size: 256
+images_root: images
+list: lists/images.txt

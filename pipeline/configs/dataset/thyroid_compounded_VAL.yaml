@@ -1,0 +1,10 @@
+name: thyroid_compounded_val
+dataset_root: THYROID_COMPOUNDED/val
+input_size: 1024
+images_root: images
+list: lists/images.txt
+gt_dir: labels
+pred_dir: ""
+n_classes: 7
+n_clusters:
+features_dir: features/dino_vits8

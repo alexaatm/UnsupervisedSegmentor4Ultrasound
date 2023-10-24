@@ -1,3 +1,8 @@
 name: liver2_mini
 input_size: 256
 images_root: images
+dataset_root: liver2_mini
+list: lists/images.txt
+gt_dir: 
+pred_dir: 
+features_dir:

@@ -1,0 +1,5 @@
+name: liver_mixed_train
+dataset_root: LIVER_MIXED/train
+input_size: 512
+images_root: images
+list: lists/images.txt
