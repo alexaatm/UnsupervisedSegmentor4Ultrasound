@@ -146,6 +146,7 @@ def _extract_eig(
     image_color_lambda: float = 10,
     image_ssd_beta: float = 0.0,
     image_dino_gamma: float = 0.0,
+    max_knn_neigbors: int = 80
 ):
     index, features_file = inp
 
@@ -258,8 +259,9 @@ def _extract_eig(
             patch_size = (8,8) # (H_patch, W_patch)
             
             # SSD patch-wise affinity matrix
-            W_ssd, p = utils.ssd_patchwise_affinity_knn(image_resized, patch_size, n_neighbors=[80, 40], distance_weights=[8.0, 4.0]) # [8, 4]
-            
+            # W_ssd, p = utils.ssd_patchwise_affinity_knn(image_resized, patch_size, n_neighbors=[80, 40], distance_weights=[8.0, 4.0]) # nn = [80, 40], dw=[8, 4]
+            W_ssd, p = utils.ssd_patchwise_affinity_knn(image_resized, patch_size, n_neighbors=[max_knn_neigbors, max_knn_neigbors//2], distance_weights=[8.0, 4.0]) # nn = [80, 40], dw=[8, 4]
+
             # Check the size
             if (W_ssd.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
                 # print("W_ssd.shape=",W_ssd.shape, "W_feat.shape=", W_feat.shape )
@@ -314,6 +316,7 @@ def extract_eigs(
     multiprocessing: int = 0,
     image_ssd_beta: float = 0.0,
     image_dino_gamma: float = 0.0,
+    max_knn_neigbors: int = 80
 ):
     """
     Extracts eigenvalues from features.
@@ -329,7 +332,8 @@ def extract_eigs(
     utils.make_output_dir(output_dir, check_if_empty=False)
     kwargs = dict(K=K, which_matrix=which_matrix, which_features=which_features, which_color_matrix=which_color_matrix,
                  normalize=normalize, threshold_at_zero=threshold_at_zero, images_root=images_root, output_dir=output_dir, 
-                 image_downsample_factor=image_downsample_factor, image_color_lambda=image_color_lambda, lapnorm=lapnorm, image_ssd_beta=image_ssd_beta, image_dino_gamma=image_dino_gamma)
+                 image_downsample_factor=image_downsample_factor, image_color_lambda=image_color_lambda, lapnorm=lapnorm, 
+                 image_ssd_beta=image_ssd_beta, image_dino_gamma=image_dino_gamma, max_knn_neigbors=max_knn_neigbors)
     print(kwargs)
     fn = partial(_extract_eig, **kwargs)
     inputs = list(enumerate(sorted(Path(features_dir).iterdir())))

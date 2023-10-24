@@ -140,6 +140,7 @@ def pipeline(cfg: DictConfig) -> None:
         multiprocessing = cfg.spectral_clustering.multiprocessing,
         image_ssd_beta = cfg.spectral_clustering.image_ssd_beta,
         image_dino_gamma = cfg.spectral_clustering.image_dino_gamma,
+        max_knn_neigbors = cfg.spectral_clustering.max_knn_neigbors
     )
 
     # Visualize eigenvectors
