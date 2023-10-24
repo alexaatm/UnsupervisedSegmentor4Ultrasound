@@ -66,7 +66,11 @@ class EvalDataset(Dataset):
             
             # get the number of unique labels to determine the number of segments per image
             unique_labels = np.unique(pred)
-            current_segm_num = np.max(unique_labels)
+            print(f'unique labels per image: {unique_labels}')
+            # current_segm_num = np.max(unique_labels)
+            current_segm_num = len(unique_labels)
+            # current_segm_num = max(len(unique_labels), np.max(unique_labels))
+            print(f'current_segm_num: {current_segm_num}')
             if current_segm_num > segm_num:
                 segm_num = current_segm_num
 
@@ -91,6 +95,7 @@ class EvalDataset(Dataset):
                 Image.fromarray(pred_im_res).convert('L').save(pred_path)
         
         self.n_clusters = segm_num
+        print(f'self.n_clusters: {self.n_clusters}')
         self.H=H_im
         self.W=W_im
 
