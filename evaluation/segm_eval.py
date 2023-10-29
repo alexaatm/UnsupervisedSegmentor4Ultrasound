@@ -36,6 +36,130 @@ import datetime
 import pandas as pd
 import random
 
+def evaluate_dataset_with_remapping(dataset, n_classes, thresh = 0.0, void_label = 0):
+
+    # # exclude void label from evaluation
+    n_classes = n_classes - 1
+
+    # Iterate
+    tp = [0] * n_classes
+    fp = [0] * n_classes
+    fn = [0] * n_classes
+    tn = [0] * n_classes
+
+    matches = []
+    corrected_matches = []
+    iou_matrices = []
+    remapped_preds = []
+
+    # metrics per image
+    miou_all = []
+    jac_all = []
+    pix_acc_all = []
+    dice_all = [] 
+    precision_all = []
+    recall_all = [] 
+
+
+    for i in trange(len(dataset), desc='Iterating predictions'):
+        image, gt, pred, metadata = dataset[i]
+
+
+        # Remap each labelmap to have consecutive labels
+        gt_remapped, gt_match = eval_utils.make_labels_consecutive(gt)
+        pred_remapped, pred_match = eval_utils.make_labels_consecutive(pred)
+        
+        # Mathcing
+        match, iou_mat  = eval_utils.match(pred_remapped, gt_remapped, thresh = thresh)
+        matches.append(match)
+        iou_matrices.append(iou_mat)
+
+        # Remap the match entries back to original labels
+        corrected_match = eval_utils.remap_match(match, gt_match, pred_match)
+        corrected_matches.append(corrected_match)
+
+        # Remap prediction according to the found match
+        reordered_pred = eval_utils.remap_labels(pred, corrected_match)
+        remapped_preds.append(reordered_pred)
+        
+        # calculate TP, FP, FN, TN for a single image - to get an IoU per image
+        tp_image = [0] * n_classes
+        fp_image = [0] * n_classes
+        fn_image = [0] * n_classes
+        tn_image = [0] * n_classes
+        # metrics per image
+        jac_image_all_categs = [0] * n_classes
+        pix_acc_image_all_categs = [0] * n_classes
+        dice_image_all_categs = [0] * n_classes
+        precision_image_all_categs = [0] * n_classes
+        recall_image_all_categs = [0] * n_classes
+
+        # TP, FP, and FN evaluation, accumulated for ALL images
+        for i_part in range(0, n_classes):
+            label_i = i_part + 1 #add 1, since we reduce n_classes by 1 (the void label)
+            # Don't include void segments into evaluation: false negatives and false positives of void segments will not penalaize
+            # see ref: https://github.com/tensorflow/models/blob/master/research/deeplab/evaluation/panoptic_quality.py
+            if label_i == void_label:
+                continue
+            # extract binary masks for the current category
+            tmp_gt = (gt == label_i) #get class i mask from ground truth
+            tmp_pred = (reordered_pred == label_i) #get class i mask from predictions
+            # just for the current image
+            tp_image[i_part] += np.sum(tmp_gt & tmp_pred)
+            fp_image[i_part] += np.sum(~tmp_gt & tmp_pred)
+            fn_image[i_part] += np.sum(tmp_gt & ~tmp_pred)
+            tn_image[i_part] += np.sum(~tmp_gt & ~tmp_pred)
+            # accumulated for all
+            tp[i_part] += tp_image[i_part] 
+            fp[i_part] += fp_image[i_part] 
+            fn[i_part] += fn_image[i_part]
+            tn[i_part] += tn_image[i_part]
+
+            # calculate metrics per image
+            jac_image_all_categs[i_part] = float(tp_image[i_part]) / max(float(tp_image[i_part] + fp_image[i_part] + fn_image[i_part]), 1e-8)
+            pix_acc_image_all_categs[i_part] = float(tp_image[i_part] + tn_image[i_part]) / max(float(tp_image[i_part] + fp_image[i_part] + fn_image[i_part] + tn_image[i_part]), 1e-8)
+            dice_image_all_categs[i_part] = float(2 * tp_image[i_part]) / max(float(2 * tp_image[i_part] + fp_image[i_part] + fn_image[i_part]), 1e-8)
+            precision_image_all_categs[i_part] = float(tp_image[i_part]) / max(float(tp_image[i_part] + fp_image[i_part]), 1e-8)
+            recall_image_all_categs[i_part] = float(tp_image[i_part]) / max(float(tp_image[i_part] + fn_image[i_part]), 1e-8)
+
+        miou_image = np.mean(jac_image_all_categs)
+        pix_acc_image = np.mean(pix_acc_image_all_categs)
+        dice_image = np.mean(dice_image_all_categs)
+        precision_image = np.mean(precision_image_all_categs)
+        recall_image = np.mean(recall_image_all_categs)
+
+        miou_all.append(miou_image)
+        pix_acc_all.append(pix_acc_image)
+        dice_all.append(dice_image)
+        precision_all.append(precision_image)
+        recall_all.append(recall_image)
+        jac_all.append(jac_image_all_categs)
+
+
+    # Log results
+    eval_result = dict()
+    eval_result['jaccards_all_categs'] = np.mean(jac_all, axis = 0)
+    eval_result['mIoU'] = np.mean(miou_all)
+    eval_result['mIoU_std'] = np.std(miou_all)
+
+    eval_result['Pixel_Accuracy'] = np.mean(pix_acc_all)
+    eval_result['Pixel_Accuracy_std'] = np.std(pix_acc_all)
+
+    eval_result['Dice'] = np.mean(dice_all)
+    eval_result['Dice_std'] = np.std(dice_all)
+
+    eval_result['Precision'] = np.mean(precision_all)
+    eval_result['Precision_std'] = np.std(precision_all)
+
+    eval_result['Recall'] = np.mean(recall_all)
+    eval_result['Recall_std'] = np.std(recall_all)
+
+    eval_result['IoU_matrix'] = iou_matrices
+    print('Evaluation of semantic segmentation ')
+    
+    return eval_result, matches, corrected_matches, remapped_preds
+
+
 def evaluate_dataset(dataset, n_classes, n_clusters, thresh):
 
     if dataset.n_clusters is not None:
@@ -363,7 +487,7 @@ def main(cfg: DictConfig):
 
         # Evaluate
         dataset = EvalDataset(cfg.dataset.dataset_dir, cfg.dataset.gt_dir, cfg.dataset.pred_dir)
-        eval_stats, matches, preds = evaluate_dataset(dataset, cfg.dataset.n_classes, cfg.dataset.get('n_clusters', None), cfg.iou_thresh)
+        eval_stats, matches, corrected_matches, preds = evaluate_dataset_with_remapping(dataset, cfg.dataset.n_classes, cfg.iou_thresh, cfg.void_label)
         print("eval stats:", eval_stats)
         print("matches:", matches)
 
@@ -396,13 +520,6 @@ def main(cfg: DictConfig):
 
             # Log metrics and sample evaluation results
             class_names_all = [f'GT_class{i}' for i in range(cfg.dataset.n_classes)]
-            if dataset.n_clusters is not None:
-                n_clusters = dataset.n_clusters
-            elif cfg.dataset.n_clusters is not None:
-                n_clusters = cfg.dataset.n_clusters
-            else:
-                n_clusters = cfg.dataset.n_classes
-            pseudolabel_names = [f'PL_class{i}' for i in range(n_clusters)]
             
             # Table for logging segment matching
             match_table = wandb.Table(columns = ['ID'] + class_names_all)
@@ -411,7 +528,7 @@ def main(cfg: DictConfig):
             remapped_pred_table = wandb.Table(columns=['ID', 'Image'])
 
             # Go through dataset and log data
-            for i, (sample, iou_m, match, remapped_pred) in enumerate(zip(dataset, eval_stats['IoU_matrix'], matches, preds)):
+            for i, (sample, iou_m, match, remapped_pred) in enumerate(zip(dataset, eval_stats['IoU_matrix'], corrected_matches, preds)):
                 im, target, pred, metadata = sample
                 id = metadata['id']
 
@@ -424,12 +541,12 @@ def main(cfg: DictConfig):
                 # log IoU heatmaps and remapped preds only for selected samples
                 if i in inds_to_vis:
                     # get lists of unique labels to name the columns of heatmaps (may be different for each image)
-                    # class_names = [f'GT_class{i}' for i in np.unique(target)]
-                    # pseudolabel_names = [f'PL_class{i}' for i in np.unique(pred)]
-
-                    # log IoU heatmaps - individually (cannot log wandb heatmaps in a wandb table...)
-                    iou_df = pd.DataFrame(data=iou_m, index=pseudolabel_names, columns=class_names_all)
-                    heatmap = wandb.plots.HeatMap(class_names_all,pseudolabel_names, iou_df, show_text=True)
+                    class_names = [f'GT_class{i}' for i in np.unique(target)]
+                    pseudolabel_names = [f'PL_class{i}' for i in np.unique(pred)]
+                    
+                    # # log IoU heatmaps - individually (cannot log wandb heatmaps in a wandb table...)
+                    iou_df = pd.DataFrame(data=iou_m, index=pseudolabel_names, columns=class_names)
+                    heatmap = wandb.plots.HeatMap(class_names,pseudolabel_names, iou_df, show_text=True)
                     wandb.log({f"Sample IoU Heatmap {id}": heatmap})
 
                     # log remapped predictions - in a table
@@ -445,13 +562,8 @@ def main(cfg: DictConfig):
             wandb.log({"Example Images After Remapping" : remapped_pred_table})
 
             # Log Jaccard index table
-            wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names_all)})
-            wandb.log({"pix_acc_table": wandb.Table(data=[eval_stats['pix_acc_all_categs']], columns=class_names_all)})
-            wandb.log({"dice_table": wandb.Table(data=[eval_stats['dice_all_categs']], columns=class_names_all)})
-            wandb.log({"precision_table": wandb.Table(data=[eval_stats['precision_all_categs']], columns=class_names_all)})
-            wandb.log({"recall_table": wandb.Table(data=[eval_stats['recall_all_categs']], columns=class_names_all)})
-
-
+            print("eval_stats['jaccards_all_categs']=", type([eval_stats['jaccards_all_categs']]), [eval_stats['jaccards_all_categs']])
+            wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names_all[1:])})
 
             # Log example images with overlayed segmentation
             img_table = wandb.Table(columns=['ID', 'Image', 'Pred', 'Ground_Truth'])

@@ -35,24 +35,6 @@ def hungarian_match(flat_preds, flat_targets, preds_k, targets_k, metric='acc', 
 
 
 def majority_vote(flat_preds, flat_targets, preds_k, targets_k, n_jobs=16, thresh=0):
-    if thresh != 0 :
-        # use threshold
-        iou_mat = Parallel(n_jobs=n_jobs, backend='multiprocessing')(delayed(get_iou_with_thresh)(
-            flat_preds, flat_targets, c1, c2, thresh) for c2 in range(targets_k) for c1 in range(preds_k))
-    else:
-        # dont use threshold
-        iou_mat = Parallel(n_jobs=n_jobs, backend='multiprocessing')(delayed(get_iou)(
-            flat_preds, flat_targets, c1, c2) for c2 in range(targets_k) for c1 in range(preds_k))
-    iou_mat = np.array(iou_mat)
-    iou_mat_reshaped = iou_mat.reshape((targets_k, preds_k)).T
-    # TODO: visualize confusion matrix
-    results = np.argmax(iou_mat_reshaped, axis=1)
-    # match = np.array(list(zip(range(preds_k), results)))
-    match = list(zip(range(preds_k), results))
-    # return a list of tuples (matches classes) and a full IoU matrix
-    return match, iou_mat_reshaped
-
-def majority_vote(flat_preds, flat_targets, preds_k, targets_k, n_jobs=16, thresh=0):
     """
     NOTE: this function finds a GT (ground truth) class for every PL (pseudo label)
     based on the maximum IoU value.
@@ -136,3 +118,132 @@ def get_iou_with_thresh(flat_preds, flat_targets, c1, c2, thresh = 0.5):
     if jac < thresh:
         jac = 0.0
     return jac
+
+def make_labels_consecutive(labelmap):
+    """
+    NOTE: this function remaps each labelmap to have consecutive labels: 0, 1,2,3,4...K
+    in case the labels present in the image had some labels missing:
+
+    eg. INPUT labelmap has unique labels: [0, 1, 6, 9], then
+    the OUTPUT labelmap would be: [0, 1, 2, 3]. and the matching would be:
+    [(0,0), (1,1), (6, 2), (9,3)]
+
+    Return: new labelmap, and the matching list. 
+    """
+
+    input_unique_labels = np.unique(labelmap)
+    output_consecutive_labels = np.array(range(len(input_unique_labels)))
+    matching = list(zip(input_unique_labels, output_consecutive_labels))
+    new_labelmap = remap_labels(labelmap, matching)
+    return new_labelmap, matching
+
+
+def remap_labels(labelmap, matching):
+    """
+    NOTE: Remap each labelmap according to a new matching.
+
+    Return: new labelmap, and the matching list. 
+    """
+    # unique_labels = np.unique(labelmap)
+    new_labelmap = np.zeros_like(labelmap)
+    for old_label_i, target_label_i in matching:
+        # assert(old_label_i in unique_labels)
+        new_labelmap[labelmap == int(old_label_i)] = int(target_label_i)
+    return new_labelmap
+
+def match(pred, gt, thresh):
+    """
+    Match prediction labels to ground truth labels
+    based on the highest IoU value.
+
+    Return: match between pred and ground truth, iou matrix. 
+    """
+    gt_unique = np.unique(gt)
+    pred_unique = np.unique(pred)
+    print(f'GT unique labels: {gt_unique}')
+    print(f'PRED unique labels: {pred_unique}')
+    n_clusters = len(pred_unique)
+    n_classes = len(gt_unique)
+
+    if (n_clusters == n_classes):
+        print('n_clusters == n_classes: Using hungarian algorithm for matching')
+        match, iou_mat  = hungarian_match(pred, gt, preds_k=n_clusters, targets_k=n_classes, metric='iou', thresh=thresh)
+    else:
+        match, iou_mat = majority_vote_exclusive(pred, gt, preds_k=n_clusters, targets_k=n_classes, thresh=thresh)
+    
+    print(f'Optimal matching: {match}')
+
+    return match, iou_mat
+
+def remap_match(match, gt_mapping, pred_mapping):
+    """
+    Map the given match to correspond to the original
+    labels of gt and pred, based on gt_mapping and 
+    pred_mapping
+
+    Return: corrected mapp correpsonding to original values of labels. 
+    """
+    corrected_match = []
+    for pred_i, gt_i in match:
+        
+        corrected_pred_i = -1
+        for pred_original_j, pred_mapped_j in pred_mapping:
+            if pred_mapped_j == pred_i:
+                corrected_pred_i = pred_original_j                
+
+        for gt_original_k,  gt_mapped_k in gt_mapping:
+            if gt_mapped_k == gt_i:
+                corrected_gt_i = gt_original_k
+        
+        corrected_match.append((corrected_pred_i, corrected_gt_i))
+    
+    return corrected_match
+    
+def majority_vote_exclusive(flat_preds, flat_targets, preds_k, targets_k, n_jobs=16, thresh=0):
+    """
+    This function finds a GT (ground truth) class for every PL (pseudo label)
+    based on the maximum IoU value, but ensures that a GT class is assigned
+    to a single PL class exclusively.
+    """
+    # Initialize an empty array to store the matching results
+    match_gt2pr = {target_i: -1 for target_i in range(targets_k)}
+    match_pr2gt = {pred_i: -1 for pred_i in range(preds_k)}
+
+
+    # Calculate IoU 
+    iou_mat = Parallel(n_jobs=n_jobs, backend='multiprocessing')(delayed(get_iou)(
+         flat_preds, flat_targets, c1, c2) for c2 in range(targets_k) for c1 in range(preds_k))
+    iou_mat = np.array(iou_mat)
+
+    iou_mat = iou_mat.reshape((targets_k, preds_k))
+    results_gt2pr = np.argmax(iou_mat, axis=1)
+    iou_mat2 = iou_mat.reshape((targets_k, preds_k)).T
+    results_pr2gt = np.argmax(iou_mat2, axis=1)
+
+    print('iou results_gt2pr: ', results_gt2pr)
+    print('iou results_pr2gt: ', results_pr2gt)
+
+    print('iou 1: ', iou_mat)
+    print('iou 2: ', iou_mat2)
+
+    for gt_i in range(targets_k):
+        if match_gt2pr[gt_i]==-1: # Check if the GT class has no matching PR yet
+            match_gt2pr[gt_i]=results_gt2pr[gt_i]
+            if  match_pr2gt[results_gt2pr[gt_i]]==-1: # Check if PR is not assigned to a GT yet
+                match_pr2gt[results_gt2pr[gt_i]]=gt_i
+            else:# Check which PR has higher IoU
+                current_pr_i = results_gt2pr[gt_i]
+                last_assigned_gt_i = match_pr2gt[current_pr_i]
+                candidate_gt_i = gt_i
+                if (iou_mat[candidate_gt_i][current_pr_i] > iou_mat[last_assigned_gt_i][current_pr_i]):
+                    match_pr2gt[results_gt2pr[gt_i]]=candidate_gt_i
+                    match_gt2pr[last_assigned_gt_i]=-1
+                else:
+                    match_pr2gt[results_gt2pr[gt_i]]=last_assigned_gt_i
+                    match_gt2pr[candidate_gt_i]=-1
+        
+    print("match_gt2pr: ", match_gt2pr)
+    print("match_pr2gt: ", match_pr2gt)
+
+    match = [(match_gt2pr[gt_i], gt_i) for gt_i in match_gt2pr]
+    return match, iou_mat2
