@@ -227,7 +227,7 @@ def _extract_eig(
         
         else:
             # No dino affinities
-            W_feat = 0
+            W_feat = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
         
         ### Color affinities 
         # If we are fusing with color affinites, then load the image and compute
@@ -250,7 +250,7 @@ def _extract_eig(
         else:
 
             # No color affinity
-            W_color = 0
+            W_color = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
 
         if image_ssd_beta > 0:
 
@@ -274,7 +274,7 @@ def _extract_eig(
         else:
 
             # No ssd affinity
-            W_ssd = 0
+            W_ssd = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
 
         if image_var > 0:
 
@@ -287,7 +287,7 @@ def _extract_eig(
             patch_size = (8,8) # (H_patch, W_patch)
             
             # var patch-wise affinity matrix
-            W_var, p = utils.var_patchwise_affinity_knn(image_resized, patch_size, n_neighbors=[80, 40], distance_weights=[8.0, 4.0]) # [8, 4]
+            W_var, p = utils.var_patchwise_affinity_knn(image_resized, patch_size, n_neighbors=[80, 40], distance_weights=[0.0, 0.0]) # [8, 4]
             
             # Check the size
             if (W_var.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
@@ -298,7 +298,7 @@ def _extract_eig(
         else:
 
             # No var patchwise  affinity
-            W_var = 0
+            W_var = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
 
         # Combine
         W_comb = image_dino_gamma * W_feat + W_color * image_color_lambda + W_ssd * image_ssd_beta + W_var * image_var # combination
