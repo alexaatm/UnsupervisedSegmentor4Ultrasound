@@ -30,6 +30,7 @@ def extract_features(
     which_block: int = -1,
     model_checkpoint: str = "",
     only_dict: bool = False,
+    norm: str = 'imagenet',
     # input_size: int = 480,
 ):
     """
@@ -67,7 +68,22 @@ def extract_features(
     # Dataset
     filenames = Path(images_list).read_text().splitlines()
     # transform = transforms.Compose([transforms.Resize(input_size), val_transform])
-    dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=val_transform)
+    
+    # Transform
+    if norm=='imagenet':
+        # use imagenet normalization
+        dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=val_transform)
+    elif norm=='custom':
+        # calculate mean and std of your dataset
+        dataset_raw = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=transforms.ToTensor())
+        meanStdCalculator = utils.OnlineMeanStd()
+        mean, std = meanStdCalculator(dataset_raw, batch_size=100, method='strong')
+        normalize = transforms.Normalize(mean, std)
+        custom_transform = transforms.Compose([transforms.ToTensor(), normalize])
+        dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=custom_transform)
+    else:
+        raise ValueError(norm)
+
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=0)
     print(f'Dataset size: {len(dataset)}')
     print(f'Dataloader size: {len(dataloader)}')

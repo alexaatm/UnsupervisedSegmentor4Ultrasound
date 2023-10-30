@@ -9,7 +9,7 @@ import numpy as np
 import scipy.sparse
 import torch
 from skimage.morphology import binary_dilation, binary_erosion
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 
@@ -40,6 +40,68 @@ class ImagesDataset(Dataset):
     def __len__(self) -> int:
         return len(self.filenames)
 
+class OnlineMeanStd:
+    """ A class for calculating mean and std of a given dataset
+        ref: https://github.com/Nikronic/CoarseNet/blob/master/utils/preprocess.py#L142-L200
+    """
+    def __init__(self):
+        pass
+
+    def __call__(self, dataset, batch_size, method='strong'):
+        """
+        Calculate mean and std of a dataset in lazy mode (online)
+        On mode strong, batch size will be discarded because we use batch_size=1 to minimize leaps.
+
+        :param dataset: Dataset object corresponding to your dataset
+        :param batch_size: higher size, more accurate approximation
+        :param method: weak: fast but less accurate, strong: slow but very accurate - recommended = strong
+        :return: A tuple of (mean, std) with size of (3,)
+        """
+
+        if method == 'weak':
+            loader = DataLoader(dataset=dataset,
+                                batch_size=batch_size,
+                                shuffle=False,
+                                num_workers=0,
+                                pin_memory=0)
+            mean = 0.
+            std = 0.
+            nb_samples = 0.
+            for item in loader:
+                data, files, indices = item
+                batch_samples = data.size(0)
+                data = data.view(batch_samples, data.size(1), -1)
+                mean += data.mean(2).sum(0)
+                std += data.std(2).sum(0)
+                nb_samples += batch_samples
+
+            mean /= nb_samples
+            std /= nb_samples
+
+            return mean, std
+
+        elif method == 'strong':
+            loader = DataLoader(dataset=dataset,
+                                batch_size=1,
+                                shuffle=False,
+                                num_workers=0,
+                                pin_memory=0)
+            cnt = 0
+            fst_moment = torch.empty(3)
+            snd_moment = torch.empty(3)
+
+            for item in loader:
+                data, files, indices = item
+                b, c, h, w = data.shape
+                nb_pixels = b * h * w
+                sum_ = torch.sum(data, dim=[0, 2, 3])
+                sum_of_square = torch.sum(data ** 2, dim=[0, 2, 3])
+                fst_moment = (cnt * fst_moment + sum_) / (cnt + nb_pixels)
+                snd_moment = (cnt * snd_moment + sum_of_square) / (cnt + nb_pixels)
+
+                cnt += nb_pixels
+
+            return fst_moment, torch.sqrt(snd_moment - fst_moment ** 2)
 
 def get_model(name: str):
     if 'dino' in name:
