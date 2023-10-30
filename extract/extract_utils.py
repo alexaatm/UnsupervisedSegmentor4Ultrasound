@@ -335,7 +335,7 @@ def interpolate_2Darray(input_2Darray, output_size):
   return array_from_image
 
 
-def var_patchwise_affinity_knn(image, patch_size, n_neighbors=[8, 4], distance_weights=[2.0, 0.1]):
+def var_patchwise_affinity_knn(image, patch_size, n_neighbors=[8, 4], distance_weights=[0.0, 0.0]):
   """
     UPDATE: use distance_weigts of [0, 0] to avoid position of patches overpowering the variance values... 
   Computes a SSD-based affinity matrix for VARIANCE of patches of a single image.
