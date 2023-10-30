@@ -49,16 +49,25 @@ def pipeline(cfg: DictConfig) -> None:
     # Directories
     if cfg.dataset.dataset_root is not None:
         images_list = os.path.join(main_data_dir, cfg.dataset.dataset_root, cfg.dataset.list)
-        images_root = os.path.join(main_data_dir, cfg.dataset.dataset_root, cfg.dataset.images_root)
         dataset_dir = os.path.join(main_data_dir, cfg.dataset.dataset_root)
         if cfg.dataset.gt_dir is not None:
             gt_dir = os.path.join(main_data_dir, cfg.dataset.dataset_root,cfg.dataset.gt_dir)
+        if cfg.preprocessed_data:
+            images_root = os.path.join(main_data_dir, cfg.dataset.dataset_root, cfg.dataset.preprocessed_dir)
+        else:
+            images_root = os.path.join(main_data_dir, cfg.dataset.dataset_root, cfg.dataset.images_root)
+
     else:
         images_list = os.path.join(main_data_dir, cfg.dataset.name, 'lists', 'images.txt')
-        images_root = os.path.join(main_data_dir, cfg.dataset.name, cfg.dataset.images_root)
         dataset_dir = os.path.join(main_data_dir, cfg.dataset.name)
         if cfg.dataset.gt_dir is not None:
             gt_dir = os.path.join(main_data_dir, cfg.dataset.name,cfg.dataset.gt_dir)
+        if cfg.preprocessed_data:
+            images_root = os.path.join(main_data_dir, cfg.dataset.name, cfg.dataset.preprocessed_dir)
+        else:
+            images_root = os.path.join(main_data_dir, cfg.dataset.name, cfg.dataset.images_root)
+
+
 
     # Set default output directories
     if cfg.dataset.features_dir is not None:
@@ -127,7 +136,8 @@ def pipeline(cfg: DictConfig) -> None:
             model_name = cfg.model.name,
             batch_size = cfg.loader.batch_size,
             model_checkpoint=cfg.model.checkpoint,
-            only_dict = True if cfg.spectral_clustering.image_dino_gamma == 0.0 else False
+            only_dict = True if cfg.spectral_clustering.image_dino_gamma == 0.0 else False,
+            norm = cfg.norm
         )
 
         # Visualize Dino Attention Maps

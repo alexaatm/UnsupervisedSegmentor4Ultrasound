@@ -8,3 +8,4 @@ pred_dir: ""
 n_classes: 7
 n_clusters:
 features_dir:
+preprocessed_dir: preprocessed

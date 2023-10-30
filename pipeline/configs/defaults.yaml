@@ -22,3 +22,6 @@ custom_path_to_save_data: ""
 
 only_vis: False
 only_eval: False
+
+preprocessed_data: True
+norm: custom
