@@ -23,6 +23,7 @@ sys.path.append(thesis_codebase_folder)
 # Now you can use absolute imports in your script
 # from evaluation.segm_eval import evaluate_dataset,evaluate_dataset_with_single_matching,visualize
 from evaluation import segm_eval
+import numpy as np
 
 # A logger for this file
 log = logging.getLogger(__name__)
@@ -408,7 +409,7 @@ def evaluate(cfg: DictConfig, dataset_dir, gt_dir="", pred_dir="", tag=""):
             # only resize
             resize = transforms.Resize(cfg.dataset.input_size)
         dataset = segm_eval.EvalDataset(dataset_dir, gt_dir, pred_dir, transform = resize)
-        eval_stats, matches, preds = segm_eval.evaluate_dataset(dataset, cfg.dataset.n_classes, cfg.dataset.get('n_clusters', None), cfg.eval.iou_thresh)
+        eval_stats, matches, corrected_matches, preds = segm_eval.evaluate_dataset_with_remapping(dataset, cfg.dataset.n_classes, cfg.eval.iou_thresh, cfg.eval.void_label)
         print("eval stats:", eval_stats)
         print("matches:", matches)
 
@@ -429,21 +430,19 @@ def evaluate(cfg: DictConfig, dataset_dir, gt_dir="", pred_dir="", tag=""):
 
         if cfg.wandb:
             wandb.log({'mIoU': eval_stats['mIoU']})
+            wandb.log({'mIoU_std': eval_stats['mIoU_std']})
             wandb.log({'Pixel_Accuracy': eval_stats['Pixel_Accuracy']})
+            wandb.log({'Pixel_Accuracy_std': eval_stats['Pixel_Accuracy_std']})
             wandb.log({'Dice': eval_stats['Dice']})
+            wandb.log({'Dice_std': eval_stats['Dice_std']})
             wandb.log({'Precision': eval_stats['Precision']})
+            wandb.log({'Precision_std': eval_stats['Precision_std']})
             wandb.log({'Recall': eval_stats['Recall']})
+            wandb.log({'Recall_std': eval_stats['Recall_std']})
 
             # Log metrics and sample evaluation results
             class_names_all = [f'GT_class{i}' for i in range(cfg.dataset.n_classes)]
-            if dataset.n_clusters is not None:
-                n_clusters = dataset.n_clusters
-            elif cfg.dataset.n_clusters is not None:
-                n_clusters = cfg.dataset.n_clusters
-            else:
-                n_clusters = cfg.dataset.n_classes
-            pseudolabel_names = [f'PL_class{i}' for i in range(n_clusters)]
-            
+           
             # Table for logging segment matching
             match_table = wandb.Table(columns = ['ID'] + class_names_all)
     
@@ -451,7 +450,7 @@ def evaluate(cfg: DictConfig, dataset_dir, gt_dir="", pred_dir="", tag=""):
             remapped_pred_table = wandb.Table(columns=['ID', 'Image'])
 
             # Go through dataset and log data
-            for i, (sample, iou_m, match, remapped_pred) in enumerate(zip(dataset, eval_stats['IoU_matrix'], matches, preds)):
+            for i, (sample, iou_m, match, remapped_pred) in enumerate(zip(dataset, eval_stats['IoU_matrix'], corrected_matches, preds)):
                 im, target, pred, metadata = sample
                 id = metadata['id']
 
@@ -464,12 +463,12 @@ def evaluate(cfg: DictConfig, dataset_dir, gt_dir="", pred_dir="", tag=""):
                 # log IoU heatmaps and remapped preds only for selected samples
                 if i in inds_to_vis:
                     # get lists of unique labels to name the columns of heatmaps (may be different for each image)
-                    # class_names = [f'GT_class{i}' for i in np.unique(target)]
-                    # pseudolabel_names = [f'PL_class{i}' for i in np.unique(pred)]
+                    class_names = [f'GT_class{i}' for i in np.unique(target)]
+                    pseudolabel_names = [f'PL_class{i}' for i in np.unique(pred)]
 
                     # log IoU heatmaps - individually (cannot log wandb heatmaps in a wandb table...)
                     iou_df = segm_eval.pd.DataFrame(data=iou_m, index=pseudolabel_names, columns=class_names_all)
-                    heatmap = wandb.plots.HeatMap(class_names_all,pseudolabel_names, iou_df, show_text=True)
+                    heatmap = wandb.plots.HeatMap(class_names,pseudolabel_names, iou_df, show_text=True)
                     wandb.log({f"Sample IoU Heatmap {id}": heatmap})
 
                     # log remapped predictions - in a table
@@ -485,12 +484,7 @@ def evaluate(cfg: DictConfig, dataset_dir, gt_dir="", pred_dir="", tag=""):
             wandb.log({"Example Images After Remapping" : remapped_pred_table})
 
             # Log Jaccard index table
-            wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names_all)})
-            wandb.log({"pix_acc_table": wandb.Table(data=[eval_stats['pix_acc_all_categs']], columns=class_names_all)})
-            wandb.log({"dice_table": wandb.Table(data=[eval_stats['dice_all_categs']], columns=class_names_all)})
-            wandb.log({"precision_table": wandb.Table(data=[eval_stats['precision_all_categs']], columns=class_names_all)})
-            wandb.log({"recall_table": wandb.Table(data=[eval_stats['recall_all_categs']], columns=class_names_all)})
-
+            wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names_all[1:])})
 
             # Log example images with overlayed segmentation
             img_table = wandb.Table(columns=['ID', 'Image', 'Pred', 'Ground_Truth'])
