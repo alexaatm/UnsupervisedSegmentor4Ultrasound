@@ -64,13 +64,11 @@ class EvalDataset(Dataset):
             gt = np.array(Image.open(gt_path).convert('L'))
             pred = np.array(Image.open(pred_path).convert('L'))
             
-            # get the number of unique labels to determine the number of segments per image
+            # get the number of unique labels to determine the number of segments per image - ignored in the matching with remapping
             unique_labels = np.unique(pred)
-            print(f'unique labels per image: {unique_labels}')
             # current_segm_num = np.max(unique_labels)
             current_segm_num = len(unique_labels)
             # current_segm_num = max(len(unique_labels), np.max(unique_labels))
-            print(f'current_segm_num: {current_segm_num}')
             if current_segm_num > segm_num:
                 segm_num = current_segm_num
 

@@ -80,7 +80,7 @@ def majority_vote_unique(flat_preds, flat_targets, preds_k, targets_k, n_jobs=16
         iou_mat = Parallel(n_jobs=n_jobs, backend='multiprocessing')(delayed(get_iou_with_thresh)(
             flat_preds, flat_targets, c1, c2, thresh) for c2 in range(targets_k) for c1 in range(preds_k))
     else:
-        print('No threshold used')
+        # print('No threshold used')
         # dont use threshold
         iou_mat = Parallel(n_jobs=n_jobs, backend='multiprocessing')(delayed(get_iou)(
             flat_preds, flat_targets, c1, c2) for c2 in range(targets_k) for c1 in range(preds_k))
@@ -169,6 +169,7 @@ def match(pred, gt, thresh):
         print('n_clusters == n_classes: Using hungarian algorithm for matching')
         match, iou_mat  = hungarian_match(pred, gt, preds_k=n_clusters, targets_k=n_classes, metric='iou', thresh=thresh)
     else:
+        print('n_clusters != n_classes: Using majority vote algorithm for matching')
         match, iou_mat = majority_vote_exclusive(pred, gt, preds_k=n_clusters, targets_k=n_classes, thresh=thresh)
     
     print(f'Optimal matching: {match}')
@@ -220,11 +221,11 @@ def majority_vote_exclusive(flat_preds, flat_targets, preds_k, targets_k, n_jobs
     iou_mat2 = iou_mat.reshape((targets_k, preds_k)).T
     results_pr2gt = np.argmax(iou_mat2, axis=1)
 
-    print('iou results_gt2pr: ', results_gt2pr)
-    print('iou results_pr2gt: ', results_pr2gt)
+    # print('iou results_gt2pr: ', results_gt2pr)
+    # print('iou results_pr2gt: ', results_pr2gt)
 
-    print('iou 1: ', iou_mat)
-    print('iou 2: ', iou_mat2)
+    # print('iou 1: ', iou_mat)
+    # print('iou 2: ', iou_mat2)
 
     for gt_i in range(targets_k):
         if match_gt2pr[gt_i]==-1: # Check if the GT class has no matching PR yet
@@ -242,8 +243,8 @@ def majority_vote_exclusive(flat_preds, flat_targets, preds_k, targets_k, n_jobs
                     match_pr2gt[results_gt2pr[gt_i]]=last_assigned_gt_i
                     match_gt2pr[candidate_gt_i]=-1
         
-    print("match_gt2pr: ", match_gt2pr)
-    print("match_pr2gt: ", match_pr2gt)
+    # print("match_gt2pr: ", match_gt2pr)
+    # print("match_pr2gt: ", match_pr2gt)
 
     match = [(match_gt2pr[gt_i], gt_i) for gt_i in match_gt2pr]
     return match, iou_mat2
