@@ -81,6 +81,9 @@ def extract_features(
         normalize = transforms.Normalize(mean, std)
         custom_transform = transforms.Compose([transforms.ToTensor(), normalize])
         dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=custom_transform)
+    elif norm=='none':
+        basic_transform = transforms.Compose([transforms.ToTensor()])
+        dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=basic_transform)
     else:
         raise ValueError(norm)
 
