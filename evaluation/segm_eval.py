@@ -562,7 +562,6 @@ def main(cfg: DictConfig):
             wandb.log({"Example Images After Remapping" : remapped_pred_table})
 
             # Log Jaccard index table
-            print("eval_stats['jaccards_all_categs']=", type([eval_stats['jaccards_all_categs']]), [eval_stats['jaccards_all_categs']])
             wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names_all[1:])})
 
             # Log example images with overlayed segmentation
@@ -572,7 +571,7 @@ def main(cfg: DictConfig):
             wandb.log({"Example Images" : img_table})
 
             # Log legend to interprete example images
-            wandb.log({"Legend CLass-Color": wandb.Image(legend)})
+            wandb.log({"Legend Class-Color": wandb.Image(legend)})
 
             wandb.finish()
 
