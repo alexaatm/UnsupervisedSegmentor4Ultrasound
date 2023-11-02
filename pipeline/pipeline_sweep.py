@@ -479,8 +479,12 @@ def run_sweep(cfg: DictConfig) -> None:
     sweep_dict = {
         # "segments_num": {"values": [6, 8, 10, 12, 15, 18, 21]},
         # 'clusters_num': {"values": [5, 6, 7, 8, 9, 10]}
+        # thyroid
+        # "segments_num": {"max":30, "min": 10},
+        # "clusters_num": {"values": [6, 7, 8, 9, 10, 11, 12]},
+        # liver
         "segments_num": {"max":30, "min": 10},
-        "clusters_num": {"values": [6, 7, 8, 9, 10, 11, 12]},
+        "clusters_num": {"values": [5, 6, 7, 8, 9, 10]},
     }
     print(sweep_dict)
 
@@ -495,7 +499,7 @@ def run_sweep(cfg: DictConfig) -> None:
     print(sweep_configuration)
 
     # Start the sweep
-    sweep_id = wandb.sweep(sweep=sweep_configuration, project=cfg.wandb.setup.project)
+    sweep_id = wandb.sweep(sweep=sweep_configuration, project=cfg['wandb']['setup']['project'])
     wandb.agent(sweep_id, function=main, count=20)
 if __name__ == "__main__":
     run_sweep()
