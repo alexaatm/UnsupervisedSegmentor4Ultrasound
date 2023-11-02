@@ -25,3 +25,17 @@ only_eval: False
 
 preprocessed_data: True
 norm: custom
+segments_num: 15
+clusters_num: 15
+
+spectral_clustering:
+  K: ${segments_num}
+
+multi_region_segmentation:
+  non_adaptive_num_segments: ${segments_num}
+
+bbox:
+  num_clusters: ${clusters_num}
+
+crf:
+  num_classes: ${clusters_num}
