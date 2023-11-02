@@ -237,7 +237,7 @@ def pipeline(cfg: DictConfig) -> None:
             images_root = images_root,
             segmentations_dir = output_multi_region_seg,
             output_dir = output_crf_multi_region,
-            num_classes =  cfg.crf.num_classes,
+            num_classes =  cfg.multi_region_segmentation.non_adaptive_num_segments, #change to num_segments
             downsample_factor = cfg.crf.downsample_factor,
             multiprocessing = cfg.crf.multiprocessing,
             # CRF parameters
