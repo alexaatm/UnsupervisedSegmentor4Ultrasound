@@ -26,6 +26,8 @@ import numpy as np
 # A logger for this file
 log = logging.getLogger(__name__)
 
+torch.cuda.empty_cache() 
+
 # Dino traing simple example - no saving of checkpoints, wandb moniroting...
 def train_dino(cfg: DictConfig) -> None:
     # model
