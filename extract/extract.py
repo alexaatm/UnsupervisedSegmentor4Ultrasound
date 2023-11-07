@@ -15,6 +15,7 @@ from sklearn.decomposition import PCA
 from torchvision.utils import draw_bounding_boxes
 from tqdm import tqdm
 from torchvision import transforms
+from spectralnet import SpectralNet
 
 # import extract_utils as utils
 from extract import extract_utils as utils
@@ -167,10 +168,21 @@ def _extract_eig(
     threshold_at_zero: bool = True,
     image_downsample_factor: Optional[int] = None,
     image_color_lambda: float = 10,
-    image_ssd_beta: float = 0.0,
-    image_dino_gamma: float = 0.0,
+    C_ssd_knn: float = 0.0,
+    C_dino: float = 1.0,
     max_knn_neigbors: int = 80,
-    image_var: float = 0.0,
+    C_var_knn: float = 0.0,
+    C_pos_knn: float = 0.0,
+    C_ssd: float = 0.0,
+    C_ncc: float = 0.0,
+    C_lncc: float = 0.0,
+    C_ssim: float = 0.0,
+    C_mi: float = 0.0,
+    C_sam: float = 0.0,
+    patch_size: int = 8,
+    aff_sigma: float = 0.01,
+    distance_weight1: Optional[float] = None,
+    distance_weight2: Optional[float] = None
 ):
     index, features_file = inp
 
@@ -190,7 +202,7 @@ def _extract_eig(
         image_downsample_factor = P
     H_pad_lr, W_pad_lr = H_pad // image_downsample_factor, W_pad // image_downsample_factor
 
-    if image_dino_gamma > 0:
+    if C_dino > 0:
         # Load affinity matrix
         if torch.cuda.is_available():
             feats = data_dict[which_features].squeeze().cuda()
@@ -230,7 +242,7 @@ def _extract_eig(
     # Eigenvectors of matting laplacian matrix
     elif which_matrix in ['matting_laplacian', 'laplacian']:
 
-        if image_dino_gamma > 0:
+        if C_dino > 0:
             # Upscale features to match the resolution
             if (H_patch, W_patch) != (H_pad_lr, W_pad_lr):
                 feats = F.interpolate(
@@ -255,7 +267,7 @@ def _extract_eig(
 
             # Load image
             image_file = str(Path(images_root) / f'{image_id}.png')
-            image_lr = Image.open(image_file).resize((W_pad_lr, H_pad_lr), Image.BILINEAR)
+            image_lr = Image.open(image_file).resize((W_pad, H_pad), Image.BILINEAR)
             image_lr = np.array(image_lr) / 255.
 
             # Color affinities (of type scipy.sparse.csr_matrix)
@@ -272,57 +284,128 @@ def _extract_eig(
             # No color affinity
             W_color = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
 
-        if image_ssd_beta > 0:
-
+        patch_affinities_chosen = np.any(np.array([C_ssd_knn, C_var_knn, C_pos_knn, C_ncc, C_lncc, C_mi, C_ssd, C_sam, C_ssim]) > 0)
+        if patch_affinities_chosen:
             # Load image
             image_file = str(Path(images_root) / f'{image_id}.png')
-            image_resized = Image.open(image_file).resize((W_pad, H_pad), Image.BILINEAR) # NOTE: in PIL image shpae is (w, h) while in NP its (h, w)
-            image_resized=np.array(image_resized.convert('RGB')) / 255.
-            
+            image_raw = Image.open(image_file)
+            # TODO: image = image_resized[:W_pad, :H_pad]
+            image_lr = image_raw.resize((W_pad, H_pad), Image.BILINEAR) # NOTE: in PIL image shpae is (w, h) while in NP its (h, w)
+            image_gr=np.array(image_lr.convert('L')) / 255.
+            image_gr_uint=np.array(image_lr.convert('L'))
+            image_lr=np.array(image_lr.convert('RGB')) / 255.
+
+            print(f"DEBUG2: extract.py : _extract_eig: image_raw.shape={image_raw.size}, (image_lr.shape)={(image_lr.shape)}")
+
+
+
             # set patch size
-            patch_size = (8,8) # (H_patch, W_patch)
-            
-            # SSD patch-wise affinity matrix
+            patch_size_tuple = (patch_size, patch_size) # (H_patch, W_patch)
+
+        if C_ssd_knn > 0:
+            # SSD knn patch-wise affinity matrix
             # W_ssd, p = utils.ssd_patchwise_affinity_knn(image_resized, patch_size, n_neighbors=[80, 40], distance_weights=[8.0, 4.0]) # nn = [80, 40], dw=[8, 4]
-            W_ssd, p = utils.ssd_patchwise_affinity_knn(image_resized, patch_size, n_neighbors=[max_knn_neigbors, max_knn_neigbors//2], distance_weights=[8.0, 4.0]) # nn = [80, 40], dw=[8, 4]
-
+            if distance_weight1 is not None and distance_weight2 is not None:
+                dw = [distance_weight1,distance_weight2]
+            else:
+                dw = [8.0, 4.0]
+            W_ssd_knn, p = utils.ssd_patchwise_affinity_knn(image_lr, patch_size_tuple, n_neighbors=[max_knn_neigbors, max_knn_neigbors//2], distance_weights=dw) # nn = [80, 40], dw=[8, 4]
             # Check the size
-            if (W_ssd.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
+            if (W_ssd_knn.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
                 # print("W_ssd.shape=",W_ssd.shape, "W_feat.shape=", W_feat.shape )
-                W_ssd = utils.interpolate_2Darray(W_ssd, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
-
-        
+                W_ssd_knn = utils.interpolate_2Darray(W_ssd_knn, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
         else:
-
             # No ssd affinity
+            W_ssd_knn = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+
+        if C_var_knn > 0:
+            # var patch-wise affinity matrix
+            W_var_knn, p = utils.var_patchwise_affinity_knn(image_lr, patch_size_tuple, n_neighbors=[max_knn_neigbors, max_knn_neigbors//2], distance_weights=[0.0, 0.0]) # [8, 4]
+            # Check the size
+            if (W_var_knn.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
+                # print("W_ssd.shape=",W_ssd.shape, "W_feat.shape=", W_feat.shape )
+                W_var_knn = utils.interpolate_2Darray(W_var_knn, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+        else:
+            # No var patchwise  affinity
+            W_var_knn = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+
+        if C_pos_knn > 0:
+            # position patch-wise affinity matrix
+            if distance_weight1 is not None and distance_weight2 is not None:
+                dw = [distance_weight1,distance_weight2]
+            else:
+                dw = [2.0, 0.1]
+            W_pos_knn = utils.positional_patchwise_affinity_knn(image_lr, patch_size_tuple, n_neighbors=[max_knn_neigbors, max_knn_neigbors//2], distance_weights=dw)
+
+            if (W_pos_knn.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
+                W_pos_knn = utils.interpolate_2Darray(W_pos_knn, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+        else:
+            W_pos_knn = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+
+        if C_ncc > 0:
+            # NCC distance based patch-wise affinity matrix
+            W_ncc = utils.patchwise_affinity(image_gr, utils.ncc_distance, patch_size_tuple, beta=aff_sigma)
+            if (W_ncc.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
+                W_ncc = utils.interpolate_2Darray(W_ncc, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+        else:
+            W_ncc = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+
+        if C_lncc > 0:
+            # NCC distance based patch-wise affinity matrix
+            W_lncc = utils.patchwise_affinity(image_gr, utils.lncc_distance, patch_size_tuple, beta=aff_sigma)
+            if (W_lncc.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
+                W_lncc = utils.interpolate_2Darray(W_lncc, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+        else:
+            W_lncc = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+
+        if C_mi > 0:
+            # Mutual Information distance based patch-wise affinity matrix
+            W_mi = utils.patchwise_affinity(image_gr_uint, utils.mutual_info_distance, patch_size_tuple, beta=aff_sigma)
+            if (W_mi.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
+                W_mi = utils.interpolate_2Darray(W_mi, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+        else:
+            W_mi = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+
+        if C_ssd > 0:
+            # SSD distance based patch-wise affinity matrix (using patchwise_affinity instead of SSD knn patchwise - no distance weights used.)
+            W_ssd = utils.patchwise_affinity(image_gr, utils.ssd, patch_size_tuple, beta=aff_sigma)
+            if (W_ssd.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
+                W_ssd = utils.interpolate_2Darray(W_ssd, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+        else:
             W_ssd = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
 
-        if image_var > 0:
-
-            # Load image
-            image_file = str(Path(images_root) / f'{image_id}.png')
-            image_resized = Image.open(image_file).resize((W_pad, H_pad), Image.BILINEAR) # NOTE: in PIL image shpae is (w, h) while in NP its (h, w)
-            image_resized=np.array(image_resized.convert('RGB')) / 255.
-            
-            # set patch size
-            patch_size = (8,8) # (H_patch, W_patch)
-            
-            # var patch-wise affinity matrix
-            W_var, p = utils.var_patchwise_affinity_knn(image_resized, patch_size, n_neighbors=[80, 40], distance_weights=[0.0, 0.0]) # [8, 4]
-            
-            # Check the size
-            if (W_var.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
-                # print("W_ssd.shape=",W_ssd.shape, "W_feat.shape=", W_feat.shape )
-                W_var = utils.interpolate_2Darray(W_var, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
-
-        
+        if C_sam > 0:
+            # Image Similarity Metric based on Spectral Angle Mapper  - patch-wise affinity matrix
+            # ref: https://sewar.readthedocs.io/en/latest/#module-sewar.no_ref
+            W_sam = utils.patchwise_affinity(image_gr, utils.sam_metric, patch_size_tuple, beta=aff_sigma)
+            if (W_sam.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
+                W_sam = utils.interpolate_2Darray(W_sam, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
         else:
+            W_sam = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
 
-            # No var patchwise  affinity
-            W_var = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+        if C_ssim > 0:
+            # Structural Siilarity Distance based patch-wise affinity matrix
+            W_ssim = utils.patchwise_affinity(image_gr, utils.ssim_distance, patch_size_tuple, beta=aff_sigma)
+            if (W_ssim.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
+                W_ssim = utils.interpolate_2Darray(W_ssim, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+        else:
+            W_ssim = np.zeros((H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
+        
 
         # Combine
-        W_comb = image_dino_gamma * W_feat + W_color * image_color_lambda + W_ssd * image_ssd_beta + W_var * image_var # combination
+        W_comb = (
+                    W_feat * C_dino + 
+                    W_color * image_color_lambda + 
+                    W_ssd_knn * C_ssd_knn +
+                    W_var_knn * C_var_knn +
+                    W_pos_knn * C_pos_knn +
+                    W_ncc * C_ncc +
+                    W_lncc * C_lncc +
+                    W_mi * C_mi +
+                    W_ssd * C_ssd +
+                    W_sam * C_sam +
+                    W_ssim * C_ssim
+                )
         D_comb = np.array(utils.get_diagonal(W_comb).todense())  # is dense or sparse faster? not sure, should check
 
         # Extract eigenvectors
@@ -362,10 +445,21 @@ def extract_eigs(
     image_downsample_factor: Optional[int] = None,
     image_color_lambda: float = 0.0,
     multiprocessing: int = 0,
-    image_ssd_beta: float = 0.0,
-    image_dino_gamma: float = 0.0,
+    C_ssd_knn: float = 0.0,
+    C_dino: float = 1.0,
     max_knn_neigbors: int = 80,
-    image_var: float = 0.0,
+    C_var_knn: float = 0.0,
+    C_pos_knn: float = 0.0,
+    C_ssd: float = 0.0,
+    C_ncc: float = 0.0,
+    C_lncc: float = 0.0,
+    C_ssim: float = 0.0,
+    C_mi: float = 0.0,
+    C_sam: float = 0.0,
+    patch_size: int = 8,
+    aff_sigma: float = 0.01,
+    distance_weight1: Optional[float] = None,
+    distance_weight2: Optional[float] = None
 ):
     """
     Extracts eigenvalues from features.
@@ -382,8 +476,10 @@ def extract_eigs(
     kwargs = dict(K=K, which_matrix=which_matrix, which_features=which_features, which_color_matrix=which_color_matrix,
                  normalize=normalize, threshold_at_zero=threshold_at_zero, images_root=images_root, output_dir=output_dir, 
                  image_downsample_factor=image_downsample_factor, image_color_lambda=image_color_lambda, lapnorm=lapnorm, 
-                 image_ssd_beta=image_ssd_beta, image_dino_gamma=image_dino_gamma, max_knn_neigbors=max_knn_neigbors,
-                 image_var=image_var)
+                 C_ssd_knn=C_ssd_knn, C_dino=C_dino, max_knn_neigbors=max_knn_neigbors,
+                 C_var_knn=C_var_knn, C_pos_knn=C_pos_knn, C_ssd=C_ssd, C_ncc=C_ncc,C_lncc=C_lncc,C_ssim=C_ssim,C_mi=C_mi,C_sam=C_sam,
+                 patch_size=patch_size, aff_sigma=aff_sigma,
+                 distance_weight1=distance_weight1,distance_weight2=distance_weight2)
     print(kwargs)
     fn = partial(_extract_eig, **kwargs)
     inputs = list(enumerate(sorted(Path(features_dir).iterdir())))
@@ -670,6 +766,8 @@ def extract_bbox_clusters(
     num_clusters: int = 20, 
     seed: int = 1, 
     pca_dim: Optional[int] = 0,
+    kmeans: bool = True,
+    spectral_net: bool = False,
 ):
     """
     Example:
@@ -702,10 +800,20 @@ def extract_bbox_clusters(
         all_features = pca.fit_transform(all_features)
 
     # Cluster: K-Means
-    print(f'Computing K-Means clustering with {num_clusters} clusters')
-    kmeans = MiniBatchKMeans(n_clusters=num_clusters, batch_size=4096, max_iter=5000, random_state=seed)
-    clusters = kmeans.fit_predict(all_features)
-    
+    if kmeans:
+        print(f'Computing K-Means clustering with {num_clusters} clusters')
+        kmeans = MiniBatchKMeans(n_clusters=num_clusters, batch_size=4096, max_iter=5000, random_state=seed)
+        clusters = kmeans.fit_predict(all_features)
+    elif spectral_net:
+        print(f'Computing clusters using a SpectralNet model with {num_clusters} clusters')
+        # ref: https://github.com/shaham-lab/SpectralNet
+        spectralnet = SpectralNet(n_clusters=num_clusters)
+        spectralnet.fit(all_features)
+        clusters = spectralnet.predict(all_features)
+    else:
+        raise ValueError("No clustering method chosen. set kmeans or spectral_net to True to get clustering results")
+        
+
     # Print 
     _indices, _counts = np.unique(clusters, return_counts=True)
     print(f'Cluster indices: {_indices.tolist()}')

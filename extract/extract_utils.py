@@ -321,6 +321,13 @@ def reshape_split(image: np.ndarray, kernel_size: tuple):
   h, w, ch = image.shape
   tile_h, tile_w = kernel_size
 
+  print(f'DEBUG: reshape_split: image.shape={image.shape}, new_shape={h//tile_h,tile_h,w//tile_w,tile_w,ch}')
+
+  # Ensure image is divisable
+  H_patch, W_patch = h//tile_h, w//tile_w
+  H_pad, W_pad = H_patch * tile_h, W_patch * tile_w
+  image = image[:H_pad, :W_pad, :]  
+
   tiled_array=image.reshape(h//tile_h, 
                             tile_h, 
                             w//tile_w,
@@ -473,3 +480,214 @@ def set_seed(seed: int = 1) -> None:
     # additionally, ust in case, do
     pl.seed_everything(1)
     print(f"Random seed set as {seed}")
+
+def positional_patchwise_affinity_knn(image, patch_size, n_neighbors=[8, 4], distance_weights=[2.0, 0.1]):
+  """
+  Computes an affinity matrix based on proximity of patches.
+  Note that this function requires pymattin and scipy.
+
+  step 1 - calculate number of patches
+  step 2 - calculate position arrays for distance weighing
+  step 3 - apply knn approach  - features are weighted position arrays (different for diff distance weights)
+  step 4 - assemble affinity matrix
+
+  par: image - ndarray, of size compatible with the patch size, normalized
+  par: patch_size - a tuple (patch_height, patch_width)
+  
+  based on: https://github.com/pymatting/pymatting/blob/master/pymatting/laplacian/knn_laplacian.py
+  """
+  try:
+    from pymatting.util.kdtree import knn
+  except:
+        raise ImportError(
+            'Please install pymatting to compute KNN affinity matrices:\n'
+            'pip3 install pymatting'
+        )
+  
+  n_height=image.shape[0]//patch_size[0]
+  n_width=image.shape[1]//patch_size[1]
+  n_patches= n_height * n_width
+
+  x = np.tile(np.linspace(0, 1, n_width), n_height)
+  y = np.repeat(np.linspace(0, 1, n_height), n_width)
+
+  i, j = [], []
+
+  for k, distance_weight in zip(n_neighbors, distance_weights):
+    xs=(distance_weight * x)[:, None]
+    ys=(distance_weight * y)[:, None]
+    f = np.concatenate((xs, ys), axis = 1, dtype=np.float32)
+    distances, neighbors = knn(f, f, k=k)
+    i.append(np.repeat(np.arange(n_patches), k))
+    j.append(neighbors.flatten())
+
+  ij = np.concatenate(i + j)
+  ji = np.concatenate(j + i)
+  coo_data = np.ones(2 * sum(n_neighbors) * n_patches)
+
+  # This is our affinity matrix
+  W = scipy.sparse.csr_matrix((coo_data, (ij, ji)), (n_patches, n_patches)) 
+
+  # Convert to dense numpy array
+  W = np.array(W.todense().astype(np.float32))
+
+  return W
+
+def reshape_split_gr(image: np.ndarray, kernel_size: tuple):
+    """
+    Computes non-overlapping patches for a given image and a given patch size.
+    Note that the image should be able to fit a whole number of patches of the given size.
+    # based on: https://towardsdatascience.com/efficiently-splitting-an-image-into-tiles-in-python-using-numpy-d1bf0dd7b6f7
+    """
+    h, w = image.shape
+    tile_h, tile_w = kernel_size
+
+    print(f'DEBUG: reshape_split_gr: image.shape={image.shape}, new_shape={h//tile_h,tile_h,w//tile_w,tile_w}')
+
+    # Ensure image is divisable
+    H_patch, W_patch = h//tile_h, w//tile_w
+    H_pad, W_pad = H_patch * tile_h, W_patch * tile_w
+    image = image[:H_pad, :W_pad]
+
+    tiled_array=image.reshape(h//tile_h, 
+                            tile_h, 
+                            w//tile_w,
+                            tile_w)
+    tiled_array=tiled_array.swapaxes(1,2)
+    tiled_array=tiled_array.reshape(-1,tile_h,tile_w)
+    return tiled_array
+
+
+import scipy.sparse
+
+def patchwise_affinity(image, similarity_measure, patch_size, beta=5.0):
+    """
+    Computes an affinity matrix for patches of a single image using a given similarity_measure (distance).
+
+    Args:
+    - image (numpy.ndarray): The input image.
+    - similarity_measure: a function takin gin 2 images, return a single value for the similarity score
+    - patch_size (tuple): The size of the image patches.
+
+    Returns:
+    - affinity_matrix (numpy.ndarray): The computed affinity matrix.
+    """
+    patches = reshape_split_gr(image, patch_size)
+
+    n_patches = len(patches)
+    # Calculate pairwise similarities between all patches
+    pairwise_sims = np.array([similarity_measure(p1, p2) for p1 in patches for p2 in patches])
+
+    # normalize
+    # pairwise_sims = (pairwise_sims-np.min(pairwise_sims))/(np.max(pairwise_sims)-np.min(pairwise_sims))
+
+    # Reshape the 1D array of pairwise similarities into a square affinity matrix
+    pairwise_sims = pairwise_sims.reshape(n_patches, n_patches)
+
+    # Calculate the affinity matrix using the Gaussian Kernel
+    affinity_matrix = np.exp(-beta * pairwise_sims)
+    return affinity_matrix
+
+def ssd(im1, im2):
+    return np.sum((im1-im2)**2)
+
+def norm_data(data):
+    """
+    normalize data to have mean=0 and standard_deviation=1
+    """
+    mean_data=np.mean(data)
+    std_data=np.std(data, ddof=1)
+    #return (data-mean_data)/(std_data*np.sqrt(data.size-1))
+    return (data-mean_data)/(std_data)
+
+
+def ncc(data0, data1):
+    """
+    normalized cross-correlation coefficient between two data sets
+
+    Parameters
+    ----------
+    data0, data1 :  numpy arrays of same size
+    """
+
+    sym = (1.0/(data0.size-1)) * np.sum(norm_data(data0)*norm_data(data1))
+    return sym
+
+def ncc_distance(data0, data1):
+    """
+    normalized cross-correlation coefficient between two data sets
+
+    Parameters
+    ----------
+    data0, data1 :  numpy arrays of same size
+    """
+
+    sym = (1.0/(data0.size-1)) * np.sum(norm_data(data0)*norm_data(data1))
+    return 1 - sym
+
+def correlation_coefficient(patch1, patch2):
+    # ref: https://dsp.stackexchange.com/questions/28322/python-normalized-cross-correlation-to-measure-similarites-in-2-images
+    mean1 = patch1.mean()
+    mean2 = patch2.mean()
+    
+    var1 = patch1.var()
+    var2 = patch2.var()
+    
+    covariance = np.mean((patch1 - mean1) * (patch2 - mean2))
+    
+    stds = np.sqrt(var1 * var2)
+    
+    if stds == 0:
+        return 0
+    else:
+        product = covariance / stds
+        return product
+
+def correlation(im1, im2, d = 1):
+    sh_row, sh_col = im1.shape
+    correlation = np.zeros_like(im1)
+
+    for i in range(d, sh_row - (d + 1)):
+        for j in range(d, sh_col - (d + 1)):
+            correlation[i, j] = correlation_coefficient(im1[i - d: i + d + 1,
+                                                            j - d: j + d + 1],
+                                                        im2[i - d: i + d + 1,
+                                                            j - d: j + d + 1])
+
+    return correlation
+
+def cc_distance(im1, im2, d=1):
+    # ref: https://discovery.ucl.ac.uk/id/eprint/1501070/1/paper888.pdf
+
+    corr = correlation_coefficient(im1, im2)
+    return 1 - corr
+
+def lncc_distance(im1, im2, d=1, beta = 1.0):
+    # ref: https://citeseerx.ist.psu.edu/viewdoc/download;jsessionid=B1E4384B47FF1D18B7B9F71B7D596843?doi=10.1.1.3.7938&rep=rep1&type=pdf
+    corr = correlation(im1, im2, d)
+    lncc = corr.sum()
+    
+    # Normalize the sum to the range [0, 1]
+    # lncc_similarity = lncc / max_possible_sum
+    lncc_similarity = lncc / corr.size
+    return 1 - lncc_similarity
+
+from sklearn.metrics import normalized_mutual_info_score
+
+def mutual_info_distance(im1, im2):
+    return 1 - normalized_mutual_info_score(im1.ravel(), im2.ravel())
+
+from skimage.metrics import structural_similarity as ssim
+
+def ssim_distance(im1, im2):
+    return 1 - ssim(im1, im2)
+
+from sewar.full_ref import sam
+def sam_metric(im1,im2):
+    # Make sure to have sewar python package installed
+    # ref: https://sewar.readthedocs.io/en/latest/#module-sewar.no_ref
+    # https://www.nv5geospatialsoftware.com/docs/SpectralAngleMapper.html
+    # https://www.csr.utexas.edu/projects/rs/hrs/analysis.html
+    return sam(im1,im2)
+
+    

@@ -45,7 +45,52 @@ def pipeline(cfg):
         if cfg['custom_path_to_save_data']!="":
             path_to_save_data = cfg['custom_path_to_save_data']
         else:
-            custom_path=f"segments{cfg['segments_num']}_clusters{cfg['clusters_num']}_dino{cfg['spectral_clustering']['image_dino_gamma']}_ssd{cfg['spectral_clustering']['image_ssd_beta']}_norm-{cfg['norm']}_preprocess-{cfg['preprocessed_data']}"
+            print(f"DEBUG: wandb tag: {cfg['wandb']['tag']}")
+            print(f"DEBUG: is Aff in tag? {'aff' in cfg['wandb']['tag']}")
+            print(f"DEBUG: is crf in tag? {'crf' in cfg['wandb']['tag']}")
+            if ('Aff' in cfg['wandb']['tag'] or 'aff' in cfg['wandb']['tag']):
+                print("DEBUG: 'aff' or 'Aff' is in tag!!")
+                custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
+                            f"_clust{cfg['clusters_num']}"
+                            f"_norm-{cfg['norm']}"
+                            f"_prepr-{cfg['preprocessed_data']}"
+                            f"_dino{cfg['spectral_clustering']['C_dino']}"
+                            f"_ssdknn{cfg['spectral_clustering']['C_ssd_knn']}"
+                            f"_var{cfg['spectral_clustering']['C_var_knn']}"
+                            f"_pos{cfg['spectral_clustering']['C_pos_knn']}"
+                            f"_nn{cfg['spectral_clustering']['max_knn_neigbors']}"
+                            f"_ssd{cfg['spectral_clustering']['C_ssd']}"
+                            f"_ncc{cfg['spectral_clustering']['C_ncc']}"
+                            f"_lncc{cfg['spectral_clustering']['C_lncc']}"
+                            f"_ssim{cfg['spectral_clustering']['C_ssim']}"
+                            f"_mi{cfg['spectral_clustering']['C_mi']}"
+                            f"_sam{cfg['spectral_clustering']['C_sam']}"
+                            f"_p{cfg['spectral_clustering']['patch_size']}"
+                            f"_sigma{cfg['spectral_clustering']['aff_sigma']}"
+                            )
+            elif ('crf' in cfg['wandb']['tag']):
+                print("DEBUG: 'crf' is in tag!!")
+                custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
+                            f"_clust{cfg['clusters_num']}"
+                            f"_norm-{cfg['norm']}"
+                            f"_prepr-{cfg['preprocessed_data']}"
+                            f"_dino{cfg['spectral_clustering']['C_dino']}"
+                            f"_ssdknn{cfg['spectral_clustering']['C_ssd_knn']}"
+                            f"_CRF_alpha{cfg['crf']['alpha']}"
+                            f"_beta{cfg['crf']['beta']}"
+                            f"_gamma{cfg['crf']['gamma']}"
+                            f"_it{cfg['crf']['it']}"
+                            f"_w1{cfg['crf']['w1']}"
+                            f"_w2{cfg['crf']['w2']}"                         
+                            )
+            else:
+                custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
+                            f"_clust{cfg['clusters_num']}"
+                            f"_norm-{cfg['norm']}"
+                            f"_prepr-{cfg['preprocessed_data']}"
+                            f"_dino{cfg['spectral_clustering']['C_dino']}"
+                            # f"_time{datetime.now()}"
+                            )
             path_to_save_data = os.path.join(os.getcwd(), custom_path)
 
     # Directories
@@ -138,8 +183,8 @@ def pipeline(cfg):
 
     if not cfg['pipeline_steps']['dino_features']:
         log.info("Step was not selected")
-        if cfg['spectral_clustering']['image_dino_gamma'] > 0:
-            log.info("cfg['spectral_clustering']['image_dino_gamma']=",cfg['spectral_clustering']['image_dino_gamma'])
+        if cfg['spectral_clustering']['C_dino'] > 0:
+            log.info("cfg['spectral_clustering']['C_dino']=",cfg['spectral_clustering']['C_dino'])
             log.info("Dino features were selected. Set cfg['pipeline_steps']['dino_features'] to True")
             exit()
     else:
@@ -150,7 +195,7 @@ def pipeline(cfg):
             model_name = cfg['model']['name'],
             batch_size = cfg['loader']['batch_size'],
             model_checkpoint=cfg['model']['checkpoint'],
-            only_dict = True if cfg['spectral_clustering']['image_dino_gamma'] == 0.0 else False,
+            only_dict = True if cfg['spectral_clustering']['C_dino'] == 0.0 else False,
             norm = cfg['norm']
         )
 
@@ -189,9 +234,22 @@ def pipeline(cfg):
         image_downsample_factor = cfg['spectral_clustering']['image_downsample_factor'],
         image_color_lambda = cfg['spectral_clustering']['image_color_lambda'],
         multiprocessing = cfg['spectral_clustering']['multiprocessing'],
-        image_ssd_beta = cfg['spectral_clustering']['image_ssd_beta'],
-        image_dino_gamma = cfg['spectral_clustering']['image_dino_gamma'],
-        max_knn_neigbors = cfg['spectral_clustering']['max_knn_neigbors']
+        C_ssd_knn = cfg['spectral_clustering']['C_ssd_knn'],
+        C_dino = cfg['spectral_clustering']['C_dino'],
+        max_knn_neigbors = cfg['spectral_clustering']['max_knn_neigbors'],
+        C_var_knn = cfg['spectral_clustering']['C_var_knn'],
+        C_pos_knn = cfg['spectral_clustering']['C_pos_knn'],
+        C_ssd = cfg['spectral_clustering']['C_ssd'],
+        C_ncc = cfg['spectral_clustering']['C_ncc'],
+        C_lncc = cfg['spectral_clustering']['C_lncc'],
+        C_ssim = cfg['spectral_clustering']['C_ssim'],
+        C_mi = cfg['spectral_clustering']['C_mi'],
+        C_sam = cfg['spectral_clustering']['C_sam'],
+        patch_size = cfg['spectral_clustering']['patch_size'],
+        aff_sigma = cfg['spectral_clustering']['aff_sigma'],
+        distance_weight1 = cfg['spectral_clustering']['distance_weight1'],
+        distance_weight2 = cfg['spectral_clustering']['distance_weight2']
+
     )
 
     # Visualize eigenvectors
@@ -405,32 +463,80 @@ def evaluate(cfg, dataset_dir, gt_dir="", pred_dir="", tag=""):
         print(f'Current working directory: {os.getcwd()}')
 
         # Evaluate
-        resize = transforms.Resize(cfg['dataset']['input_size'])
-        dataset = segm_eval.EvalDataset(dataset_dir, gt_dir, pred_dir, transform = resize)
+        # resize = transforms.Resize(cfg['dataset']['input_size'])
+        dataset = segm_eval.EvalDataset(dataset_dir, gt_dir, pred_dir, transform = None)
         eval_stats, matches, corrected_matches, preds = segm_eval.evaluate_dataset_with_remapping(dataset, cfg['dataset']['n_classes'], cfg['eval']['iou_thresh'], cfg['eval']['void_label'])
         print("eval stats:", eval_stats)
         print("matches:", matches)
+    
+        # log to wandb
+        # wandb.log({'mIoU': eval_stats['mIoU']})
+        wandb.log({'mIoU_std': eval_stats['mIoU_std']})
+        wandb.log({'Pixel_Accuracy': eval_stats['Pixel_Accuracy']})
+        wandb.log({'Pixel_Accuracy_std': eval_stats['Pixel_Accuracy_std']})
+        wandb.log({'Dice': eval_stats['Dice']})
+        wandb.log({'Dice_std': eval_stats['Dice_std']})
+        wandb.log({'Precision': eval_stats['Precision']})
+        wandb.log({'Precision_std': eval_stats['Precision_std']})
+        wandb.log({'Recall': eval_stats['Recall']})
+        wandb.log({'Recall_std': eval_stats['Recall_std']})
+
+         # Table for logging corrected labels using wandb
+        remapped_pred_table = wandb.Table(columns=['ID', 'Image'])
+
+        # Visualize some image evaluation samples
+        segm_eval.random.seed(1) 
+        if cfg['eval']['vis_rand_k'] > len(dataset): # a safeguard for a case when more samples are asked than is in dataset
+            inds_to_vis = [0]
+        elif cfg['eval']['vis_rand_k'] > 0:
+            inds_to_vis = segm_eval.random.sample(range(len(dataset)), cfg['eval']['vis_rand_k'])
+        else:
+            inds_to_vis = [-1] #no images will be sampled
+
+        # Go through dataset and log data
+        for i, (sample, iou_m, match, remapped_pred) in enumerate(zip(dataset, eval_stats['IoU_matrix'], corrected_matches, preds)):
+            im, target, pred, metadata = sample
+            id = metadata['id']
+
+            if i in inds_to_vis:
+                # log remapped predictions - in a table
+                mask_img = wandb.Image(im, masks = {
+                "groud_truth" : {"mask_data" : target},
+                "prediction" : {"mask_data" : pred},
+                "remapped_pred" : {"mask_data" : remapped_pred},
+                })
+                remapped_pred_table.add_data(id, mask_img)
+
+        wandb.log({"Example Images After Remapping" : remapped_pred_table})
+
+        # Log Jaccard index table
+        class_names_all = [f'GT_class{i}' for i in range(cfg['dataset']['n_classes'])]
+        wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names_all[1:])})
+
+        
         return eval_stats
 
     else:
         return    
 
 def objective(cfg):
-    scores = pipeline(cfg)
-    mIoU =  scores['mIoU']
+    eval_stats = pipeline(cfg)
+    mIoU =  eval_stats['mIoU']
     return mIoU
 
 def main():
     print(f"MAIN1 wandb.config={wandb.config}")
-    wandb.init(name ="sweepNumClusters_" + segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'),
+    wandb.init(name ="sweepCRF_" + segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'),
                project="pipeline_eval",
                save_code=True,
-               tags=['sweep', 'eval_per_image', "deep_spectral"])
+               tags=['sweep', 'eval_per_image', "deep_spectral", 'sweep_crf'])
+            #    tags=['sweep', 'eval_per_image', "deep_spectral", 'sweep_num_cl'])
     cfg=wandb.config
     print(f"MAIN2 wandb.config={cfg}")
     score = objective(cfg)
+    # log the main score 
     wandb.log({"mIoU": score})
-
+   
 import yaml
 
 def yaml_to_nested_dict(yaml_data):
@@ -476,23 +582,87 @@ def run_sweep(cfg: DictConfig) -> None:
     parameters_dict=yaml_to_nested_dict(yaml_data)
 
     # add parameters for the sweep
-    sweep_dict = {
-        # "segments_num": {"values": [6, 8, 10, 12, 15, 18, 21]},
-        # 'clusters_num': {"values": [5, 6, 7, 8, 9, 10]}
+    # sweep_dict = {
+        # carotids
+        # "segments_num": {"values": [7, 10, 15,16,17,18,19,20,21,22]},
+        # 'clusters_num': {"values": [6, 7, 8, 9, 10, 11, 12,13,14,15]}
         # thyroid
         # "segments_num": {"max":30, "min": 10},
+        # "clusters_num": {"values": [7]}
         # "clusters_num": {"values": [6, 7, 8, 9, 10, 11, 12]},
         # liver
-        "segments_num": {"max":30, "min": 10},
-        "clusters_num": {"values": [5, 6, 7, 8, 9, 10]},
+        # "segments_num": {"max":30, "min": 8},
+        # "clusters_num": {"values": [6]}
+        # "clusters_num": {"values": [5, 6, 7, 8, 9, 10]},
+    # }
+
+    # sweep_dict = {
+        # SWEEP for combining affinity matrices
+        # "spectral_clustering":{
+        #     'parameters': {
+        #         'C_dino': {'values': [0.0, 1.0]},
+        #         'C_ssd_knn': {'values': [0.0, 1.0]},
+        #         'max_knn_neigbors': {'max': 80, 'min': 8},
+        #         'C_var_knn': {'values': [0.0, 1.0]},
+        #         'C_pos_knn': {'values': [0.0, 1.0]},
+        #         'C_ssd': {'values': [0.0, 1.0]},
+        #         'C_ncc': {'values': [0.0, 1.0]},
+        #         'C_lncc': {'values': [0.0, 1.0]},
+        #         'C_ssim': {'values': [0.0, 1.0]},
+        #         'C_mi': {'values': [0.0, 1.0]},
+        #         'C_sam': {'values': [0.0, 1.0]},
+        #         'patch_size': {'values': [16, 8]},
+        #         'aff_sigma': {'max': 10.0, 'min': 0.001},
+        #     }
+        # }
+
+        # SWEEP for finding good parameters for knn-based affinities (W_ssd_knn)
+        # "spectral_clustering":{
+        #     'parameters': {
+        #         'C_dino': {'values': [0.0]},
+        #         'C_ssd_knn': {'values': [1.0]},
+        #         'max_knn_neigbors': {'max': 120, 'min': 4},
+        #         'C_var_knn': {'values': [0.0]},
+        #         'C_pos_knn': {'values': [0.0]},
+        #         'C_ssd': {'values': [0.0]},
+        #         'C_ncc': {'values': [0.0]},
+        #         'C_lncc': {'values': [0.0]},
+        #         'C_ssim': {'values': [0.0]},
+        #         'C_mi': {'values': [0.0]},
+        #         'C_sam': {'values': [0.0]},
+        #         'patch_size': {'values': [32, 16, 8]},
+        #         # 'aff_sigma': {'max': 10.0, 'min': 0.001},
+        #         'distance_weight1': {'max': 10.0, 'min': 1.0},
+        #         'distance_weight2': {'max': 5.0, 'min': 0.01},
+        #     }
+        # }
+    # }
+
+    # SWEEP for finding good crf parameters
+    sweep_dict = {
+        "crf":{
+            'parameters': {
+                'w1': {'max': 20.0, 'min': 4.0},
+                'alpha': {'max': 100.0, 'min': 30.0},
+                'beta': {'max': 24.0, 'min': 2.0},
+                'w2': {'max': 16.0, 'min': 1.0},
+                'gamma': {'max': 6.0, 'min': 1.0},
+                'it': {'max': 15.0, 'min': 5.0},
+            }
+        }
     }
+
     print(sweep_dict)
 
 
     # ref: https://colab.research.google.com/github/wandb/examples/blob/master/colabs/pytorch/Organizing_Hyperparameter_Sweeps_in_PyTorch_with_W%26B.ipynb#scrollTo=guKch4YoOcfz
     for key, value in sweep_dict.items():
         if key in parameters_dict:
-            parameters_dict[key] = value
+            if 'parameters' in sweep_dict[key].keys():
+                parameters_dict[key]['parameters'].update(value['parameters'])
+            else:
+                parameters_dict[key] = value
+
     print(parameters_dict)
 
     sweep_configuration['parameters'] = parameters_dict
@@ -500,7 +670,7 @@ def run_sweep(cfg: DictConfig) -> None:
 
     # Start the sweep
     sweep_id = wandb.sweep(sweep=sweep_configuration, project=cfg['wandb']['setup']['project'])
-    wandb.agent(sweep_id, function=main, count=20)
+    wandb.agent(sweep_id, function=main, count=40)
 if __name__ == "__main__":
     run_sweep()
     
