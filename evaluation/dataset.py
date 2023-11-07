@@ -83,14 +83,16 @@ class EvalDataset(Dataset):
             W=W_im
 
             if (H_gt!= H or W_gt!=W):
-                gt_im_res = cv2.resize(gt, dsize=(W, H), interpolation=cv2.INTER_CUBIC)  # (H, W)
+                print("resizing GT")
+                gt_im_res = cv2.resize(gt, dsize=(W, H), interpolation=cv2.INTER_NEAREST)  # (H, W)
                 # gt_im_res[:gt.shape[0], :gt.shape[1]] = gt  # replace with the initial groundtruth version, just in case they are different
                 Image.fromarray(gt_im_res).convert('L').save(gt_path)
         
             if (H_pr!= H or W_pr!=W):
-                pred_im_res = cv2.resize(pred, dsize=(W, H), interpolation=cv2.INTER_CUBIC)  # (H, W)
+                print("resizing PR")
+                pred_im_res = cv2.resize(pred, dsize=(W, H), interpolation=cv2.INTER_NEAREST)  # (H, W)
                 # pred_im_res[:pred.shape[0], :pred.shape[1]] = pred  # replace with the initial prediction version, just in case they are different
-                Image.fromarray(pred_im_res).convert('L').save(pred_path)
+                Image.fromarray(pred_im_res).convert('L').save(pred_path[:-4]+".png")
         
         self.n_clusters = segm_num
         print(f'self.n_clusters: {self.n_clusters}')
