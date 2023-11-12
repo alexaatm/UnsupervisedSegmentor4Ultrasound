@@ -1,0 +1,23 @@
+name: spectral_net_sweep
+seg_for_eval: crf_segmaps
+method: bayes
+count: 20
+config:
+  bbox:
+    parameters:
+      clustering:
+        values: ['spectral_net']
+      should_use_siamese:
+        values: [True, False]
+      should_use_ae:
+        values: [True, False]
+      is_sparse_graph:
+        values: [True, False]
+      spectral_n_nbg:
+        max: 16
+        min: 2
+  segments_num:
+    min: 15
+    max: 40
+  clusters_num:
+    values: [6]

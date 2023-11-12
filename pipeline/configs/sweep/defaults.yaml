@@ -1,0 +1,5 @@
+name: single
+seg_for_eval: crf_segmaps
+method: grid
+count: 1
+config:

@@ -1,5 +1,5 @@
 num_classes: 3
-downsample_factor: 16
+downsample_factor: null
 multiprocessing: 0
 # CRF parameters
 w1: 10    # weight of bilateral term  # default: 10.0,

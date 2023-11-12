@@ -7,3 +7,8 @@ downsample_factor: null
 num_clusters: 20
 seed: 1
 pca_dim: 0
+clustering: kmeans
+should_use_siamese: null
+should_use_ae: null
+is_sparse_graph: null
+spectral_n_nbg: null

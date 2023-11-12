@@ -12,16 +12,32 @@ defaults:
   - vis: defaults
   - pipeline_steps: defaults 
   - eval: defaults
+  - sweep: defaults
   - _self_
 
 hydra:
   run:
-    dir: ./outputs/pipeline/${dataset.name}/${now:%Y-%m-%d}--${now:%H-%M-%S}
+    dir: ./outputs/${dataset.name}/exp_${wandb.tag}/${now:%Y-%m-%d}/${now:%H-%M-%S}
 
 custom_path_to_save_data: ""
 
 only_vis: False
 only_eval: False
 
-preprocessed_data: True
-norm: custom
+preprocessed_data: False
+norm: imagenet
+segments_num: 15
+clusters_num: 15
+inv: False
+
+spectral_clustering:
+  K: ${segments_num}
+
+multi_region_segmentation:
+  non_adaptive_num_segments: ${segments_num}
+
+bbox:
+  num_clusters: ${clusters_num}
+
+crf:
+  num_classes: ${clusters_num}

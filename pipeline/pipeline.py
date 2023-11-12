@@ -44,7 +44,25 @@ def pipeline(cfg: DictConfig) -> None:
         if cfg.custom_path_to_save_data!="":
             path_to_save_data = cfg.custom_path_to_save_data
         else:
-            path_to_save_data = os.path.join(os.getcwd())
+            custom_path=(f"seg{cfg.segments_num}"
+                         f"_clust{cfg.clusters_num}"
+                         f"_norm-{cfg.norm}"
+                         f"_prepr-{cfg.preprocessed_data}"
+                         f"_dino{cfg.spectral_clustering.C_dino}"
+                         f"_ssdknn{cfg.spectral_clustering.C_ssd_knn}"
+                         f"_var{cfg.spectral_clustering.C_var_knn}"
+                         f"_pos{cfg.spectral_clustering.C_pos_knn}"
+                         f"_nn{cfg.spectral_clustering.max_knn_neigbors}"
+                         f"_ssd{cfg.spectral_clustering.C_ssd}"
+                         f"_ncc{cfg.spectral_clustering.C_ncc}"
+                         f"_lncc{cfg.spectral_clustering.C_lncc}"
+                         f"_ssim{cfg.spectral_clustering.C_ssim}"
+                         f"_mi{cfg.spectral_clustering.C_mi}"
+                         f"_sam{cfg.spectral_clustering.C_sam}"
+                         f"_p{cfg.spectral_clustering.patch_size}"
+                         f"_sigma{cfg.spectral_clustering.aff_sigma}"
+                         )
+            path_to_save_data = os.path.join(os.getcwd(),custom_path)
 
 
     # Directories
@@ -125,8 +143,8 @@ def pipeline(cfg: DictConfig) -> None:
 
     if not cfg.pipeline_steps.dino_features:
         log.info("Step was not selected")
-        if cfg.spectral_clustering.image_dino_gamma > 0:
-            log.info("cfg.spectral_clustering.image_dino_gamma=",cfg.spectral_clustering.image_dino_gamma)
+        if cfg.spectral_clustering.C_dino > 0:
+            log.info("cfg.spectral_clustering.C_dino=",cfg.spectral_clustering.C_dino)
             log.info("Dino features were selected. Set cfg.pipeline_steps.dino_features to True")
             exit()
     else:
@@ -137,8 +155,9 @@ def pipeline(cfg: DictConfig) -> None:
             model_name = cfg.model.name,
             batch_size = cfg.loader.batch_size,
             model_checkpoint=cfg.model.checkpoint,
-            only_dict = True if cfg.spectral_clustering.image_dino_gamma == 0.0 else False,
-            norm = cfg.norm
+            only_dict = True if cfg.spectral_clustering.C_dino == 0.0 else False,
+            norm = cfg.norm,
+            inv = cfg.inv
         )
 
         # Visualize Dino Attention Maps
@@ -176,9 +195,21 @@ def pipeline(cfg: DictConfig) -> None:
         image_downsample_factor = cfg.spectral_clustering.image_downsample_factor,
         image_color_lambda = cfg.spectral_clustering.image_color_lambda,
         multiprocessing = cfg.spectral_clustering.multiprocessing,
-        image_ssd_beta = cfg.spectral_clustering.image_ssd_beta,
-        image_dino_gamma = cfg.spectral_clustering.image_dino_gamma,
-        max_knn_neigbors = cfg.spectral_clustering.max_knn_neigbors
+        C_ssd_knn = cfg.spectral_clustering.C_ssd_knn,
+        C_dino = cfg.spectral_clustering.C_dino,
+        max_knn_neigbors = cfg.spectral_clustering.max_knn_neigbors,
+        C_var_knn = cfg.spectral_clustering.C_var_knn,
+        C_pos_knn = cfg.spectral_clustering.C_pos_knn, 
+        C_ssd = cfg.spectral_clustering.C_ssd,
+        C_ncc = cfg.spectral_clustering.C_ncc,
+        C_lncc = cfg.spectral_clustering.C_lncc,
+        C_ssim = cfg.spectral_clustering.C_ssim,
+        C_mi = cfg.spectral_clustering.C_mi,
+        C_sam = cfg.spectral_clustering.C_sam,
+        patch_size = cfg.spectral_clustering.patch_size,
+        aff_sigma = cfg.spectral_clustering.aff_sigma,
+        distance_weight1 = cfg.spectral_clustering.distance_weight1,
+        distance_weight2 = cfg.spectral_clustering.distance_weight2
     )
 
     # Visualize eigenvectors
@@ -237,7 +268,8 @@ def pipeline(cfg: DictConfig) -> None:
             images_root = images_root,
             segmentations_dir = output_multi_region_seg,
             output_dir = output_crf_multi_region,
-            num_classes =  cfg.crf.num_classes,
+            features_dir = output_feat_dir,
+            num_classes =  cfg.multi_region_segmentation.non_adaptive_num_segments, #change to num_segments
             downsample_factor = cfg.crf.downsample_factor,
             multiprocessing = cfg.crf.multiprocessing,
             # CRF parameters
@@ -351,6 +383,7 @@ def pipeline(cfg: DictConfig) -> None:
         images_root = images_root,
         segmentations_dir = output_segmaps if cfg.pipeline_steps.sem_segm else output_multi_region_seg,
         output_dir = output_crf_segmaps,
+        features_dir = output_feat_dir,
         num_classes =  cfg.crf.num_classes,
         downsample_factor = cfg.crf.downsample_factor,
         multiprocessing = cfg.crf.multiprocessing,
@@ -381,6 +414,11 @@ def pipeline(cfg: DictConfig) -> None:
         evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_crf_multi_region, tag="crf_multi_region")
         log.info("EVALUATION (2/2) (crf_segmaps)")
         evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_crf_segmaps,  tag="crf_segmaps")
+        log.info("EVALUATION (3/4) (multi_region)")
+        evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_multi_region_seg, tag="multi_region")
+        log.info("EVALUATION (4/4) (segmaps)")
+        evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_segmaps, tag="segmaps")
+
 
         
 # Evaluation
@@ -402,13 +440,14 @@ def evaluate(cfg: DictConfig, dataset_dir, gt_dir="", pred_dir="", tag=""):
         print(f'Current working directory: {os.getcwd()}')
 
         # Evaluate
-        if "CAROTID_MIXED" in dataset_dir:
-            # make square
-            resize = transforms.Resize((cfg.dataset.input_size, cfg.dataset.input_size))
-        else:
-            # only resize
-            resize = transforms.Resize(cfg.dataset.input_size)
-        dataset = segm_eval.EvalDataset(dataset_dir, gt_dir, pred_dir, transform = resize)
+        # if "CAROTID_MIXED" in dataset_dir:
+        #     # make square
+        #     resize = transforms.Resize((cfg.dataset.input_size, cfg.dataset.input_size))
+        # else:
+        #     # only resize
+        #     resize = transforms.Resize(cfg.dataset.input_size)
+        # dataset = segm_eval.EvalDataset(dataset_dir, gt_dir, pred_dir, transform = resize)
+        dataset = segm_eval.EvalDataset(dataset_dir, gt_dir, pred_dir)
         eval_stats, matches, corrected_matches, preds = segm_eval.evaluate_dataset_with_remapping(dataset, cfg.dataset.n_classes, cfg.eval.iou_thresh, cfg.eval.void_label)
         print("eval stats:", eval_stats)
         print("matches:", matches)
@@ -467,7 +506,7 @@ def evaluate(cfg: DictConfig, dataset_dir, gt_dir="", pred_dir="", tag=""):
                     pseudolabel_names = [f'PL_class{i}' for i in np.unique(pred)]
 
                     # log IoU heatmaps - individually (cannot log wandb heatmaps in a wandb table...)
-                    iou_df = segm_eval.pd.DataFrame(data=iou_m, index=pseudolabel_names, columns=class_names_all)
+                    iou_df = segm_eval.pd.DataFrame(data=iou_m, index=pseudolabel_names, columns=class_names)
                     heatmap = wandb.plots.HeatMap(class_names,pseudolabel_names, iou_df, show_text=True)
                     wandb.log({f"Sample IoU Heatmap {id}": heatmap})
 
@@ -615,12 +654,20 @@ def eval_pipeline(cfg: DictConfig) -> None:
     # Set default output directories
     output_crf_multi_region = os.path.join(path_to_save_data, 'semantic_segmentations', cfg.spectral_clustering.which_matrix, 'crf_multi_region')
     output_crf_segmaps = os.path.join(path_to_save_data, 'semantic_segmentations', cfg.spectral_clustering.which_matrix, 'crf_segmaps')
+    output_segmaps = os.path.join(path_to_save_data, 'semantic_segmentations', cfg.spectral_clustering.which_matrix, 'segmaps')
+    output_multi_region = os.path.join(path_to_save_data, 'multi_region_segmentations', cfg.spectral_clustering.which_matrix)
+
 
     # evaluate
     log.info("EVALUATION (1/2) (crf_multi_region)")
     evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_crf_multi_region, tag="crf_multi_region")
     log.info("EVALUATION (2/2) (crf_segmaps)")
     evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_crf_segmaps, tag="crf_segmaps")
+    log.info("EVALUATION (3/4) (multi_region)")
+    evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_multi_region, tag="multi_region")
+    log.info("EVALUATION (4/4) (segmaps)")
+    evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_segmaps, tag="segmaps")
+
 
 # Pipeline for deep spectral segmentation steps
 def vis_pipeline(cfg: DictConfig) -> None:
