@@ -1,0 +1,19 @@
+name: multi_region_base_sweep
+seg_for_eval: crf_segmaps
+method: grid
+count: 20
+config:
+  pipeline_steps:
+    parameters:
+      bbox:
+        values: [False]
+      bbox_features:
+        values: [False]
+      clusters:
+        values: [False]
+      sem_segm:
+        values: [False]
+      crf_segm:
+        values: [False]
+      crf_multi_region:
+        values: [False]

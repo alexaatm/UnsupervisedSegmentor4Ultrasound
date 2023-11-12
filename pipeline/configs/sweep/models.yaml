@@ -1,0 +1,24 @@
+name: model_sweep
+seg_for_eval: crf_segmaps
+method: grid
+count: 
+config:
+  vis:
+    parameters:
+      dino_attn_maps:
+        values: [True]
+      eigen:
+        values: [True]
+
+  model:
+    parameters:
+      name:
+        values:
+          - dino_vits8
+          - dinov2_vits14
+          - dino_vitb8
+          - dinov2_vitb14
+          - dinov2_vits14_reg
+          - dinov2_vitb14_reg
+      checkpoint:
+        values: [""]  # Add your list of checkpoint paths here

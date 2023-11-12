@@ -12,6 +12,7 @@ defaults:
   - vis: defaults
   - pipeline_steps: defaults 
   - eval: defaults
+  - sweep: defaults
   - _self_
 
 hydra:
@@ -24,7 +25,7 @@ only_vis: False
 only_eval: False
 
 preprocessed_data: False
-norm: custom
+norm: imagenet
 segments_num: 15
 clusters_num: 15
 inv: False

@@ -1,0 +1,39 @@
+name: knn_ssd_sweep
+seg_for_eval: multi_region
+config:
+  spectral_clustering:
+    parameters:
+      C_dino:
+        values: [0.0]
+      C_ssd_knn:
+        values: [1.0]
+      max_knn_neigbors:
+        max: 120
+        min: 4
+      C_var_knn:
+        values: [0.0]
+      C_pos_knn:
+        values: [0.0]
+      C_ssd:
+        values: [0.0]
+      C_ncc:
+        values: [0.0]
+      C_lncc:
+        values: [0.0]
+      C_ssim:
+        values: [0.0]
+      C_mi:
+        values: [0.0]
+      C_sam:
+        values: [0.0]
+      patch_size:
+        values: [32, 16, 8]
+      # aff_sigma:
+      #   max: 10.0
+      #   min: 0.001
+      distance_weight1:
+        max: 10.0
+        min: 1.0
+      distance_weight2:
+        max: 5.0
+        min: 0.01

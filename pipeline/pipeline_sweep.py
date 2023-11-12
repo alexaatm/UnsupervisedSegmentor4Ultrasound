@@ -46,10 +46,7 @@ def pipeline(cfg):
             path_to_save_data = cfg['custom_path_to_save_data']
         else:
             print(f"DEBUG: wandb tag: {cfg['wandb']['tag']}")
-            print(f"DEBUG: is Aff in tag? {'aff' in cfg['wandb']['tag']}")
-            print(f"DEBUG: is crf in tag? {'crf' in cfg['wandb']['tag']}")
             if ('Aff' in cfg['wandb']['tag'] or 'aff' in cfg['wandb']['tag']):
-                print("DEBUG: 'aff' or 'Aff' is in tag!!")
                 custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
                             f"_clust{cfg['clusters_num']}"
                             f"_norm-{cfg['norm']}"
@@ -89,7 +86,8 @@ def pipeline(cfg):
                             f"_norm-{cfg['norm']}"
                             f"_prepr-{cfg['preprocessed_data']}"
                             f"_dino{cfg['spectral_clustering']['C_dino']}"
-                            # f"_time{datetime.now()}"
+                            f"_cluster{cfg['bbox']['clustering']}"
+                            f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                             )
             path_to_save_data = os.path.join(os.getcwd(), custom_path)
 
@@ -196,7 +194,8 @@ def pipeline(cfg):
             batch_size = cfg['loader']['batch_size'],
             model_checkpoint=cfg['model']['checkpoint'],
             only_dict = True if cfg['spectral_clustering']['C_dino'] == 0.0 else False,
-            norm = cfg['norm']
+            norm = cfg['norm'],
+            inv = cfg['inv']
         )
 
         # Visualize Dino Attention Maps
@@ -278,7 +277,7 @@ def pipeline(cfg):
         adaptive = cfg['multi_region_segmentation']['adaptive'],
         non_adaptive_num_segments = cfg['multi_region_segmentation']['non_adaptive_num_segments'],
         infer_bg_index = cfg['multi_region_segmentation']['infer_bg_index'],
-        kmeans_baseline = cfg['multi_region_segmentation']['kmeans_baseline'],
+        clustering1 = cfg['multi_region_segmentation']['clustering1'],
         num_eigenvectors = cfg['multi_region_segmentation']['num_eigenvectors'],
         multiprocessing = cfg['multi_region_segmentation']['multiprocessing']
     )
@@ -308,6 +307,7 @@ def pipeline(cfg):
             images_root = images_root,
             segmentations_dir = output_multi_region_seg,
             output_dir = output_crf_multi_region,
+            features_dir = output_feat_dir,
             num_classes =  cfg['multi_region_segmentation']['non_adaptive_num_segments'], #change to num_segments
             downsample_factor = cfg['crf']['downsample_factor'],
             multiprocessing = cfg['crf']['multiprocessing'],
@@ -381,7 +381,12 @@ def pipeline(cfg):
                     output_file = output_bbox_clusters,
                     num_clusters = cfg['bbox']['num_clusters'],
                     seed = cfg['bbox']['seed'],
-                    pca_dim = cfg['bbox']['pca_dim']
+                    pca_dim = cfg['bbox']['pca_dim'],
+                    clustering = cfg['bbox']['clustering'],
+                    should_use_siamese = cfg['bbox']['should_use_siamese'],
+                    should_use_ae = cfg['bbox']['should_use_ae'],
+                    is_sparse_graph = cfg['bbox']['is_sparse_graph'],
+                    spectral_n_nbg = cfg['bbox']['spectral_n_nbg']
                 )
 
 
@@ -410,47 +415,63 @@ def pipeline(cfg):
                             output_dir = output_segm_plots
                         )
 
-    # Create crf segmentations (optional)
-    log.info("STEP 8/8 [optional]: create CRF semantic segmentation ")
+                    # Create crf segmentations (optional)
+                    log.info("STEP 8/8 [optional]: create CRF semantic segmentation ")
 
-    if not cfg['pipeline_steps']['crf_segm']:
-        log.info("Step was not selected")
-        exit()
+                    if not cfg['pipeline_steps']['crf_segm']:
+                        log.info("Step was not selected")
+                        exit()
 
-    extract.extract_crf_segmentations(
-        images_list = images_list,
-        images_root = images_root,
-        segmentations_dir = output_segmaps if cfg['pipeline_steps']['sem_segm'] else output_multi_region_seg,
-        output_dir = output_crf_segmaps,
-        num_classes =  cfg['crf']['num_classes'],
-        downsample_factor = cfg['crf']['downsample_factor'],
-        multiprocessing = cfg['crf']['multiprocessing'],
-        # CRF parameters
-        w1 = cfg['crf']['w1'],
-        alpha = cfg['crf']['alpha'],
-        beta = cfg['crf']['beta'],
-        w2 = cfg['crf']['w2'],
-        gamma = cfg['crf']['gamma'],
-        it= cfg['crf']['it']
-    )
+                    extract.extract_crf_segmentations(
+                        images_list = images_list,
+                        images_root = images_root,
+                        segmentations_dir = output_segmaps if cfg['pipeline_steps']['sem_segm'] else output_multi_region_seg,
+                        output_dir = output_crf_segmaps,
+                        features_dir = output_feat_dir,
+                        num_classes =  cfg['crf']['num_classes'],
+                        downsample_factor = cfg['crf']['downsample_factor'],
+                        multiprocessing = cfg['crf']['multiprocessing'],
+                        # CRF parameters
+                        w1 = cfg['crf']['w1'],
+                        alpha = cfg['crf']['alpha'],
+                        beta = cfg['crf']['beta'],
+                        w2 = cfg['crf']['w2'],
+                        gamma = cfg['crf']['gamma'],
+                        it= cfg['crf']['it']
+                    )
 
-    # Visualize final crf segmentations
-    if cfg['vis']['crf_segmaps']:
-        log.info("Plot crf semantic segmentations")
-        output_segm_plots = os.path.join(path_to_save_data, 'plots', 'crf_segmaps')
-        vis_utils.plot_segmentation(
-            images_list = images_list,
-            images_root = images_root,
-            segmentations_dir = output_crf_segmaps,
-            bbox_file = None,
-            output_dir = output_segm_plots
-        )
+                    # Visualize final crf segmentations
+                    if cfg['vis']['crf_segmaps']:
+                        log.info("Plot crf semantic segmentations")
+                        output_segm_plots = os.path.join(path_to_save_data, 'plots', 'crf_segmaps')
+                        vis_utils.plot_segmentation(
+                            images_list = images_list,
+                            images_root = images_root,
+                            segmentations_dir = output_crf_segmaps,
+                            bbox_file = None,
+                            output_dir = output_segm_plots
+                        )
 
     # Evaluate segmentation if evaluation is on
     if cfg['pipeline_steps']['eval']:
-        log.info("EVALUATION (1/2) (crf_multi_region) - SKIPPED")
-        log.info("EVALUATION (2/2) (crf_segmaps)")
-        eval_results = evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_crf_segmaps,  tag="crf_segmaps")
+        if cfg['sweep']['seg_for_eval'] == "crf_segmaps":
+            log.info("EVALUATION (crf_segmaps)")
+            eval_results = evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_crf_segmaps,  tag="crf_segmaps")
+        
+        elif cfg['sweep']['seg_for_eval'] == "segmaps":
+            log.info("EVALUATION (segmaps)")
+            eval_results = evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_segmaps,  tag="segmaps")
+        
+        elif cfg['sweep']['seg_for_eval'] == "multi_region":
+            log.info("EVALUATION (multi_region)")
+            eval_results = evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_multi_region_seg, tag="multi_region")
+        
+        elif cfg['sweep']['seg_for_eval'] == "crf_multi_region":
+            log.info("EVALUATION (crf_multi_region)")
+            eval_results = evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_crf_multi_region, tag="crf_multi_region")
+        
+        else:
+            raise ValueError(f"Unknown seg type for evalutaion: {cfg['sweep']['seg_for_eval']}")
 
         return eval_results
 
@@ -525,14 +546,24 @@ def objective(cfg):
     return mIoU
 
 def main():
-    print(f"MAIN1 wandb.config={wandb.config}")
-    wandb.init(name ="sweepCRF_" + segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'),
+    run = wandb.init(name ="sweep_" + segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'),
                project="pipeline_eval",
                save_code=True,
-               tags=['sweep', 'eval_per_image', "deep_spectral", 'sweep_crf'])
+               tags=['sweep', 'eval_per_image', "deep_spectral"])
+            #    tags=['sweep', 'eval_per_image', "deep_spectral", 'sweep_clustering', 'crf_segmaps'])
+            #    tags=['sweep', 'eval_per_image', "deep_spectral", 'sweep_model', 'crf_segmaps'])
+            #    tags=['sweep', 'eval_per_image', "deep_spectral", 'sweep_inv', 'crf_segmaps'])
+            #    tags=['sweep', 'eval_per_image', "deep_spectral", 'sweep_aff', 'multi_region'])
+            #    tags=['sweep', 'eval_per_image', "deep_spectral", 'sweep_segments', 'multi_region'])
+            #    tags=['sweep', 'eval_per_image', "deep_spectral", 'sweep_dino_models', 'multi_region'])
+            #    tags=['sweep', 'eval_per_image', "deep_spectral", 'sweep_dino_models', 'crf_segmaps'])
+            #    tags=['sweep', 'eval_per_image', "deep_spectral", 'sweep_crf'])
             #    tags=['sweep', 'eval_per_image', "deep_spectral", 'sweep_num_cl'])
+            
     cfg=wandb.config
-    print(f"MAIN2 wandb.config={cfg}")
+    # add adidtional tags based on sweep config
+    run.tags = run.tags + (cfg['sweep']['name'], cfg['sweep']['seg_for_eval'],)
+    log.info(f"MAIN: wandb.config={cfg}")
     score = objective(cfg)
     # log the main score 
     wandb.log({"mIoU": score})
@@ -564,16 +595,6 @@ def run_sweep(cfg: DictConfig) -> None:
     wandb.login(key=cfg.wandb.key)
     cfg.wandb.key=""
 
-    # Define the search space
-    sweep_configuration = {
-        "method": "bayes",
-        "metric": {
-            "goal": "maximize",
-            "name": "mIoU"
-        },
-        
-    }
-
     # Add original parameters from hydra config
     # Interpolate values from Hydra config
     cfg = OmegaConf.to_container(cfg, resolve=True)
@@ -582,78 +603,8 @@ def run_sweep(cfg: DictConfig) -> None:
     parameters_dict=yaml_to_nested_dict(yaml_data)
 
     # add parameters for the sweep
-    # sweep_dict = {
-        # carotids
-        # "segments_num": {"values": [7, 10, 15,16,17,18,19,20,21,22]},
-        # 'clusters_num': {"values": [6, 7, 8, 9, 10, 11, 12,13,14,15]}
-        # thyroid
-        # "segments_num": {"max":30, "min": 10},
-        # "clusters_num": {"values": [7]}
-        # "clusters_num": {"values": [6, 7, 8, 9, 10, 11, 12]},
-        # liver
-        # "segments_num": {"max":30, "min": 8},
-        # "clusters_num": {"values": [6]}
-        # "clusters_num": {"values": [5, 6, 7, 8, 9, 10]},
-    # }
-
-    # sweep_dict = {
-        # SWEEP for combining affinity matrices
-        # "spectral_clustering":{
-        #     'parameters': {
-        #         'C_dino': {'values': [0.0, 1.0]},
-        #         'C_ssd_knn': {'values': [0.0, 1.0]},
-        #         'max_knn_neigbors': {'max': 80, 'min': 8},
-        #         'C_var_knn': {'values': [0.0, 1.0]},
-        #         'C_pos_knn': {'values': [0.0, 1.0]},
-        #         'C_ssd': {'values': [0.0, 1.0]},
-        #         'C_ncc': {'values': [0.0, 1.0]},
-        #         'C_lncc': {'values': [0.0, 1.0]},
-        #         'C_ssim': {'values': [0.0, 1.0]},
-        #         'C_mi': {'values': [0.0, 1.0]},
-        #         'C_sam': {'values': [0.0, 1.0]},
-        #         'patch_size': {'values': [16, 8]},
-        #         'aff_sigma': {'max': 10.0, 'min': 0.001},
-        #     }
-        # }
-
-        # SWEEP for finding good parameters for knn-based affinities (W_ssd_knn)
-        # "spectral_clustering":{
-        #     'parameters': {
-        #         'C_dino': {'values': [0.0]},
-        #         'C_ssd_knn': {'values': [1.0]},
-        #         'max_knn_neigbors': {'max': 120, 'min': 4},
-        #         'C_var_knn': {'values': [0.0]},
-        #         'C_pos_knn': {'values': [0.0]},
-        #         'C_ssd': {'values': [0.0]},
-        #         'C_ncc': {'values': [0.0]},
-        #         'C_lncc': {'values': [0.0]},
-        #         'C_ssim': {'values': [0.0]},
-        #         'C_mi': {'values': [0.0]},
-        #         'C_sam': {'values': [0.0]},
-        #         'patch_size': {'values': [32, 16, 8]},
-        #         # 'aff_sigma': {'max': 10.0, 'min': 0.001},
-        #         'distance_weight1': {'max': 10.0, 'min': 1.0},
-        #         'distance_weight2': {'max': 5.0, 'min': 0.01},
-        #     }
-        # }
-    # }
-
-    # SWEEP for finding good crf parameters
-    sweep_dict = {
-        "crf":{
-            'parameters': {
-                'w1': {'max': 20.0, 'min': 4.0},
-                'alpha': {'max': 100.0, 'min': 30.0},
-                'beta': {'max': 24.0, 'min': 2.0},
-                'w2': {'max': 16.0, 'min': 1.0},
-                'gamma': {'max': 6.0, 'min': 1.0},
-                'it': {'max': 15.0, 'min': 5.0},
-            }
-        }
-    }
-
+    sweep_dict = cfg['sweep']['config']
     print(sweep_dict)
-
 
     # ref: https://colab.research.google.com/github/wandb/examples/blob/master/colabs/pytorch/Organizing_Hyperparameter_Sweeps_in_PyTorch_with_W%26B.ipynb#scrollTo=guKch4YoOcfz
     for key, value in sweep_dict.items():
@@ -665,12 +616,21 @@ def run_sweep(cfg: DictConfig) -> None:
 
     print(parameters_dict)
 
+    # Define the search space
+    sweep_configuration = {
+        "method": cfg['sweep']['method'],
+        "metric": {
+            "goal": "maximize",
+            "name": "mIoU"
+        }   
+    }
     sweep_configuration['parameters'] = parameters_dict
     print(sweep_configuration)
 
     # Start the sweep
     sweep_id = wandb.sweep(sweep=sweep_configuration, project=cfg['wandb']['setup']['project'])
-    wandb.agent(sweep_id, function=main, count=40)
+    wandb.agent(sweep_id, function=main, count = cfg['sweep']['count'])
+
 if __name__ == "__main__":
     run_sweep()
     

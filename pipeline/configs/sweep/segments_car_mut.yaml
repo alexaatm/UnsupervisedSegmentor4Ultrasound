@@ -1,0 +1,27 @@
+name: segments_car_mut_sweep
+seg_for_eval: crf_segmaps
+method: bayes
+count: 20
+config:
+  segments_num:
+    values: [8]
+  clusters_num:
+    values: [6]
+
+  # 'inv' field commented out
+  # inv:
+  #   values: [True, False]
+
+  bbox:
+    parameters:
+      num_clusters:
+        values: [6]
+      # downsample_factor:
+      #   values: [8]
+
+  crf:
+    parameters:
+      num_classes:
+        values: [6]
+      # downsample_factor:
+      #   values: [8]
