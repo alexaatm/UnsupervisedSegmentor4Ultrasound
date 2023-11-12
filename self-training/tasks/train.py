@@ -1,5 +1,5 @@
 from models import dino, dinoLightningModule, simclrLightningModule, simclrTripletLightningModule
-from datasets import datasets, samplers
+from datasets import datasets, samplers, augmentations, dino_transform as modified_dino_transform
 from custom_utils import utils
 import torch
 from torchvision import transforms
@@ -7,6 +7,8 @@ from lightly.data import DINOCollateFunction, LightlyDataset, SimCLRCollateFunct
 from lightly.loss import DINOLoss
 from lightly.models.utils import update_momentum
 from lightly.utils.scheduler import cosine_schedule
+from lightly.transforms import utils as lightly_utils
+# from lightly.transforms.dino_transform import DINOTransform
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
@@ -92,9 +94,51 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
 
     # data
     if cfg.dataset.name=="imagenet-4-classes":
-        transform = transforms.Compose([transforms.Resize(cfg.dataset.input_size),transforms.Grayscale(num_output_channels=3)])
+        custom_transform = transforms.Compose([
+            transforms.Resize(cfg.dataset.input_size),
+            # augmentations.HistogramNormalize(),
+            transforms.Grayscale(num_output_channels=3),
+            ])
     else:
-        transform = transforms.Resize(cfg.dataset.input_size)
+        custom_transform = transforms.Compose([
+            transforms.Resize(cfg.dataset.input_size),
+            # augmentations.HistogramNormalize()
+            ])
+
+    if 'dinov2' in cfg.train.backbone:
+        local_crop_size = 98 #to make divisible by 14, dinov2 pacthsize
+    else:
+        local_crop_size = 96
+
+    dino_trasnform = modified_dino_transform.DINOTransform(
+        cj_prob = 0.0,
+        cj_hue = 0, 
+        random_gray_scale = 0.5,
+        cj_sat = 0,
+        cj_bright=0.7,
+        cj_contrast=0.7,
+        solarization_prob = 0,
+        local_crop_size = local_crop_size,
+        vf_prob = 0.3,
+        hf_prob = 0.3,
+        rr_prob = 0.1,
+        rr_degrees = (-25, 25), # -65, 65
+        gaussian_blur=(1.0, 0.1, 0.7),
+        sigmas = (0.1, 3),
+        inv_prob = 0.3,
+        gauss_noise_prob = 0.2,
+        hist_norm_prob = 0.5,
+        normalize={ 'mean': lightly_utils.IMAGENET_NORMALIZE["mean"],
+                    'std': lightly_utils.IMAGENET_NORMALIZE["std"]},
+    )
+
+
+    transform = transforms.Compose(
+        [
+            custom_transform,
+            dino_trasnform,
+        ]
+    )
 
     if cfg.wandb.mode=='server':
         # use polyaxon paths
@@ -110,22 +154,38 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         path_to_save_ckpt = os.getcwd()
 
     log.info(f"Path to save chekpoints: {path_to_save_ckpt}")
-
-    if 'dinov2' in cfg.train.backbone:
-        local_crop_size = 98 #to make divisible by 14, dinov2 pacthsize
-    else:
-        local_crop_size = 96
     
-    collate_fn = DINOCollateFunction(
-        cj_prob = 0,
-        cj_hue = 0, 
-        random_gray_scale = 1,
-        cj_sat = 0,
-        cj_bright=0,
-        cj_contrast=0,
-        solarization_prob = 0,
-        local_crop_size = local_crop_size
-    )
+    # collate_fn will be depricated in later lightly versions
+    # collate_fn = DINOCollateFunction(
+    #     cj_prob = 0.0,
+    #     cj_hue = 0, 
+    #     random_gray_scale = 0.5,
+    #     cj_sat = 0,
+    #     cj_bright=0.7,
+    #     cj_contrast=0.7,
+    #     solarization_prob = 0,
+    #     local_crop_size = local_crop_size,
+    #     vf_prob = 0.3,
+    #     hf_prob = 0.3,
+    #     rr_prob = 0.7,
+    #     rr_degrees = (15, 65),
+    #     gaussian_blur=(1.0, 0.1, 0.7),
+    #     sigmas = (0.1, 3),
+    #     inv_prob = 0.3,
+    #     normalize={ 'mean': lightly_utils.IMAGENET_NORMALIZE["mean"],
+    #                 'std': lightly_utils.IMAGENET_NORMALIZE["std"]}
+    # )
+
+    # val_collate_fn = BaseCollateFunction(
+    #     transform = transforms.Compose(
+    #         [
+    #             transforms.ToTensor(),
+    #             transforms.Normalize(
+    #                 mean=lightly_utils.IMAGENET_NORMALIZE["mean"],
+    #                 std=lightly_utils.IMAGENET_NORMALIZE["std"],
+    #             ),
+    #         ])
+    # )
 
     if cfg.loader.mode=="patch":
         # TODO: figure out how to make it a random sampler, cause cannot use shuffle..
@@ -148,7 +208,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         train_dataset,
         sampler=train_sampler,
         batch_size=cfg.loader.batch_size, #make smaller for dino backbone, was 64 for resnet
-        collate_fn=collate_fn,
+        # collate_fn=collate_fn,
         shuffle=False,
         drop_last=True,
         num_workers=cfg.loader.num_workers,
@@ -158,7 +218,7 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         val_dataset,
         sampler=val_sampler,
         batch_size=cfg.loader.batch_size, #make smaller for dino backbone, was 64 for resnet
-        collate_fn=collate_fn,
+        # collate_fn = collate_fn,
         shuffle=False,
         drop_last=False,
         num_workers=cfg.loader.num_workers,
