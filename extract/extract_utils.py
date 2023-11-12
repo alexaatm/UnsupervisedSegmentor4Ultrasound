@@ -104,7 +104,14 @@ class OnlineMeanStd:
             return fst_moment, torch.sqrt(snd_moment - fst_moment ** 2)
 
 def get_model(name: str):
-    if 'dino' in name:
+    if 'dinov2' in name:
+        #  dinov2 models like dinov2_vits14
+        model = torch.hub.load('facebookresearch/dinov2:main', name)
+        model.fc = torch.nn.Identity()
+        val_transform = get_transform(name)
+        patch_size = model.patch_embed.patch_size[0]
+        num_heads = model.blocks[0].attn.num_heads
+    elif 'dino_' in name:
         model = torch.hub.load('facebookresearch/dino:main', name)
         model.fc = torch.nn.Identity()
         val_transform = get_transform(name)
@@ -186,6 +193,13 @@ def get_paired_input_files(path1: str, path2: str):
     files2 = _get_files(path2)
     assert len(files1) == len(files2)
     return list(enumerate(zip(files1, files2)))
+
+def get_triple_input_files(path1: str, path2: str, path3: str):
+    files1 = _get_files(path1)
+    files2 = _get_files(path2)
+    files3 = _get_files(path3)
+    assert len(files1) == len(files2) == len(files3)
+    return list(enumerate(zip(files1, files2, files3)))
 
 
 def make_output_dir(output_dir, check_if_empty=True):

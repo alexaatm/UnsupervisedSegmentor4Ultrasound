@@ -32,6 +32,7 @@ def extract_features(
     model_checkpoint: str = "",
     only_dict: bool = False,
     norm: str = 'imagenet',
+    inv: bool = False,
     # input_size: int = 480,
 ):
     """
@@ -73,20 +74,24 @@ def extract_features(
     # Transform
     if norm=='imagenet':
         # use imagenet normalization
-        dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=val_transform)
+        transform = val_transform
     elif norm=='custom':
         # calculate mean and std of your dataset
         dataset_raw = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=transforms.ToTensor())
         meanStdCalculator = utils.OnlineMeanStd()
         mean, std = meanStdCalculator(dataset_raw, batch_size=100, method='strong')
         normalize = transforms.Normalize(mean, std)
-        custom_transform = transforms.Compose([transforms.ToTensor(), normalize])
-        dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=custom_transform)
+        transform = transforms.Compose([transforms.ToTensor(), normalize])
     elif norm=='none':
-        basic_transform = transforms.Compose([transforms.ToTensor()])
-        dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=basic_transform)
+        transform = transforms.Compose([transforms.ToTensor()])
     else:
         raise ValueError(norm)
+    
+    if inv:
+        transform = transforms.Compose([transform, transforms.RandomInvert(p=1)])
+
+    dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=transform)
+
 
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=0)
     print(f'Dataset size: {len(dataset)}')
@@ -491,9 +496,9 @@ def _extract_multi_region_segmentations(
     adaptive: bool, 
     non_adaptive_num_segments: int,
     infer_bg_index: bool,
-    kmeans_baseline: bool,
     output_dir: str,
     num_eigenvectors: int,
+    clustering1: str,
 ):
     index, (feature_path, eigs_path) = inp
 
@@ -526,13 +531,22 @@ def _extract_multi_region_segmentations(
     kmeans = KMeans(n_clusters=n_clusters, random_state=1)
 
     # Compute segments using eigenvector or baseline K-means
-    if kmeans_baseline:
+    if clustering1 == "kmeans_baseline":
         feats = data_dict['k'].squeeze().numpy()
         clusters = kmeans.fit_predict(feats)
-    else:
+    elif clustering1 == 'kmeans_eigen':
         eigenvectors = data_dict['eigenvectors'][1:1+num_eigenvectors].numpy()  # take non-constant eigenvectors
         # import pdb; pdb.set_trace()
         clusters = kmeans.fit_predict(eigenvectors.T)
+    elif clustering1 == 'spectral_net':
+        feats = data_dict['k'].squeeze()
+        spectralnet = SpectralNet(n_clusters=n_clusters,
+                        should_use_siamese=True,
+                        should_use_ae = True)
+        spectralnet.fit(feats)
+        clusters = spectralnet.predict(feats)
+    else:
+        raise ValueError()
 
     # Reshape
     if clusters.size == H_patch * W_patch:  # TODO: better solution might be to pass in patch index
@@ -564,9 +578,9 @@ def extract_multi_region_segmentations(
     adaptive: bool = False,
     non_adaptive_num_segments: int = 4,
     infer_bg_index: bool = True,
-    kmeans_baseline: bool = False,
     num_eigenvectors: int = 1_000_000,
-    multiprocessing: int = 0
+    multiprocessing: int = 0,
+    clustering1: str = 'kmeans_baseline',
 ):
     """
     Example:
@@ -578,7 +592,7 @@ def extract_multi_region_segmentations(
     utils.make_output_dir(output_dir, check_if_empty=False)
     fn = partial(_extract_multi_region_segmentations, adaptive=adaptive, infer_bg_index=infer_bg_index,
                  non_adaptive_num_segments=non_adaptive_num_segments, num_eigenvectors=num_eigenvectors, 
-                 kmeans_baseline=kmeans_baseline, output_dir=output_dir)
+                 clustering1=clustering1, output_dir=output_dir)
     inputs = utils.get_paired_input_files(features_dir, eigs_dir)
     utils.parallel_process(inputs, fn, multiprocessing)
 
@@ -648,6 +662,7 @@ def _extract_bbox(
 
     # Sizes
     B, C, H, W, P, H_patch, W_patch, H_pad, W_pad = utils.get_image_sizes(data_dict, downsample_factor)
+    print(f'Extract BBOX: using patch size {P}')
 
     # Get bounding boxes
     outputs = {'bboxes': [], 'bboxes_original_resolution': [], 'segment_indices': [], 'id': image_id, 
@@ -766,8 +781,11 @@ def extract_bbox_clusters(
     num_clusters: int = 20, 
     seed: int = 1, 
     pca_dim: Optional[int] = 0,
-    kmeans: bool = True,
-    spectral_net: bool = False,
+    clustering: str = "kmeans", 
+    should_use_siamese: bool = False,
+    should_use_ae: bool = False,
+    is_sparse_graph: bool = False,
+    spectral_n_nbg: int = 30,
 ):
     """
     Example:
@@ -787,31 +805,35 @@ def extract_bbox_clusters(
     # Loop over boxes and stack features with PyTorch, because Numpy is too slow
     print(f'Stacking and normalizing features')
     all_features = torch.cat([bbox_dict['features'] for bbox_dict in bbox_list], dim=0)  # (numBbox, D)
-    all_features = all_features / torch.norm(all_features, dim=-1, keepdim=True)  # (numBbox, D)f
+    all_features_norm = all_features / torch.norm(all_features, dim=-1, keepdim=True)  # (numBbox, D)f
     # all_features = all_features.numpy()
 
     # tensors need to be detached
-    all_features = all_features.detach().numpy()
+    all_features_norm_numpy = all_features_norm.detach().numpy()
 
     # Cluster: PCA
     if pca_dim:
         pca = PCA(pca_dim)
         print(f'Computing PCA with dimension {pca_dim}')
-        all_features = pca.fit_transform(all_features)
+        all_features = pca.fit_transform(all_features_norm_numpy)
 
     # Cluster: K-Means
-    if kmeans:
+    if clustering == "kmeans":
         print(f'Computing K-Means clustering with {num_clusters} clusters')
         kmeans = MiniBatchKMeans(n_clusters=num_clusters, batch_size=4096, max_iter=5000, random_state=seed)
-        clusters = kmeans.fit_predict(all_features)
-    elif spectral_net:
+        clusters = kmeans.fit_predict(all_features_norm_numpy)
+    elif clustering == "spectral_net":
         print(f'Computing clusters using a SpectralNet model with {num_clusters} clusters')
         # ref: https://github.com/shaham-lab/SpectralNet
-        spectralnet = SpectralNet(n_clusters=num_clusters)
-        spectralnet.fit(all_features)
-        clusters = spectralnet.predict(all_features)
+        spectralnet = SpectralNet(n_clusters=num_clusters,
+                                should_use_siamese = should_use_siamese,
+                                should_use_ae = should_use_ae,
+                                is_sparse_graph = is_sparse_graph,
+                                spectral_n_nbg = spectral_n_nbg)
+        spectralnet.fit(all_features_norm)
+        clusters = spectralnet.predict(all_features_norm)
     else:
-        raise ValueError("No clustering method chosen. set kmeans or spectral_net to True to get clustering results")
+        raise ValueError(f"No clustering method supported called {clustering}. set  clustering to 'kmeans' or 'spectral_net' to get clustering results")
         
 
     # Print 
@@ -886,9 +908,10 @@ def _extract_crf_segmentations(
     num_classes: int,
     output_dir: str,
     crf_params: Tuple,
+    features_dir: str,
     downsample_factor: int = 16,
 ):
-    index, (image_file, segmap_path) = inp
+    index, (image_file, segmap_path, feature_path) = inp
 
     # Output file
     id = Path(image_file).stem
@@ -902,8 +925,11 @@ def _extract_crf_segmentations(
     image = np.array(Image.open(image_file).convert('RGB'))  # (H_patch, W_patch, 3)
     segmap = np.array(Image.open(segmap_path))  # (H_patch, W_patch)
      
+    
     # Sizes
-    P = downsample_factor
+    data_dict = torch.load(feature_path, map_location='cpu')
+    P = data_dict['patch_size'] if downsample_factor is None else downsample_factor
+    print(f'CRF: using patch size {P}')
     H, W = image.shape[:2]
     H_patch, W_patch = H // P, W // P
     H_pad, W_pad = H_patch * P, W_patch * P
@@ -931,6 +957,7 @@ def extract_crf_segmentations(
     images_root: str,
     segmentations_dir: str,
     output_dir: str,
+    features_dir: str,
     num_classes: int = 21,
     downsample_factor: int = 16,
     multiprocessing: int = 0,
@@ -962,8 +989,8 @@ def extract_crf_segmentations(
 
     utils.make_output_dir(output_dir, check_if_empty=False)
     fn = partial(_extract_crf_segmentations, images_root=images_root, num_classes=num_classes, output_dir=output_dir,
-                 crf_params=(w1, alpha, beta, w2, gamma, it), downsample_factor=downsample_factor)
-    inputs = utils.get_paired_input_files(images_list, segmentations_dir)
+                 crf_params=(w1, alpha, beta, w2, gamma, it), downsample_factor=downsample_factor, features_dir = features_dir)
+    inputs = utils.get_triple_input_files(images_list, segmentations_dir, features_dir)
     print(f'Found {len(inputs)} images and segmaps')
     utils.parallel_process(inputs, fn, multiprocessing)
 

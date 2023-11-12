@@ -156,7 +156,8 @@ def pipeline(cfg: DictConfig) -> None:
             batch_size = cfg.loader.batch_size,
             model_checkpoint=cfg.model.checkpoint,
             only_dict = True if cfg.spectral_clustering.C_dino == 0.0 else False,
-            norm = cfg.norm
+            norm = cfg.norm,
+            inv = cfg.inv
         )
 
         # Visualize Dino Attention Maps
@@ -267,6 +268,7 @@ def pipeline(cfg: DictConfig) -> None:
             images_root = images_root,
             segmentations_dir = output_multi_region_seg,
             output_dir = output_crf_multi_region,
+            features_dir = output_feat_dir,
             num_classes =  cfg.multi_region_segmentation.non_adaptive_num_segments, #change to num_segments
             downsample_factor = cfg.crf.downsample_factor,
             multiprocessing = cfg.crf.multiprocessing,
@@ -381,6 +383,7 @@ def pipeline(cfg: DictConfig) -> None:
         images_root = images_root,
         segmentations_dir = output_segmaps if cfg.pipeline_steps.sem_segm else output_multi_region_seg,
         output_dir = output_crf_segmaps,
+        features_dir = output_feat_dir,
         num_classes =  cfg.crf.num_classes,
         downsample_factor = cfg.crf.downsample_factor,
         multiprocessing = cfg.crf.multiprocessing,

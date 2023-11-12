@@ -16,17 +16,18 @@ defaults:
 
 hydra:
   run:
-    dir: ./outputs/pipeline/${dataset.name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ./outputs/${dataset.name}/exp_${wandb.tag}/${now:%Y-%m-%d}/${now:%H-%M-%S}
 
 custom_path_to_save_data: ""
 
 only_vis: False
 only_eval: False
 
-preprocessed_data: True
+preprocessed_data: False
 norm: custom
 segments_num: 15
 clusters_num: 15
+inv: False
 
 spectral_clustering:
   K: ${segments_num}
