@@ -731,3 +731,60 @@ class EqualizeClahe(Module):
     def forward(self, input: Tensor) -> Tensor:
         # ref: https://kornia.readthedocs.io/en/latest/_modules/kornia/enhance/equalization.html#equalize_clahe
         return equalize_clahe(input, self.clip_limit, self.grid_size, self.slow_and_differentiable)
+
+def get_preprocessing_transform(filenames, images_root, gauss_blur, hist_eq, inv, norm, gauss_teta=0.05):
+    transform = transforms.ToTensor()
+    transform_dict = {
+        'gauss_blur': {},
+        'norm': {},
+    }
+
+    dataset_raw = ImagesDataset(filenames=filenames, images_root=images_root, transform=transforms.ToTensor())
+
+    if gauss_blur:
+        # detrmine a suitable Gaussian kernel size and sigma, as fraction of image size
+        sample, _, _ = dataset_raw[0]
+        c, h, w = sample.size() 
+        kernel_size = int (h * gauss_teta)
+        kernel_size = kernel_size-1 if kernel_size % 2 == 0 else kernel_size
+        sigma=(kernel_size-1)/6
+        transform = transforms.Compose([transform, transforms.GaussianBlur((kernel_size,kernel_size), sigma=(sigma, sigma))])
+        transform_dict['gauss_blur']['kernel_size']=kernel_size
+        transform_dict['gauss_blur']['sigma']=sigma
+
+    if hist_eq:
+        transform = transforms.Compose([transform, EqualizeClahe(grid_size = (2,2))])
+
+    if inv:
+        transform = transforms.Compose([transform, transforms.RandomInvert(p=1)])
+
+    if norm=='imagenet':
+        # use imagenet normalization
+        mean = torch.Tensor((0.485, 0.456, 0.406)) #TODO: check if to use a tensor here
+        std = torch.Tensor((0.229, 0.224, 0.225))
+        normalize = transforms.Normalize(mean, std)
+        transform = transforms.Compose([transform, normalize])
+        transform_dict['norm']['mean']=mean
+        transform_dict['norm']['std']=std
+    elif norm=='custom':
+        # calculate mean and std of your dataset
+        meanStdCalculator = OnlineMeanStd()
+        mean, std = meanStdCalculator(dataset_raw, batch_size=1000, method='strong')
+        normalize = transforms.Normalize(mean, std)
+        transform = transforms.Compose([transform, normalize])
+        transform_dict['norm']['mean']=mean
+        transform_dict['norm']['std']=std
+    elif norm=="custom_global": # from US_MIXED TRAIN dataset obtained offline using OnlineMeanStd() approach as above
+        mean = torch.Tensor([0.1067, 0.1067, 0.1067])
+        std = torch.Tensor([0.1523, 0.1523, 0.1523])
+        normalize = transforms.Normalize(mean, std)
+        transform = transforms.Compose([transform, normalize])
+        transform_dict['norm']['mean']=mean
+        transform_dict['norm']['std']=std
+    elif norm=='none':
+        transform = transform
+    else:
+        raise ValueError(norm)
+    
+    print(f'Transform parameters used (only if corresponding transform flag is True): {transform_dict}')
+    return transform, transform_dict

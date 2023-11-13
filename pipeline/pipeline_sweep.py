@@ -191,7 +191,7 @@ def pipeline(cfg):
             log.info("Dino features were selected. Set cfg['pipeline_steps']['dino_features'] to True")
             exit()
     else:
-        extract.extract_features(
+        im_transform_data = extract.extract_features(
             images_list = images_list,
             images_root = images_root,
             output_dir = output_feat_dir,
@@ -319,6 +319,7 @@ def pipeline(cfg):
             num_classes =  cfg['multi_region_segmentation']['non_adaptive_num_segments'], #change to num_segments
             downsample_factor = cfg['crf']['downsample_factor'],
             multiprocessing = cfg['crf']['multiprocessing'],
+            image_transform_data = im_transform_data,
             # CRF parameters
             w1 = cfg['crf']['w1'],
             alpha = cfg['crf']['alpha'],
@@ -373,7 +374,8 @@ def pipeline(cfg):
                 images_root = images_root,
                 bbox_file = output_bbox,
                 model_name = cfg['model']['name'],
-                output_file = output_bbox_features
+                output_file = output_bbox_features,
+                image_transform_data = im_transform_data
             )
 
 
@@ -436,6 +438,7 @@ def pipeline(cfg):
                         segmentations_dir = output_segmaps if cfg['pipeline_steps']['sem_segm'] else output_multi_region_seg,
                         output_dir = output_crf_segmaps,
                         features_dir = output_feat_dir,
+                        image_transform_data = im_transform_data,
                         num_classes =  cfg['crf']['num_classes'],
                         downsample_factor = cfg['crf']['downsample_factor'],
                         multiprocessing = cfg['crf']['multiprocessing'],
@@ -464,19 +467,19 @@ def pipeline(cfg):
     if cfg['pipeline_steps']['eval']:
         if cfg['sweep']['seg_for_eval'] == "crf_segmaps":
             log.info("EVALUATION (crf_segmaps)")
-            eval_results = evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_crf_segmaps,  tag="crf_segmaps")
+            eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, imaggt_dir=gt_dir, pred_dir=output_crf_segmaps,  tag="crf_segmaps")
         
         elif cfg['sweep']['seg_for_eval'] == "segmaps":
             log.info("EVALUATION (segmaps)")
-            eval_results = evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_segmaps,  tag="segmaps")
+            eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_segmaps,  tag="segmaps")
         
         elif cfg['sweep']['seg_for_eval'] == "multi_region":
             log.info("EVALUATION (multi_region)")
-            eval_results = evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_multi_region_seg, tag="multi_region")
+            eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_multi_region_seg, tag="multi_region")
         
         elif cfg['sweep']['seg_for_eval'] == "crf_multi_region":
             log.info("EVALUATION (crf_multi_region)")
-            eval_results = evaluate(cfg, dataset_dir=dataset_dir, gt_dir=gt_dir, pred_dir=output_crf_multi_region, tag="crf_multi_region")
+            eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_multi_region, tag="crf_multi_region")
         
         else:
             raise ValueError(f"Unknown seg type for evalutaion: {cfg['sweep']['seg_for_eval']}")
@@ -484,16 +487,29 @@ def pipeline(cfg):
         return eval_results
 
 # Evaluation
-def evaluate(cfg, dataset_dir, gt_dir="", pred_dir="", tag=""):
+def evaluate(cfg, dataset_dir, image_dir = "", gt_dir="", pred_dir="", tag=""):
 
     if cfg['eval']['eval_per_image']:
 
         # Configuration
         print(f'Current working directory: {os.getcwd()}')
 
-        # Evaluate
         # resize = transforms.Resize(cfg['dataset']['input_size'])
-        dataset = segm_eval.EvalDataset(dataset_dir, gt_dir, pred_dir, transform = None)
+
+        # Create a matching transform to the input
+        filenames = sorted(os.listdir(image_dir))
+        image_transforms=utils.get_preprocessing_transform(
+            filenames=filenames,
+            images_root=image_dir,
+            norm = cfg['norm'],
+            inv = cfg['inv'],
+            gauss_blur = cfg['gauss_blur'],
+            gauss_teta = cfg['gauss_teta'],
+            hist_eq = cfg['hist_eq'],
+            )
+
+        # Evaluate
+        dataset = segm_eval.EvalDataset(dataset_dir, gt_dir, pred_dir, transform = image_transforms)
         eval_stats, matches, corrected_matches, preds = segm_eval.evaluate_dataset_with_remapping(dataset, cfg['dataset']['n_classes'], cfg['eval']['iou_thresh'], cfg['eval']['void_label'])
         print("eval stats:", eval_stats)
         print("matches:", matches)

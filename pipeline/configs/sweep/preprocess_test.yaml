@@ -1,0 +1,29 @@
+name: preprocess_test_sweep
+seg_for_eval: multi_region
+method: bayes
+count: 1
+config:
+  norm:
+    values: ['custom_global']
+  preprocessed_data:
+    values: ['derained']
+  inv:
+    values: [True]
+  hist_eq:
+    values: [True]
+  gauss_blur:
+    values: [True]
+  pipeline_steps:
+    parameters:
+      bbox:
+        values: [False]
+      bbox_features:
+        values: [False]
+      clusters:
+        values: [False]
+      sem_segm:
+        values: [False]
+      crf_segm:
+        values: [False]
+      crf_multi_region:
+        values: [False]

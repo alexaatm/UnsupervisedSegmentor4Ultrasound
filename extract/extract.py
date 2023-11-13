@@ -1,6 +1,6 @@
 from functools import partial
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
 
 import cv2
 import fire
@@ -74,48 +74,17 @@ def extract_features(
     filenames = Path(images_list).read_text().splitlines()
 
     # Preprocessing 
-    transform = transforms.ToTensor()
+    transform, tr_dict = utils.get_preprocessing_transform(
+        filenames=filenames,
+        images_root=images_root,
+        gauss_blur=gauss_blur,
+        hist_eq=hist_eq,
+        inv=inv,
+        norm=norm,
+        gauss_teta=gauss_teta)
 
-    if gauss_blur:
-        # detrmine a suitable Gaussian kernel size and sigma, as fraction of image size
-        dataset_raw = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=transforms.ToTensor())
-        sample, _, _ = dataset_raw[0]
-        c, h, w = sample.size() 
-        kernel_size = int (h * gauss_teta)
-        kernel_size = kernel_size-1 if kernel_size % 2 == 0 else kernel_size
-        sigma=(kernel_size-1)/6
-        transform = transforms.Compose([transform, transforms.GaussianBlur((kernel_size,kernel_size), sigma=(sigma, sigma))])
-
-    if hist_eq:
-        transform = transforms.Compose([transform, utils.EqualizeClahe(grid_size = (2,2))])
-
-    if inv:
-        transform = transforms.Compose([transform, transforms.RandomInvert(p=1)])
-
-    if norm=='imagenet':
-        # use imagenet normalization
-        normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-        transform = transforms.Compose([transform, normalize])
-    elif norm=='custom':
-        # calculate mean and std of your dataset
-        dataset_raw = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=transforms.ToTensor())
-        meanStdCalculator = utils.OnlineMeanStd()
-        mean, std = meanStdCalculator(dataset_raw, batch_size=1000, method='strong')
-        normalize = transforms.Normalize(mean, std)
-        transform = transforms.Compose([transform, normalize])
-    elif norm=="custom_global": # from US_MIXED TRAIN dataset obtained offline using OnlineMeanStd() approach as above
-        mean = torch.tensor([0.1067, 0.1067, 0.1067])
-        std = torch.tensor([0.1523, 0.1523, 0.1523])
-        normalize = transforms.Normalize(mean, std)
-        transform = transforms.Compose([transform, normalize])
-    elif norm=='none':
-        transform = transform
-    else:
-        raise ValueError(norm)
-
+    # Datset and Dataloader
     dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=transform)
-
-
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, num_workers=0)
     print(f'Dataset size: {len(dataset)}')
     print(f'Dataloader size: {len(dataloader)}')
@@ -181,6 +150,9 @@ def extract_features(
         accelerator.wait_for_everyone()
     
     print(f'Saved features to {output_dir}')
+
+    # return found transform to not recalulate it every time, and not to pass its parameters to every function
+    return transform, tr_dict
 
 
 def _extract_eig(
@@ -746,6 +718,7 @@ def extract_bbox_features(
     bbox_file: str,
     model_name: str,
     output_file: str,
+    image_transform_data: Optional[Tuple[transforms.Compose, Dict]] = None,
 ):
     """
     Example:
@@ -783,7 +756,9 @@ def extract_bbox_features(
         bboxes = bbox_dict['bboxes_original_resolution']
         # Load image as tensor
         image_filename = str(Path(images_root) / f'{image_id}.png')
-        image = val_transform(Image.open(image_filename).convert('RGB'))  # (3, H, W)
+        # Apply same transform as for step 1 (extracting features)
+        tr, tr_dict = image_transform_data
+        image = tr(Image.open(image_filename).convert('RGB'))  # (3, H, W)
         image = image.unsqueeze(0).to(device)  # (1, 3, H, W)
         features_crops = []
         for (xmin, ymin, xmax, ymax) in bboxes:
@@ -932,7 +907,9 @@ def _extract_crf_segmentations(
     output_dir: str,
     crf_params: Tuple,
     features_dir: str,
-    downsample_factor: int = 16,
+    image_transform_data: Optional[Tuple[transforms.Compose, Dict]] = None,
+    downsample_factor: int = None,
+
 ):
     index, (image_file, segmap_path, feature_path) = inp
 
@@ -942,11 +919,32 @@ def _extract_crf_segmentations(
     if Path(output_file).is_file():
         print(f'Skipping existing file {str(output_file)}')
         return  # skip because already generated
-
-    # Load image and segmap
+        
+    # Load image and apply the same transforms as to the original image
     image_file = str(Path(images_root) / f'{id}.png')
-    image = np.array(Image.open(image_file).convert('RGB'))  # (H_patch, W_patch, 3)
+
+    # get the image transform
+    tr, tr_dict = image_transform_data
+    image = tr(Image.open(image_file).convert("RGB"))  # PIL Image: (H_patch, W_patch, 3)
+    image = image.permute(1, 2, 0)
+    # denormalize image to use in denseCRF (values need to be in range [0, 255])
+    if 'norm' in tr_dict:
+        if 'mean' in tr_dict['norm']:
+            mean = tr_dict['norm']['mean']
+            if 'std' in tr_dict['norm']:
+                std = tr_dict['norm']['std']
+                image = image * std + mean
+    image = image.detach()
+    if image.is_cuda:
+        image = image.cpu().numpy()
+    else:
+        image = image.numpy()
+    # bring to range 0..255
+    image = (image * 255).astype(np.uint8)
+    
+    # Load segmap
     segmap = np.array(Image.open(segmap_path))  # (H_patch, W_patch)
+    # TODO: apply transform to the crf image too!
      
     
     # Sizes
@@ -984,6 +982,7 @@ def extract_crf_segmentations(
     num_classes: int = 21,
     downsample_factor: int = 16,
     multiprocessing: int = 0,
+    image_transform_data: Optional[Tuple[transforms.Compose, Dict]] = None,
     # CRF parameters
     w1    = 10,    # weight of bilateral term  # default: 10.0,
     alpha = 80,    # spatial std  # default: 80,  
@@ -1012,7 +1011,7 @@ def extract_crf_segmentations(
 
     utils.make_output_dir(output_dir, check_if_empty=False)
     fn = partial(_extract_crf_segmentations, images_root=images_root, num_classes=num_classes, output_dir=output_dir,
-                 crf_params=(w1, alpha, beta, w2, gamma, it), downsample_factor=downsample_factor, features_dir = features_dir)
+                 crf_params=(w1, alpha, beta, w2, gamma, it), downsample_factor=downsample_factor, features_dir = features_dir, image_transform_data=image_transform_data)
     inputs = utils.get_triple_input_files(images_list, segmentations_dir, features_dir)
     print(f'Found {len(inputs)} images and segmaps')
     utils.parallel_process(inputs, fn, multiprocessing)

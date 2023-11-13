@@ -152,7 +152,7 @@ def pipeline(cfg: DictConfig) -> None:
             log.info("Dino features were selected. Set cfg.pipeline_steps.dino_features to True")
             exit()
     else:
-        extract.extract_features(
+        im_transform_data = extract.extract_features(
             images_list = images_list,
             images_root = images_root,
             output_dir = output_feat_dir,
@@ -279,6 +279,7 @@ def pipeline(cfg: DictConfig) -> None:
             num_classes =  cfg.multi_region_segmentation.non_adaptive_num_segments, #change to num_segments
             downsample_factor = cfg.crf.downsample_factor,
             multiprocessing = cfg.crf.multiprocessing,
+            image_transform_data = im_transform_data,
             # CRF parameters
             w1 = cfg.crf.w1,
             alpha = cfg.crf.alpha,
@@ -333,7 +334,8 @@ def pipeline(cfg: DictConfig) -> None:
                 images_root = images_root,
                 bbox_file = output_bbox,
                 model_name = cfg.model.name,
-                output_file = output_bbox_features
+                output_file = output_bbox_features,
+                image_transform_data = im_transform_data
             )
 
 
@@ -391,6 +393,7 @@ def pipeline(cfg: DictConfig) -> None:
         segmentations_dir = output_segmaps if cfg.pipeline_steps.sem_segm else output_multi_region_seg,
         output_dir = output_crf_segmaps,
         features_dir = output_feat_dir,
+        image_transform_data = im_transform_data,
         num_classes =  cfg.crf.num_classes,
         downsample_factor = cfg.crf.downsample_factor,
         multiprocessing = cfg.crf.multiprocessing,
