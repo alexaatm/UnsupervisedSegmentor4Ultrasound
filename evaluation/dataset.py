@@ -48,6 +48,7 @@ class EvalDataset(Dataset):
             else:
                 image = image.numpy()
             image = image.transpose(1, 2, 0)
+            # TODO: consider denormalizing image to ensure correct plotting (see extract_crf step of pipeline)
             print(f"EvalDataset: Image after numpy: {image.shape}")
             ground_truth = np.array(Image.open(gt_path).convert('L'))
             prediction = np.array(Image.open(pred_path).convert('L'))
