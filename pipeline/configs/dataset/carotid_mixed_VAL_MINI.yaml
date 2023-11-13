@@ -9,3 +9,4 @@ n_classes: 2
 n_clusters:
 features_dir:
 preprocessed_dir: preprocessed
+derained_dir: mpr_derained

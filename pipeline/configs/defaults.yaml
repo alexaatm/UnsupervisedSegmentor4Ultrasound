@@ -24,11 +24,17 @@ custom_path_to_save_data: ""
 only_vis: False
 only_eval: False
 
-preprocessed_data: False
+# data preprocessing -> TODO: move to a spearate config dir
+preprocessed_data: null
 norm: imagenet
+inv: False
+hist_eq: False
+gauss_blur: False
+gauss_teta: 0.05
+
+
 segments_num: 15
 clusters_num: 15
-inv: False
 
 spectral_clustering:
   K: ${segments_num}

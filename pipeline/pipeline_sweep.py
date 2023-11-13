@@ -97,8 +97,10 @@ def pipeline(cfg):
         dataset_dir = os.path.join(main_data_dir, cfg['dataset']['dataset_root'])
         if cfg['dataset']['gt_dir'] is not None:
             gt_dir = os.path.join(main_data_dir, cfg['dataset']['dataset_root'],cfg['dataset']['gt_dir'])
-        if cfg['preprocessed_data']:
+        if cfg['preprocessed_data']=="mixed":
             images_root = os.path.join(main_data_dir, cfg['dataset']['dataset_root'], cfg['dataset']['preprocessed_dir'])
+        elif cfg['preprocessed_data']=="derained":
+            images_root = os.path.join(main_data_dir, cfg['dataset']['dataset_root'], cfg['dataset']['derained_dir'])
         else:
             images_root = os.path.join(main_data_dir, cfg['dataset']['dataset_root'], cfg['dataset']['images_root'])
 
@@ -107,8 +109,11 @@ def pipeline(cfg):
         dataset_dir = os.path.join(main_data_dir, cfg['dataset']['name'])
         if cfg['dataset']['gt_dir'] is not None:
             gt_dir = os.path.join(main_data_dir, cfg['dataset']['name'],cfg['dataset']['gt_dir'])
-        if cfg['preprocessed_data']:
+        if cfg['preprocessed_data']=="mixed":
             images_root = os.path.join(main_data_dir, cfg['dataset']['name'], cfg['dataset']['preprocessed_dir'])
+        elif cfg['preprocessed_data']=="derained":
+            images_root = os.path.join(main_data_dir, cfg['dataset']['dataset_root'], cfg['dataset']['derained_dir'])
+        
         else:
             images_root = os.path.join(main_data_dir, cfg['dataset']['name'], cfg['dataset']['images_root'])
 
@@ -195,7 +200,10 @@ def pipeline(cfg):
             model_checkpoint=cfg['model']['checkpoint'],
             only_dict = True if cfg['spectral_clustering']['C_dino'] == 0.0 else False,
             norm = cfg['norm'],
-            inv = cfg['inv']
+            inv = cfg['inv'],
+            gauss_blur = cfg['gauss_blur'],
+            gauss_teta = cfg['gauss_teta'],
+            hist_eq = cfg['hist_eq'],
         )
 
         # Visualize Dino Attention Maps

@@ -33,6 +33,9 @@ def extract_features(
     only_dict: bool = False,
     norm: str = 'imagenet',
     inv: bool = False,
+    gauss_blur: bool = False,
+    hist_eq: bool = False,
+    gauss_teta: float = 0.05,
     # input_size: int = 480,
 ):
     """
@@ -69,26 +72,46 @@ def extract_features(
 
     # Dataset
     filenames = Path(images_list).read_text().splitlines()
-    # transform = transforms.Compose([transforms.Resize(input_size), val_transform])
-    
-    # Transform
+
+    # Preprocessing 
+    transform = transforms.ToTensor()
+
+    if gauss_blur:
+        # detrmine a suitable Gaussian kernel size and sigma, as fraction of image size
+        dataset_raw = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=transforms.ToTensor())
+        sample, _, _ = dataset_raw[0]
+        c, h, w = sample.size() 
+        kernel_size = int (h * gauss_teta)
+        kernel_size = kernel_size-1 if kernel_size % 2 == 0 else kernel_size
+        sigma=(kernel_size-1)/6
+        transform = transforms.Compose([transform, transforms.GaussianBlur((kernel_size,kernel_size), sigma=(sigma, sigma))])
+
+    if hist_eq:
+        transform = transforms.Compose([transform, utils.EqualizeClahe(grid_size = (2,2))])
+
+    if inv:
+        transform = transforms.Compose([transform, transforms.RandomInvert(p=1)])
+
     if norm=='imagenet':
         # use imagenet normalization
-        transform = val_transform
+        normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+        transform = transforms.Compose([transform, normalize])
     elif norm=='custom':
         # calculate mean and std of your dataset
         dataset_raw = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=transforms.ToTensor())
         meanStdCalculator = utils.OnlineMeanStd()
-        mean, std = meanStdCalculator(dataset_raw, batch_size=100, method='strong')
+        mean, std = meanStdCalculator(dataset_raw, batch_size=1000, method='strong')
         normalize = transforms.Normalize(mean, std)
-        transform = transforms.Compose([transforms.ToTensor(), normalize])
+        transform = transforms.Compose([transform, normalize])
+    elif norm=="custom_global": # from US_MIXED TRAIN dataset obtained offline using OnlineMeanStd() approach as above
+        mean = torch.tensor([0.1067, 0.1067, 0.1067])
+        std = torch.tensor([0.1523, 0.1523, 0.1523])
+        normalize = transforms.Normalize(mean, std)
+        transform = transforms.Compose([transform, normalize])
     elif norm=='none':
-        transform = transforms.Compose([transforms.ToTensor()])
+        transform = transform
     else:
         raise ValueError(norm)
-    
-    if inv:
-        transform = transforms.Compose([transform, transforms.RandomInvert(p=1)])
 
     dataset = utils.ImagesDataset(filenames=filenames, images_root=images_root, transform=transform)
 
