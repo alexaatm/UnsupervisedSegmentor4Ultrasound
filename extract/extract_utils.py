@@ -704,4 +704,30 @@ def sam_metric(im1,im2):
     # https://www.csr.utexas.edu/projects/rs/hrs/analysis.html
     return sam(im1,im2)
 
-    
+from torch.nn import Module
+from torch import Tensor
+from typing import Callable, Tuple
+from kornia.enhance import equalize_clahe
+
+class EqualizeClahe(Module):
+    def __init__(self, 
+                clip_limit: float = 40.0,
+                grid_size: Tuple[int, int] = (8, 8),
+                slow_and_differentiable: bool = False
+                 ) -> None:
+        super().__init__()
+        self.clip_limit = clip_limit
+        self.grid_size = grid_size
+        self.slow_and_differentiable = slow_and_differentiable
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}"
+            f"(clip_limit={self.clip_limit}, "
+            f"grid_size={self.grid_size}, "
+            f"slow_and_differentiable={self.slow_and_differentiable})"
+        )
+
+    def forward(self, input: Tensor) -> Tensor:
+        # ref: https://kornia.readthedocs.io/en/latest/_modules/kornia/enhance/equalization.html#equalize_clahe
+        return equalize_clahe(input, self.clip_limit, self.grid_size, self.slow_and_differentiable)
