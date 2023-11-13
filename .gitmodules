@@ -4,3 +4,6 @@
 [submodule "CutLER"]
     path = CutLER
     url = git@github.com:alexaatm/CutLER.git
+[submodule "data_preprocessing/denoise/MPRNet"]
+	path = data_preprocessing/denoise/MPRNet
+	url = git@github.com:swz30/MPRNet.git
