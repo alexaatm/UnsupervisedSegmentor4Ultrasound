@@ -10,9 +10,9 @@ from torchvision import transforms
 
 
 class EvalDataset(Dataset):
-    def __init__(self, root_dir, gt_dir = "", pred_dir = "", check_size=True, transform: object = None):
+    def __init__(self, root_dir, gt_dir = "", pred_dir = "", check_size=True, transform: object = None, image_dir = ""):
         self.root_dir = root_dir
-        self.image_dir = os.path.join(root_dir, 'images')
+        self.image_dir = image_dir if image_dir!="" else os.path.join(root_dir, 'images')
         self.gt_dir = gt_dir if gt_dir!="" else os.path.join(root_dir, 'ground_truth')
         self.pred_dir = pred_dir if pred_dir!="" else os.path.join(root_dir, 'predictions')
         self.image_list = os.listdir(self.image_dir)
@@ -40,9 +40,17 @@ class EvalDataset(Dataset):
         # assert(os.path.isfile(gt_path))
 
         if self.transform is not None:
-            image = np.array(self.transform(Image.open(img_path).convert("RGB")))
-            ground_truth = np.array(self.transform(Image.open(gt_path).convert('L')))
-            prediction = np.array(self.transform(Image.open(pred_path).convert('L')))
+            image = self.transform(Image.open(img_path).convert("RGB"))
+            print(f"EvalDataset: Image after transforms: {image.size()}")
+            image = image.detach()
+            if image.is_cuda:
+                image = image.cpu().numpy()
+            else:
+                image = image.numpy()
+            image = image.transpose(1, 2, 0)
+            print(f"EvalDataset: Image after numpy: {image.shape}")
+            ground_truth = np.array(Image.open(gt_path).convert('L'))
+            prediction = np.array(Image.open(pred_path).convert('L'))
         else:
             image = np.array(Image.open(img_path).convert("RGB"))
             ground_truth = np.array(Image.open(gt_path).convert('L'))
