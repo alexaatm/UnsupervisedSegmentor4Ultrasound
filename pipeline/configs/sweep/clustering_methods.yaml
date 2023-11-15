@@ -1,0 +1,21 @@
+name: clustering_methods
+seg_for_eval: crf_segmaps
+method: grid
+count: null
+config:
+  bbox:
+    parameters:
+      clustering:
+        values: ['spectral_net', 'kmeans', 'spectral_clustering', 'optics']
+      should_use_siamese:
+        values: [True]
+      should_use_ae:
+        values: [True]
+      is_sparse_graph:
+        values: [False]
+      spectral_n_nbg:
+        values: [48]
+  segments_num:
+    values: [19]
+  clusters_num:
+    values: [6]

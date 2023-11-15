@@ -16,6 +16,8 @@ from torchvision.utils import draw_bounding_boxes
 from tqdm import tqdm
 from torchvision import transforms
 from spectralnet import SpectralNet
+from sklearn.cluster import OPTICS
+from sklearn.cluster import SpectralClustering
 
 # import extract_utils as utils
 from extract import extract_utils as utils
@@ -833,6 +835,21 @@ def extract_bbox_clusters(
                                 spectral_n_nbg = spectral_n_nbg)
         spectralnet.fit(all_features_norm)
         clusters = spectralnet.predict(all_features_norm)
+    elif clustering == "spectral_clustering":
+        print(f'Computing Spectral Clustering with {num_clusters} clusters')
+        spectral_clusterer = SpectralClustering(n_clusters=num_clusters,assign_labels='cluster_qr', random_state=seed, affinity = 'rbf')
+        print(spectral_clusterer)
+        clusters = spectral_clusterer.fit(all_features_norm_numpy)
+        clusters = clusters.labels_
+    elif clustering == "optics":
+        print(f'Computing Optics (sklearn) with {num_clusters} clusters')
+        dataset_size = len(bbox_list) #approximate, because not all images might end up having bounxing boxes? TODO: check
+        # min_samples_per_cluster = dataset_size//2 #every class is assumed to be present at elast in half of the images
+        min_samples_per_cluster = total_num_boxes//num_clusters # each image assumed to have segments of each class
+        optics_clusterer = OPTICS(min_samples=min_samples_per_cluster, metric='cosine')
+        # print(optics_clusterer)
+        clusters = optics_clusterer.fit(all_features_norm_numpy)
+        clusters = clusters.labels_
     else:
         raise ValueError(f"No clustering method supported called {clustering}. set  clustering to 'kmeans' or 'spectral_net' to get clustering results")
         
