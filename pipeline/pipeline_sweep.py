@@ -33,6 +33,24 @@ def pipeline(cfg):
     # cfg - wandb config
     log.info("Starting the pipeline...")
 
+    # Set the sweep parameters that have to be the same
+    log.info("STEP 0: SWEEP configiration")
+    cfg['spectral_clustering']['K'] = cfg['segments_num']
+    cfg['multi_region_segmentation']['non_adaptive_num_segments'] = cfg['segments_num']
+    cfg['bbox']['num_clusters'] = cfg['clusters_num']
+    cfg['crf']['num_classes'] = cfg['clusters_num']
+
+    assert(cfg['multi_region_segmentation']['non_adaptive_num_segments'] == cfg['spectral_clustering']['K'])
+    assert(cfg['crf']['num_classes'] == cfg['bbox']['num_clusters'])
+
+    log.info(f"cfg['segments_num']={cfg['segments_num']}")
+    log.info(f"cfg['clusters_num']={cfg['clusters_num']}")
+    log.info(f"cfg['multi_region_segmentation']['non_adaptive_num_segments']={cfg['multi_region_segmentation']['non_adaptive_num_segments']}")
+    log.info(f"cfg['spectral_clustering']['K']={cfg['spectral_clustering']['K']}")
+    log.info(f"cfg['crf']['num_classes']={cfg['crf']['num_classes']}")
+    log.info(f"cfg['bbox']['num_clusters']={cfg['bbox']['num_clusters']}")
+
+
     # Set the directories
     if cfg['wandb']['mode']=='server':
         # use polyaxon paths
@@ -167,18 +185,6 @@ def pipeline(cfg):
     log.info(f'output_segmaps={output_segmaps}')
     log.info(f'output_crf_segmaps={output_crf_segmaps}')
     log.info(f'output_crf_multi_region={output_crf_multi_region}')
-
-    # Set the sweep parameters that have to be the same
-    log.info("STEP 0: SWEEP configiration")
-    log.info(f"cfg['segments_num']={cfg['segments_num']}")
-    log.info(f"cfg['clusters_num']={cfg['clusters_num']}")
-    cfg['spectral_clustering']['K'] = cfg['segments_num']
-    cfg['multi_region_segmentation']['non_adaptive_num_segments'] = cfg['segments_num']
-    cfg['bbox']['num_clusters'] = cfg['clusters_num']
-    cfg['crf']['num_classes'] = cfg['clusters_num']
-
-    assert(cfg['multi_region_segmentation']['non_adaptive_num_segments'] == cfg['spectral_clustering']['K'])
-    assert(cfg['crf']['num_classes'] == cfg['bbox']['num_clusters'])
     
 
     # Extract Features
@@ -467,7 +473,7 @@ def pipeline(cfg):
     if cfg['pipeline_steps']['eval']:
         if cfg['sweep']['seg_for_eval'] == "crf_segmaps":
             log.info("EVALUATION (crf_segmaps)")
-            eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, imaggt_dir=gt_dir, pred_dir=output_crf_segmaps,  tag="crf_segmaps")
+            eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_segmaps,  tag="crf_segmaps")
         
         elif cfg['sweep']['seg_for_eval'] == "segmaps":
             log.info("EVALUATION (segmaps)")
@@ -498,7 +504,7 @@ def evaluate(cfg, dataset_dir, image_dir = "", gt_dir="", pred_dir="", tag=""):
 
         # Create a matching transform to the input
         filenames = sorted(os.listdir(image_dir))
-        image_transforms=utils.get_preprocessing_transform(
+        image_transforms, tr_dict =utils.get_preprocessing_transform(
             filenames=filenames,
             images_root=image_dir,
             norm = cfg['norm'],
