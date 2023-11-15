@@ -54,6 +54,7 @@ def extract_features(
     utils.make_output_dir(output_dir, check_if_empty=False)
 
     # Models
+    print(f'Loading a model {model_name}...')
     model_name = model_name.lower()
 
     if model_checkpoint=="":
@@ -62,6 +63,7 @@ def extract_features(
         model, val_transform, patch_size,  num_heads = utils.get_model_from_checkpoint(model_name, model_checkpoint, just_backbone=True)
     
     # Add hook
+    print('Adding a hook...')
     if 'dino' in model_name or 'mocov3' in model_name:
         feat_out = {}
         def hook_fn_forward_qkv(module, input, output):
@@ -74,6 +76,7 @@ def extract_features(
     filenames = Path(images_list).read_text().splitlines()
 
     # Preprocessing 
+    print('Getting a preprocessing transform...')
     transform, tr_dict = utils.get_preprocessing_transform(
         filenames=filenames,
         images_root=images_root,
