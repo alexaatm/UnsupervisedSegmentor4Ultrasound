@@ -754,6 +754,9 @@ def extract_bbox_features(
     model.eval()
     model = model.to(device)
 
+    # Transforms
+    tr, tr_dict = image_transform_data
+
     # Loop over boxes
     for bbox_dict in tqdm(bbox_list):
         # Get image info
@@ -762,7 +765,6 @@ def extract_bbox_features(
         # Load image as tensor
         image_filename = str(Path(images_root) / f'{image_id}.png')
         # Apply same transform as for step 1 (extracting features)
-        tr, tr_dict = image_transform_data
         image = tr(Image.open(image_filename).convert('RGB'))  # (3, H, W)
         image = image.unsqueeze(0).to(device)  # (1, 3, H, W)
         features_crops = []
