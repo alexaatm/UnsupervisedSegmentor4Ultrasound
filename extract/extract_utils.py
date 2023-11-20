@@ -17,6 +17,9 @@ import random
 import os
 import pytorch_lightning as pl
 
+from extract import MutualInformation as mi
+
+MI = mi.MutualInformation(num_bins=256, sigma=0.1, normalize=True).to('cuda')
 
 class ImagesDataset(Dataset):
     """A very simple dataset for loading images."""
@@ -601,6 +604,138 @@ def patchwise_affinity(image, similarity_measure, patch_size, beta=5.0):
     # Calculate the affinity matrix using the Gaussian Kernel
     affinity_matrix = np.exp(-beta * pairwise_sims)
     return affinity_matrix
+
+from joblib import Parallel, delayed
+
+def parallel_similarity(p1, patches, similarity_measure):
+    return [similarity_measure(p1, p2) for p2 in patches]
+
+def patchwise_affinity_parallel(image, similarity_measure, patch_size, beta=5.0):
+    print("Using parallel computation for comparing patches")
+    patches = reshape_split_gr(image, patch_size)
+
+    n_patches = len(patches)
+
+    # Parallelize the computation of pairwise similarities
+    pairwise_sims = Parallel(n_jobs=-1)(delayed(parallel_similarity)(p1, patches, similarity_measure) for p1 in patches)
+
+    # Convert the list of lists to a NumPy array
+    pairwise_sims = np.array(pairwise_sims)
+
+    # Reshape the 2D array of pairwise similarities into a square affinity matrix
+    pairwise_sims = pairwise_sims.reshape(n_patches, n_patches)
+
+    # Calculate the affinity matrix using the Gaussian Kernel
+    affinity_matrix = np.exp(-beta * pairwise_sims)
+    return affinity_matrix
+
+
+import torch
+import torch.nn.functional as F
+from torchvision import transforms
+
+def mi_distance(im1, im2):
+    # im1 and im2 are tensors of shapes B, C, H, W
+    # MI - is a nn.Module implementing Mutual Infromation similarity
+    # Pytorch implementation, credits go to the respective authors: 
+    # https://github.com/connorlee77/pytorch-mutual-information/blob/master/MutualInformation.py
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # MI = mi.MutualInformation(num_bins=256, sigma=0.1, normalize=True).to('cuda')
+    return 1 - MI(im1, im2)
+
+
+def patchwise_affinity_pytorch(image, distance_measure, patch_size, beta=5.0, device='cuda', batch_size = 1024):
+    """
+    Computes an affinity matrix for patches of a single image using a pytorch implementation of MI metric.
+
+    Args:
+    - image (numpy.ndarray): The input image.
+    - similarity_measure: a function taking two images, return a single value for the similarity score
+    - patch_size (tuple): The size of the image patches.
+    - beta (float): Parameter for the affinity computation.
+    - device (str): 'cuda' for GPU or 'cpu' for CPU.
+
+    Returns:
+    - affinity_matrix (numpy.ndarray): The computed affinity matrix.
+    """
+    # Convert the image to a PyTorch tensor and move it to the specified device
+    image_tensor = transforms.ToTensor()(image).unsqueeze(dim=0).to(device)
+    print(f'image_tensor.shape = {image_tensor.shape}')
+
+    # Extract patches using PyTorch functions
+    # unfold(dimension, size, step), we need dim 2 and 3, since 0 is batch, 1 is channel
+    patches = image_tensor.unfold(dimension=2, size=patch_size, step=patch_size)
+    patches = patches.unfold(dimension=3, size=patch_size, step=patch_size) # B, C, numpatchesH, numpacthesW, H, W
+    patches = patches.permute(0, 2, 3, 1, 4, 5)  # B, numpatchesH, numpacthesW, C, H, W
+    patches = patches.reshape(patches.size(0), -1, patches.size(-3), patches.size(-2), patches.size(-1))
+    patches = patches.view(-1, patches.size(-3), patches.size(-2), patches.size(-1))  # B * total_numpatches, C, H, W
+    print(f'reshaped patches.shape = {patches.shape}')
+
+    n_patches = patches.size(0) #Npatches is the 0 dimension (we know B=1)
+    print(f'num_patches = {n_patches}')
+
+    # batchsize
+    print(f'batch_size = {batch_size}')
+    # MI = mi.MutualInformation(num_bins=256, sigma=0.1, normalize=True).to(device)
+
+    pairwise_sims_all = []
+
+    for i in range(n_patches):
+        # print(f'i={i}, patch.size={patches[i].size()}')
+
+        #input1 - just repeated current patch
+        input1 = patches[i].repeat(n_patches, 1, 1, 1)
+        # input2 - all patches current patch should be compared with
+        input2 = patches
+
+        pairwise_sims_single_patch = []
+
+        # process comparisons in batches
+        for j in range(i, n_patches, batch_size):
+            end_idx = min(j + batch_size, n_patches)
+            # print(f"j={j}, end_idx={end_idx}")
+            input1_batch = input1[j:end_idx, :]
+            input2_batch = input2[j:end_idx, :]
+
+            # compute distances between patches in a single batch
+            pairwise_sims_batch = distance_measure(input1_batch, input2_batch)
+            pairwise_sims_single_patch.append(pairwise_sims_batch)
+
+        # put together results from all batches (comparisons for a single patch)
+        pairwise_sims_single_patch = torch.cat(pairwise_sims_single_patch, dim=0)
+        # print(f'pairwise_sims_single_patch.shape={pairwise_sims_single_patch.shape}')
+        pairwise_sims_all.append(pairwise_sims_single_patch)
+
+    # Calculate the maximum number of elements in a row
+    max_elements = max(len(row) for row in pairwise_sims_all)
+    # print(f"max_elements={max_elements}")
+    # Pad each row with zeros to match the maximum number of elements
+    pairwise_sims_all_padded = [row if i == 0 else F.pad(row, (max_elements - len(row), 0)) for i, row in enumerate(pairwise_sims_all)]
+    # Concatenate the padded rows and reshape into a square matrix
+    pairwise_sims_all_padded = torch.cat(pairwise_sims_all_padded, dim=0).view(n_patches,n_patches)
+    # print(f"after concatenation pairwise_sims_all_padded.shape={pairwise_sims_all_padded.shape}")
+    # Mirror the upper tringular part
+    mirrored_sims = torch.triu(pairwise_sims_all_padded, diagonal=1).transpose(1, 0)
+    pairwise_sims_all_padded = torch.triu(pairwise_sims_all_padded, diagonal=1) + mirrored_sims
+    # print(f"after mirroring pairwise_sims_all_padded.shape={pairwise_sims_all_padded.shape}")
+    # Fill the diagonal with appropriate values
+    diag_values = distance_measure(patches, patches).view(-1)
+    pairwise_sims_all_padded[range(n_patches), range(n_patches)] = diag_values
+    print(diag_values)
+    # print(f'after adding diagnoal pairwise_sims_all_padded.shape={pairwise_sims_all_padded.shape}')
+
+    # Calculate the affinity matrix using the Gaussian Kernel
+    affinity_matrix = torch.exp(-beta * pairwise_sims_all_padded)
+
+    # Convert the PyTorch tensor to a NumPy array
+    affinity_matrix_numpy = affinity_matrix.cpu().numpy()
+
+    return affinity_matrix_numpy
+
+
+def ssd_pytorch(tensor1, tensor2):
+    # tensor1 and tensor2 are tensors of shapes B, C, H, W
+    return ((tensor1 - tensor2) ** 2).sum(dim=(1, 2, 3))
 
 def ssd(im1, im2):
     return np.sum((im1-im2)**2)

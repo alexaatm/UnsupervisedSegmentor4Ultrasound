@@ -295,10 +295,10 @@ def _extract_eig(
             image_file = str(Path(images_root) / f'{image_id}.png')
             image_raw = Image.open(image_file)
             # TODO: image = image_resized[:W_pad, :H_pad]
-            image_lr = image_raw.resize((W_pad, H_pad), Image.BILINEAR) # NOTE: in PIL image shpae is (w, h) while in NP its (h, w)
-            image_gr=np.array(image_lr.convert('L')) / 255.
-            image_gr_uint=np.array(image_lr.convert('L'))
-            image_lr=np.array(image_lr.convert('RGB')) / 255.
+            image_lr_raw = image_raw.resize((W_pad, H_pad), Image.BILINEAR) # NOTE: in PIL image shpae is (w, h) while in NP its (h, w)
+            image_gr=np.array(image_lr_raw.convert('L')) / 255.
+            image_gr_uint=np.array(image_lr_raw.convert('L'))
+            image_lr=np.array(image_lr_raw.convert('RGB')) / 255.
 
             print(f"DEBUG2: extract.py : _extract_eig: image_raw.shape={image_raw.size}, (image_lr.shape)={(image_lr.shape)}")
 
@@ -365,7 +365,7 @@ def _extract_eig(
 
         if C_mi > 0:
             # Mutual Information distance based patch-wise affinity matrix
-            W_mi = utils.patchwise_affinity(image_gr_uint, utils.mutual_info_distance, patch_size_tuple, beta=aff_sigma)
+            W_mi = utils.patchwise_affinity_pytorch(image_lr_raw, distance_measure=utils.mi_distance, patch_size=patch_size, beta=aff_sigma)
             if (W_mi.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
                 W_mi = utils.interpolate_2Darray(W_mi, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
         else:
@@ -373,7 +373,7 @@ def _extract_eig(
 
         if C_ssd > 0:
             # SSD distance based patch-wise affinity matrix (using patchwise_affinity instead of SSD knn patchwise - no distance weights used.)
-            W_ssd = utils.patchwise_affinity(image_gr, utils.ssd, patch_size_tuple, beta=aff_sigma)
+            W_ssd = utils.patchwise_affinity_pytorch(image_lr_raw, distance_measure=utils.ssd_pytorch, patch_size=patch_size, beta=aff_sigma)
             if (W_ssd.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
                 W_ssd = utils.interpolate_2Darray(W_ssd, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
         else:
