@@ -944,29 +944,29 @@ def _extract_crf_segmentations(
         
     # Load image and apply the same transforms as to the original image
     image_file = str(Path(images_root) / f'{id}.png')
+    image = np.array(Image.open(image_file).convert("RGB"))  # PIL Image: (H_patch, W_patch, 3)
 
     # get the image transform
-    tr, tr_dict = image_transform_data
-    image = tr(Image.open(image_file).convert("RGB"))  # PIL Image: (H_patch, W_patch, 3)
-    image = image.permute(1, 2, 0)
+    # tr, tr_dict = image_transform_data
+    # image = tr(Image.open(image_file).convert("RGB"))  # PIL Image: (H_patch, W_patch, 3)
+    # image = image.permute(1, 2, 0)
     # denormalize image to use in denseCRF (values need to be in range [0, 255])
-    if 'norm' in tr_dict:
-        if 'mean' in tr_dict['norm']:
-            mean = tr_dict['norm']['mean']
-            if 'std' in tr_dict['norm']:
-                std = tr_dict['norm']['std']
-                image = image * std + mean
-    image = image.detach()
-    if image.is_cuda:
-        image = image.cpu().numpy()
-    else:
-        image = image.numpy()
+    # if 'norm' in tr_dict:
+        # if 'mean' in tr_dict['norm']:
+            # mean = tr_dict['norm']['mean']
+            # if 'std' in tr_dict['norm']:
+                # std = tr_dict['norm']['std']
+                # image = image * std + mean
+    # image = image.detach()
+    # if image.is_cuda:
+        # image = image.cpu().numpy()
+    # else:
+        # image = image.numpy()
     # bring to range 0..255
-    image = (image * 255).astype(np.uint8)
+    # image = (image * 255).astype(np.uint8)
     
     # Load segmap
     segmap = np.array(Image.open(segmap_path))  # (H_patch, W_patch)
-    # TODO: apply transform to the crf image too!
      
     
     # Sizes
