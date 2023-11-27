@@ -26,7 +26,10 @@ from model import get_model
 def main(cfg: DictConfig):
 
     # Accelerator
-    accelerator = Accelerator(fp16=cfg.fp16, cpu=cfg.cpu)
+    if cfg.fp16:
+        accelerator = Accelerator(cpu=cfg.cpu, mixed_precision="fp16")
+    else:
+        accelerator = Accelerator(cpu=cfg.cpu)
 
     # Logging
     utils.setup_distributed_print(accelerator.is_local_main_process)
@@ -68,11 +71,12 @@ def main(cfg: DictConfig):
 
     # Data
     dataset_train, dataset_val, collate_fn = get_datasets(cfg)
-    dataloader_train = DataLoader(dataset_train, shuffle=True, drop_last=True, 
+    dataloader_train = DataLoader(dataset_train, shuffle=True, drop_last=False, 
         collate_fn=collate_fn, **cfg.data.loader)
     dataloader_val = DataLoader(dataset_val, shuffle=False, drop_last=False, 
         collate_fn=collate_fn, **{**cfg.data.loader, 'batch_size': 1})
     total_batch_size = cfg.data.loader.batch_size * accelerator.num_processes * cfg.gradient_accumulation_steps
+
 
     # SyncBatchNorm
     if accelerator.num_processes > 1:
@@ -234,7 +238,8 @@ def train_one_epoch(
         # Logging
         log_dict = dict(
             lr=optimizer.param_groups[0]["lr"], step=train_state.step,
-            train_loss=loss_value, sup_loss=sup_loss, con_loss=con_loss,
+            train_loss=loss_value, 
+            # sup_loss=sup_loss, con_loss=con_loss,
             train_top1=acc1[0], train_top5=acc5[0],
         )
         metric_logger.update(**log_dict)
@@ -285,19 +290,34 @@ def evaluate(
     # Check
     assert dataloader_val.batch_size == 1, 'Please use batch_size=1 for val to compute mIoU'
 
+    # get image size of the 0th data sample from the 0th batch
+    dataloader_iterator = iter(dataloader_val)
+    data = next(dataloader_iterator)
+    inputs, targets, mask, metadata = data
+    max_image_height, max_image_width = metadata[0]['shape']    
+
     # Load all pixel embeddings
-    all_preds = np.zeros((len(dataloader_val) * 500 * 500), dtype=np.float32)
-    all_gt = np.zeros((len(dataloader_val) * 500 * 500), dtype=np.float32)
+    all_preds = np.zeros((len(dataloader_val) * max_image_height * max_image_width), dtype=np.float32)
+    all_gt = np.zeros((len(dataloader_val) * max_image_height * max_image_width), dtype=np.float32)
     offset_ = 0
 
     # Add all pixels to our arrays
     with eval_context():
         for (inputs, targets, mask, _) in tqdm(dataloader_val, desc='Concatenating all predictions'):
-            
+            # check inputs axes
+            # print(f"inputs.shape={inputs.shape}")
+            # Permute axes to match expected order
+            # inputs = inputs.permute(0, 3, 1, 2)
+            # print(f"AFTER inputs.shape={inputs.shape}")
+
+
             # Predict
             if evaluate_dataset_pseudolabels:
                 mask = mask
             else:
+                if inputs.shape[1]!=3:
+                    # print('permuting inputs to have a shape B,C,H,W')
+                    inputs=inputs.permute(0, 3, 1, 2).float()
                 logits = model(inputs.to(accelerator.device).contiguous()).squeeze(0)  # (C, H, W)
                 mask = torch.argmax(logits, dim=0)  # (H, W)
             
