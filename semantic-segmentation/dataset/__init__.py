@@ -5,6 +5,8 @@ from torch.utils.data._utils.collate import default_collate
 
 from .voc import VOCSegmentationWithPseudolabels
 
+from .custom_dataset import CustomDataset
+
 
 def get_transforms(resize_size, crop_size, img_mean, img_std):
     
@@ -39,7 +41,7 @@ def collate_fn(batch):
     return (*default_collate(everything_but_metadata), metadata)
 
 
-def get_datasets(cfg):
+def get_datasets_voc(cfg):
 
     # Get transforms
     train_transforms_tuple, val_transform = get_transforms(**cfg.data.transform)
@@ -63,6 +65,40 @@ def get_datasets(cfg):
     dataset_val = VOCSegmentationWithPseudolabels(
         **cfg.data.val_kwargs, 
         segments_dir=cfg.segments_dir,
+        transform=val_transform,
+        label_map=matching
+    )
+
+    return dataset_train, dataset_val, collate_fn
+
+def get_datasets(cfg):
+
+    # Get transforms
+    train_transforms_tuple, val_transform = get_transforms(**cfg.data.transform)
+
+    # Get the label map
+    if cfg.matching:
+        matching = dict(eval(str(cfg.matching)))
+        print(f'Using matching: {matching}')
+    else:
+        matching = None
+
+    # Training dataset
+    dataset_train = CustomDataset(
+        root_dir = cfg.data.train_dataset.root_dir,
+        gt_dir = cfg.data.train_dataset.gt_dir,
+        pred_dir = cfg.segments_dir,
+        image_dir = cfg.data.train_dataset.image_dir,
+        transform=train_transforms_tuple,
+        label_map=matching
+    )
+
+    # Validation dataset
+    dataset_val = CustomDataset(
+        root_dir = cfg.data.val_dataset.root_dir,
+        gt_dir = cfg.data.val_dataset.gt_dir,
+        pred_dir = cfg.segments_dir,
+        image_dir = cfg.data.val_dataset.image_dir,
         transform=val_transform,
         label_map=matching
     )
