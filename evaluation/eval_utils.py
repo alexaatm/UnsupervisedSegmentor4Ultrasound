@@ -1,7 +1,7 @@
 """
 Utility functions for evaluating the segmentation.
-Source: https://github.com/lukemelas/deep-spectral-segmentation
-All credits for this code go to their respective authors
+Adapted and largley modified version of source: https://github.com/lukemelas/deep-spectral-segmentation
+All credits from the source code go to their respective authors.
 """
 
 import numpy as np
@@ -248,3 +248,60 @@ def majority_vote_exclusive(flat_preds, flat_targets, preds_k, targets_k, n_jobs
 
     match = [(match_gt2pr[gt_i], gt_i) for gt_i in match_gt2pr]
     return match, iou_mat2
+
+from collections import defaultdict
+
+def process_matches(matches):
+    """
+    This function looks at all the matches made per image, and 
+    returns a single - final- mapping, where the majority vote 
+    pseudo label is chosen as a final match. Additionally, consistensy
+    of the matchings over the dataset is presented in %. 100% means
+    a complete agreement in matching for all images.
+    """
+    final_mapping = {}  # Dictionary to store the final mapping
+    final_mapping_with_unmatched = {}  # Dictionary to store the mapping including unmatched cases
+    gt_counts = defaultdict(lambda: defaultdict(int))  # Dictionary to store counts of GT-PL pairs
+
+    # Iterate over each image's matches
+    for match_list in matches:
+        print(f"match_list={match_list}")
+        for pl, gt in match_list:
+            gt_counts[gt][pl] += 1
+
+    # Find the most frequent PL for each GT
+    for gt, pl_counts in gt_counts.items():
+        if pl_counts:
+            max_pl = max(pl_counts, key=pl_counts.get)
+            final_mapping_with_unmatched[gt]=max_pl
+
+            # If the maximum count corresponds to -1, choose the second winner if available
+            if max_pl == -1:
+                sorted_counts = sorted(pl_counts.items(), key=lambda x: x[1], reverse=True)
+                if len(sorted_counts) > 1:
+                    final_mapping[gt] = sorted_counts[1][0]
+                else:
+                    final_mapping[gt] = -1
+            else:
+                final_mapping[gt] = max_pl
+
+    # Print final mapping
+    print("Final Mapping:")
+    for gt, pl in final_mapping.items():
+        print(f"GT {gt} -> PL {pl}")
+
+    print("Final Mapping including Unmatched GT:")
+    for gt, pl in final_mapping_with_unmatched.items():
+        print(f"GT {gt} -> PL {pl}")
+
+    # Print percentage of consistent mappings for each ground truth class
+    print("\nPercentage of Consistent Mappings:")
+    for gt, pl_counts in gt_counts.items():
+        if pl_counts:
+            total_counts = sum(pl_counts.values())
+            percentage = (pl_counts[final_mapping[gt]] / total_counts) * 100
+            print(f"GT {gt}: {percentage:.2f}% consistent mappings (PL {final_mapping[gt]})")
+
+    # Return a tuple of matches
+    result = [(pl, gt) for gt, pl in final_mapping.items()]
+    return result
