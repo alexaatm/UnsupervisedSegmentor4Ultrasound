@@ -775,22 +775,28 @@ def extract_bbox_features(
         pos_x, pos_y = utils.positional_encoding_image(image)
         pos_x = pos_x.unsqueeze(0).to(device)  # (1, d_model, H, W)
         pos_y = pos_y.unsqueeze(0).to(device)  # (1, d_model, H, W)
-        # Use mask
-        binary_mask = bbox_dict['binary_masks']
-        mask = torch.from_numpy(binary_mask).unsqueeze(0).unsqueeze(0).float()  # (1, 1, H, W)
-
+        print(f'DEBUG: pos_x.shape={pos_x.shape}, pos_y.shape={pos_y.shape}')
+        print(f'DEBUG: type(pos_x)={type(pos_x)}, type(pos_y)={type(pos_y)}')
+        # Use masks
+        binary_masks = bbox_dict['binary_masks']
         features_crops = []
-        for (xmin, ymin, xmax, ymax) in bboxes:
+        for i, (xmin, ymin, xmax, ymax) in enumerate(bboxes):
             # crop image according to bounding box
             image_crop = image[:, :, ymin:ymax, xmin:xmax]
             pos_x_crop = pos_x[:, :, ymin:ymax, xmin:xmax]
             pos_y_crop = pos_y[:, :, ymin:ymax, xmin:xmax]
+            mask = torch.from_numpy(binary_masks[i]).unsqueeze(0).unsqueeze(0).float()  # (1, 1, H, W)
+            print(f'DEBUG: type(mask)={type(mask)}, mask.shape={mask.shape}')
 
             # extract features
             with torch.no_grad():
+                print(f'Extracting bbox crop features ...')
                 features_crop = model(image_crop).squeeze().cpu()
+                print(f'Extracting bbox pos_x features ...')
                 features_pos_x = model(pos_x_crop).squeeze().cpu()
-                features_pos_y = model(pos_y_crop).squeeze().cpu()       
+                print(f'Extracting bbox pos_y features ...')
+                features_pos_y = model(pos_y_crop).squeeze().cpu()
+                print(f'Extracting bbox mask features ...')
                 features_mask = model(mask).squeeze().cpu()
                 # combine different features
                 features = features_crop + C_pos * features_pos_x + C_pos * features_pos_y + C_mask * features_mask
