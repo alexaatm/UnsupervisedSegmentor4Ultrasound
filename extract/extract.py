@@ -773,7 +773,7 @@ def extract_bbox_features(
         image = image.unsqueeze(0).to(device)  # (1, 3, H, W)
         # Use image encoding
         pos_x, pos_y = utils.positional_encoding_image(image)
-        pox_x = pox_x.unsqueeze(0).to(device)  # (1, d_model, H, W)
+        pos_x = pos_x.unsqueeze(0).to(device)  # (1, d_model, H, W)
         pos_y = pos_y.unsqueeze(0).to(device)  # (1, d_model, H, W)
         # Use mask
         binary_mask = bbox_dict['binary_masks']
@@ -783,12 +783,14 @@ def extract_bbox_features(
         for (xmin, ymin, xmax, ymax) in bboxes:
             # crop image according to bounding box
             image_crop = image[:, :, ymin:ymax, xmin:xmax]
+            pos_x_crop = pos_x[:, :, ymin:ymax, xmin:xmax]
+            pos_y_crop = pos_y[:, :, ymin:ymax, xmin:xmax]
 
             # extract features
             with torch.no_grad():
                 features_crop = model(image_crop).squeeze().cpu()
-                features_pos_x = model(pox_x).squeeze().cpu()
-                features_pos_y = model(pos_y).squeeze().cpu()       
+                features_pos_x = model(pos_x_crop).squeeze().cpu()
+                features_pos_y = model(pos_y_crop).squeeze().cpu()       
                 features_mask = model(mask).squeeze().cpu()
                 # combine different features
                 features = features_crop + C_pos * features_pos_x + C_pos * features_pos_y + C_mask * features_mask
