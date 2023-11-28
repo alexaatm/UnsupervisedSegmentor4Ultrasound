@@ -950,7 +950,14 @@ def positional_encoding_image(image, d_model=128):
     w_enc = positional_encoding(W, d_model) # (H, d_model)
 
     # Repeat the encodings along the other axis
-    pos_enc_h_repeated = np.repeat(h_enc[np.newaxis, :, :], W, axis=0) #(d_model, H, W)
-    pos_enc_w_repeated = np.repeat(w_enc[:, np.newaxis, :], H, axis=1) #(d_model, H, W)
+    pos_enc_h_repeated = np.repeat(h_enc[np.newaxis, :, :], W, axis=0) #(H, W, d_model)
+    pos_enc_w_repeated = np.repeat(w_enc[:, np.newaxis, :], H, axis=1) #(H, W, d_model)
 
-    return   pos_enc_h_repeated, pos_enc_w_repeated  
+    print(f'DEBUG before tensor: pos_enc_h_repeated.shape={pos_enc_h_repeated.shape}, pos_enc_w_repeated.shape={pos_enc_w_repeated.shape}')
+    # Convert to Tensor
+    pos_enc_h_repeated = torch.tensor(pos_enc_h_repeated, dtype=torch.float32).permute(2, 0, 1) #(d_model, H, W)
+    pos_enc_w_repeated = torch.tensor(pos_enc_w_repeated, dtype=torch.float32).permute(2, 0, 1) #(d_model, H, W)
+    print(f'DEBUG after tensor from numpy: pos_enc_h_repeated.shape={pos_enc_h_repeated.shape}, pos_enc_w_repeated.shape={pos_enc_w_repeated.shape}')
+
+
+    return   (pos_enc_h_repeated, pos_enc_w_repeated)  
