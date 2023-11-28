@@ -666,7 +666,8 @@ def _extract_bbox(
 
     # Get bounding boxes
     outputs = {'bboxes': [], 'bboxes_original_resolution': [], 'segment_indices': [], 'id': image_id, 
-               'format': "(xmin, ymin, xmax, ymax)"}
+               'format': "(xmin, ymin, xmax, ymax)",
+               'binary_masks': []}
     for segment_index in sorted(np.unique(segmap).tolist()):
         if (not skip_bg_index) or (segment_index > 0):  # skip 0, because 0 is the background
             
@@ -687,6 +688,7 @@ def _extract_bbox(
             outputs['segment_indices'].append(segment_index)
             outputs['bboxes'].append(bbox)
             outputs['bboxes_original_resolution'].append(bbox_resized)
+            outputs['binary_masks'].append(binary_mask)
     
     return outputs
 
@@ -723,7 +725,10 @@ def extract_bbox_features(
     bbox_file: str,
     model_name: str,
     output_file: str,
+    output_dir_crops: str,
     image_transform_data: Optional[Tuple[transforms.Compose, Dict]] = None,
+    C_pos: float = 0.0,
+    C_mask: float = 0.0,
 ):
     """
     Example:
@@ -736,8 +741,7 @@ def extract_bbox_features(
     """
 
     utils.make_output_dir(str(Path(output_file).parent), check_if_empty=False)
-
-
+    utils.make_output_dir(output_dir_crops)
 
     # Load bounding boxes
     bbox_list = torch.load(bbox_file)
@@ -767,12 +771,32 @@ def extract_bbox_features(
         # Apply same transform as for step 1 (extracting features)
         image = tr(Image.open(image_filename).convert('RGB'))  # (3, H, W)
         image = image.unsqueeze(0).to(device)  # (1, 3, H, W)
+        # Use image encoding
+        pos_x, pos_y = utils.positional_encoding_image(image)
+        pox_x = pox_x.unsqueeze(0).to(device)  # (1, d_model, H, W)
+        pos_y = pos_y.unsqueeze(0).to(device)  # (1, d_model, H, W)
+        # Use mask
+        binary_mask = bbox_dict['binary_masks']
+        mask = torch.from_numpy(binary_mask).unsqueeze(0).unsqueeze(0).float()  # (1, 1, H, W)
+
         features_crops = []
         for (xmin, ymin, xmax, ymax) in bboxes:
+            # crop image according to bounding box
             image_crop = image[:, :, ymin:ymax, xmin:xmax]
+
+            # extract features
             with torch.no_grad():
                 features_crop = model(image_crop).squeeze().cpu()
-            features_crops.append(features_crop)
+                features_pos_x = model(pox_x).squeeze().cpu()
+                features_pos_y = model(pos_y).squeeze().cpu()       
+                features_mask = model(mask).squeeze().cpu()
+                # combine different features
+                features = features_crop + C_pos * features_pos_x + C_pos * features_pos_y + C_mask * features_mask
+            features_crops.append(features)
+
+            # save image crops
+            output_file_crop = str(Path(output_dir_crops) / f'{image_id}.png')
+            Image.fromarray(image_crop.squeeze().cpu()).convert('RGB').save(output_file_crop)
         bbox_dict['features'] = torch.stack(features_crops, dim=0)
     
     # Save

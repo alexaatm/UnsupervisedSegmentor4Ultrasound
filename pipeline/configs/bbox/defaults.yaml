@@ -3,6 +3,9 @@ num_erode: 2
 num_dilate: 5
 skip_bg_index: True
 downsample_factor: null
+# bbox features
+C_pos: 0.0
+C_mask: 0.0
 # bbox clustering:
 num_clusters: 20
 seed: 1

@@ -923,3 +923,34 @@ def get_preprocessing_transform(filenames, images_root, gauss_blur, hist_eq, inv
     
     print(f'Transform parameters used (only if corresponding transform flag is True): {transform_dict}')
     return transform, transform_dict
+
+def positional_encoding(max_position, d_model, min_freq=1e-4):
+    """
+    Numpy implementation of Position Encoding for a sequence of length 
+    max_position, and size of the embedding dimension d_model
+    source: https://towardsdatascience.com/master-positional-encoding-part-i-63c05d90a0c3
+    """
+    position = np.arange(max_position)
+    freqs = min_freq**(2*(np.arange(d_model)//2)/d_model)
+    pos_enc = position.reshape(-1,1)*freqs.reshape(1,-1)
+    pos_enc[:, ::2] = np.cos(pos_enc[:, ::2])
+    pos_enc[:, 1::2] = np.sin(pos_enc[:, 1::2])
+    return pos_enc
+
+def positional_encoding_image(image, d_model=128):
+    """
+    Etract positional embedding of an image.
+    Input: 
+    -image: tensor of shape (1, 3, H, W) or shape (3, H, W)
+    -d_model: int - embedding dimension used to encode a single position
+    Output: tuple of 2 tensors of shape (d_model, H, W) where x and y positions are encoded.
+    """
+    H, W = image.shape[-2], image.shape[-1]
+    h_enc = positional_encoding(H, d_model) # (W, d_model)
+    w_enc = positional_encoding(W, d_model) # (H, d_model)
+
+    # Repeat the encodings along the other axis
+    pos_enc_h_repeated = np.repeat(h_enc[np.newaxis, :, :], W, axis=0) #(d_model, H, W)
+    pos_enc_w_repeated = np.repeat(w_enc[:, np.newaxis, :], H, axis=1) #(d_model, H, W)
+
+    return   pos_enc_h_repeated, pos_enc_w_repeated  

@@ -146,6 +146,7 @@ def pipeline(cfg):
     output_multi_region_seg = os.path.join(path_to_save_data, 'multi_region_segmentation', cfg['spectral_clustering']['which_matrix'])
     output_bbox = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg['spectral_clustering']['which_matrix'], 'bboxes.pth')
     output_bbox_features = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg['spectral_clustering']['which_matrix'], 'bbox_features.pth')
+    output_bbox_crops = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg['spectral_clustering']['which_matrix'], 'bbox_crops')
     output_bbox_clusters = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg['spectral_clustering']['which_matrix'], 'bbox_clusters.pth')
     output_segmaps = os.path.join(path_to_save_data, 'semantic_segmentations', cfg['spectral_clustering']['which_matrix'], 'segmaps')
     output_crf_segmaps = os.path.join(path_to_save_data, 'semantic_segmentations', cfg['spectral_clustering']['which_matrix'], 'crf_segmaps')
@@ -181,6 +182,7 @@ def pipeline(cfg):
     log.info(f'output_multi_region_seg={output_multi_region_seg}')
     log.info(f'output_bbox={output_bbox}')
     log.info(f'output_bbox_features={output_bbox_features}')
+    log.info(f'output_bbox_crops={output_bbox_crops}')
     log.info(f'output_bbox_clusters={output_bbox_clusters}')
     log.info(f'output_segmaps={output_segmaps}')
     log.info(f'output_crf_segmaps={output_crf_segmaps}')
@@ -381,7 +383,10 @@ def pipeline(cfg):
                 bbox_file = output_bbox,
                 model_name = cfg['model']['name'],
                 output_file = output_bbox_features,
-                image_transform_data = im_transform_data
+                image_transform_data = im_transform_data,
+                output_dir_crops = output_bbox_crops,
+                C_pos = cfg['bbox']['C_pos'],
+                C_mask = cfg['bbox']['C_mask'],
             )
 
 
