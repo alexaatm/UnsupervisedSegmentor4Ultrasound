@@ -1,7 +1,6 @@
 """
 Utility functions for evaluating the segmentation.
-Adapted and largley modified version of source: https://github.com/lukemelas/deep-spectral-segmentation
-All credits from the source code go to their respective authors.
+Adapted and largley modified version of source: https://github.com/lukemelas/deep-spectral-segmentation . All credits from the source code go to their respective authors.
 """
 
 import numpy as np
@@ -262,6 +261,7 @@ def process_matches(matches):
     final_mapping = {}  # Dictionary to store the final mapping
     final_mapping_with_unmatched = {}  # Dictionary to store the mapping including unmatched cases
     gt_counts = defaultdict(lambda: defaultdict(int))  # Dictionary to store counts of GT-PL pairs
+    mapping_consistency = {}
 
     # Iterate over each image's matches
     for match_list in matches:
@@ -300,8 +300,11 @@ def process_matches(matches):
         if pl_counts:
             total_counts = sum(pl_counts.values())
             percentage = (pl_counts[final_mapping[gt]] / total_counts) * 100
+            mapping_consistency[gt]=percentage
             print(f"GT {gt}: {percentage:.2f}% consistent mappings (PL {final_mapping[gt]})")
 
-    # Return a tuple of matches
-    result = [(pl, gt) for gt, pl in final_mapping.items()]
-    return result
+    # Return lists of PL labels (in order of GT labels)
+    fin_map = [pl for gt, pl in final_mapping.items()]
+    fin_map_with_unmatched = [pl for gt, pl in final_mapping_with_unmatched.items()]
+    consistency_map = [percentage for gt, percentage in mapping_consistency.items()]
+    return (fin_map, fin_map_with_unmatched, consistency_map)
