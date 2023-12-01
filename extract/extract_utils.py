@@ -937,27 +937,45 @@ def positional_encoding(max_position, d_model, min_freq=1e-4):
     pos_enc[:, 1::2] = np.sin(pos_enc[:, 1::2])
     return pos_enc
 
-def positional_encoding_image(image, d_model=128):
+def positional_encoding_image_sincos(image, d_model=128):
     """
-    Etract positional embedding of an image.
+    Etract positional embedding of an image using sin-cos encoding.
     Input: 
     -image: tensor of shape (1, 3, H, W) or shape (3, H, W)
     -d_model: int - embedding dimension used to encode a single position
     Output: tuple of 2 tensors of shape (d_model, H, W) where x and y positions are encoded.
     """
     H, W = image.shape[-2], image.shape[-1]
-    h_enc = positional_encoding(H, d_model) # (W, d_model)
-    w_enc = positional_encoding(W, d_model) # (H, d_model)
+    h_enc = positional_encoding(H, d_model) # (H, d_model)
+    w_enc = positional_encoding(W, d_model) # (W, d_model)
 
     # Repeat the encodings along the other axis
-    pos_enc_h_repeated = np.repeat(h_enc[np.newaxis, :, :], W, axis=0) #(H, W, d_model)
-    pos_enc_w_repeated = np.repeat(w_enc[:, np.newaxis, :], H, axis=1) #(H, W, d_model)
+    pos_enc_h_repeated = np.repeat(h_enc[np.newaxis, :, :], W, axis=0) #(W, H, d_model)
+    pos_enc_w_repeated = np.repeat(w_enc[:, np.newaxis, :], H, axis=1) #(W, H, d_model)
 
-    print(f'DEBUG before tensor: pos_enc_h_repeated.shape={pos_enc_h_repeated.shape}, pos_enc_w_repeated.shape={pos_enc_w_repeated.shape}')
     # Convert to Tensor
-    pos_enc_h_repeated = torch.tensor(pos_enc_h_repeated, dtype=torch.float32).permute(2, 0, 1) #(d_model, H, W)
-    pos_enc_w_repeated = torch.tensor(pos_enc_w_repeated, dtype=torch.float32).permute(2, 0, 1) #(d_model, H, W)
-    print(f'DEBUG after tensor from numpy: pos_enc_h_repeated.shape={pos_enc_h_repeated.shape}, pos_enc_w_repeated.shape={pos_enc_w_repeated.shape}')
+    pos_enc_h_repeated = torch.tensor(pos_enc_h_repeated, dtype=torch.float32).permute(2, 1, 0) #(d_model, H, W)
+    pos_enc_w_repeated = torch.tensor(pos_enc_w_repeated, dtype=torch.float32).permute(2, 1, 0) #(d_model, H, W)
 
+    return   (pos_enc_h_repeated, pos_enc_w_repeated) 
+
+def positional_encoding_image(image):
+    """
+    Etract positional embedding of an image encoding it from 0...1 based on H and W.
+    Input: 
+    -image: tensor of shape (1, 3, H, W) or shape (3, H, W)
+    Output: tuple of 2 tensors of shape (1, H, W) where x and y positions are encoded.
+    """
+    H, W = image.shape[-2], image.shape[-1]
+    h_enc = np.linspace(0, 1, H)[:, None] # (H, 1)
+    w_enc = np.linspace(0, 1, W)[:, None] # (W, 1)
+
+    # Repeat the encodings along the other axis
+    pos_enc_h_repeated = np.repeat(h_enc[np.newaxis, :, :], W, axis=0) #(W, H, 1)
+    pos_enc_w_repeated = np.repeat(w_enc[:, np.newaxis, :], H, axis=1) #(W, H, 1)
+
+    # Convert to Tensor
+    pos_enc_h_repeated = torch.tensor(pos_enc_h_repeated, dtype=torch.float32).permute(2, 1, 0) #(1, H, W)
+    pos_enc_w_repeated = torch.tensor(pos_enc_w_repeated, dtype=torch.float32).permute(2, 1, 0) #(1, H, W)
 
     return   (pos_enc_h_repeated, pos_enc_w_repeated)  

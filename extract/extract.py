@@ -675,6 +675,11 @@ def _extract_bbox(
             binary_mask = (segmap == segment_index)
             binary_mask = utils.erode_or_dilate_mask(binary_mask, r=num_erode, erode=True)
             binary_mask = utils.erode_or_dilate_mask(binary_mask, r=num_dilate, erode=False)
+            binary_mask_matlike = (binary_mask * 255).astype(np.uint8)
+            binary_mask_rescaled = cv2.resize(
+                binary_mask_matlike, 
+                dsize=(binary_mask.shape[-1] * P, binary_mask.shape[-2] * P), 
+                interpolation=cv2.INTER_NEAREST)  # rescale to image size
 
             # Find box
             mask = np.where(binary_mask == 1)
@@ -688,7 +693,7 @@ def _extract_bbox(
             outputs['segment_indices'].append(segment_index)
             outputs['bboxes'].append(bbox)
             outputs['bboxes_original_resolution'].append(bbox_resized)
-            outputs['binary_masks'].append(binary_mask)
+            outputs['binary_masks'].append(binary_mask_rescaled)
     
     return outputs
 
@@ -773,10 +778,10 @@ def extract_bbox_features(
         image = image.unsqueeze(0).to(device)  # (1, 3, H, W)
         # Use image encoding
         pos_x, pos_y = utils.positional_encoding_image(image)
-        pos_x = pos_x.unsqueeze(0).to(device)  # (1, d_model, H, W)
-        pos_y = pos_y.unsqueeze(0).to(device)  # (1, d_model, H, W)
-        print(f'DEBUG: pos_x.shape={pos_x.shape}, pos_y.shape={pos_y.shape}')
-        print(f'DEBUG: type(pos_x)={type(pos_x)}, type(pos_y)={type(pos_y)}')
+        pos_x = pos_x.unsqueeze(0).to(device)  # (1, 1, H, W)
+        pos_y = pos_y.unsqueeze(0).to(device)  # (1, 1, H, W)
+        pos_x = pos_x.expand(-1, 3, -1, -1) # (1, 3, H, W)
+        pos_y = pos_y.expand(-1, 3, -1, -1) # (1, 3, H, W)
         # Use masks
         binary_masks = bbox_dict['binary_masks']
         features_crops = []
@@ -785,26 +790,25 @@ def extract_bbox_features(
             image_crop = image[:, :, ymin:ymax, xmin:xmax]
             pos_x_crop = pos_x[:, :, ymin:ymax, xmin:xmax]
             pos_y_crop = pos_y[:, :, ymin:ymax, xmin:xmax]
-            mask = torch.from_numpy(binary_masks[i]).unsqueeze(0).unsqueeze(0).float()  # (1, 1, H, W)
-            print(f'DEBUG: type(mask)={type(mask)}, mask.shape={mask.shape}')
+            mask = torch.from_numpy(binary_masks[i]).unsqueeze(0).unsqueeze(0).float().to(device)  # (1, 1, H, W)
+            mask = mask.expand(-1, 3, -1, -1) # (1, 3, H, W)
 
             # extract features
             with torch.no_grad():
-                print(f'Extracting bbox crop features ...')
                 features_crop = model(image_crop).squeeze().cpu()
-                print(f'Extracting bbox pos_x features ...')
                 features_pos_x = model(pos_x_crop).squeeze().cpu()
-                print(f'Extracting bbox pos_y features ...')
                 features_pos_y = model(pos_y_crop).squeeze().cpu()
-                print(f'Extracting bbox mask features ...')
                 features_mask = model(mask).squeeze().cpu()
                 # combine different features
                 features = features_crop + C_pos * features_pos_x + C_pos * features_pos_y + C_mask * features_mask
             features_crops.append(features)
 
             # save image crops
-            output_file_crop = str(Path(output_dir_crops) / f'{image_id}.png')
-            Image.fromarray(image_crop.squeeze().cpu()).convert('RGB').save(output_file_crop)
+            output_file_crop = str(Path(output_dir_crops) / f'{image_id}_segment{i}.png')
+            image_crop_np = image_crop.cpu().numpy()
+            image_crop_np_sq = image_crop_np.squeeze(0)
+            image_crop_np_uint = (image_crop_np_sq*255).astype(np.uint8).transpose(1, 2, 0)
+            Image.fromarray(image_crop_np_uint).convert('RGB').save(output_file_crop)
         bbox_dict['features'] = torch.stack(features_crops, dim=0)
     
     # Save
