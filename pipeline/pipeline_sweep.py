@@ -476,22 +476,45 @@ def pipeline(cfg):
 
     # Evaluate segmentation if evaluation is on
     if cfg['pipeline_steps']['eval']:
-        if cfg['sweep']['seg_for_eval'] == "crf_segmaps":
-            log.info("EVALUATION (crf_segmaps)")
-            eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_segmaps,  tag="crf_segmaps")
+        seg_for_eval = cfg['sweep']['seg_for_eval']
+
+        if isinstance(seg_for_eval, list):
+            # loop through the list and evaluate each type of segments acc to config
+            for seg_type in seg_for_eval:
+                if seg_type == "crf_segmaps":
+                    log.info("EVALUATION (crf_segmaps)")
+                    eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_segmaps,  tag="crf_segmaps")
+                
+                elif seg_type == "segmaps":
+                    log.info("EVALUATION (segmaps)")
+                    eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_segmaps,  tag="segmaps")
+                
+                elif seg_type == "multi_region":
+                    log.info("EVALUATION (multi_region)")
+                    eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_multi_region_seg, tag="multi_region")
+                
+                elif seg_type == "crf_multi_region":
+                    log.info("EVALUATION (crf_multi_region)")
+                    eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_multi_region, tag="crf_multi_region")
         
-        elif cfg['sweep']['seg_for_eval'] == "segmaps":
-            log.info("EVALUATION (segmaps)")
-            eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_segmaps,  tag="segmaps")
-        
-        elif cfg['sweep']['seg_for_eval'] == "multi_region":
-            log.info("EVALUATION (multi_region)")
-            eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_multi_region_seg, tag="multi_region")
-        
-        elif cfg['sweep']['seg_for_eval'] == "crf_multi_region":
-            log.info("EVALUATION (crf_multi_region)")
-            eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_multi_region, tag="crf_multi_region")
-        
+        elif isinstance(seg_for_eval, str): 
+            # evaluate only for a single type of segments
+            if seg_for_eval == "crf_segmaps":
+                log.info("EVALUATION (crf_segmaps)")
+                eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_segmaps,  tag="crf_segmaps")
+            
+            elif seg_for_eval == "segmaps":
+                log.info("EVALUATION (segmaps)")
+                eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_segmaps,  tag="segmaps")
+            
+            elif seg_for_eval == "multi_region":
+                log.info("EVALUATION (multi_region)")
+                eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_multi_region_seg, tag="multi_region")
+            
+            elif seg_for_eval == "crf_multi_region":
+                log.info("EVALUATION (crf_multi_region)")
+                eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_multi_region, tag="crf_multi_region")
+            
         else:
             raise ValueError(f"Unknown seg type for evalutaion: {cfg['sweep']['seg_for_eval']}")
 
