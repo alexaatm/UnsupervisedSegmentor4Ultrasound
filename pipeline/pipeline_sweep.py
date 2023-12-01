@@ -628,7 +628,16 @@ def main():
             
     cfg=wandb.config
     # add adidtional tags based on sweep config
-    run.tags = run.tags + (cfg['sweep']['name'], cfg['sweep']['seg_for_eval'],)
+    seg_for_eval = cfg['sweep']['seg_for_eval']
+    if isinstance(seg_for_eval, list):
+        # loop through the list and add a tag for each type of segments acc to config
+        for seg_type in seg_for_eval:
+            run.tags = run.tags + (cfg['sweep']['name'], seg_type,)
+    elif isinstance(seg_for_eval, str): 
+        run.tags = run.tags + (cfg['sweep']['name'], seg_for_eval,)
+    else:
+        raise ValueError(f"Unknown seg type for evalutaion: {cfg['sweep']['seg_for_eval']}")
+
     log.info(f"MAIN: wandb.config={cfg}")
     score = objective(cfg)
     # log the main score 
