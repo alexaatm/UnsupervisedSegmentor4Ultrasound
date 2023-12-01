@@ -10,7 +10,7 @@ from torchvision import transforms
 
 
 class EvalDataset(Dataset):
-    def __init__(self, root_dir, gt_dir = "", pred_dir = "", check_size=True, transform: object = None, image_dir = ""):
+    def __init__(self, root_dir, gt_dir = "", pred_dir = "", transform: object = None, image_dir = ""):
         self.root_dir = root_dir
         self.image_dir = image_dir if image_dir!="" else os.path.join(root_dir, 'images')
         self.gt_dir = gt_dir if gt_dir!="" else os.path.join(root_dir, 'ground_truth')
@@ -22,10 +22,6 @@ class EvalDataset(Dataset):
         print("image_dir:", self.image_dir)
         print("gt_dir:", self.gt_dir)
         print("pred_dir:", self.pred_dir)
-
-        if check_size:
-            print("Checking sizes of ground truth and predictions")
-            self.check_sizes_and_resize()
 
     def __len__(self):
         return len(self.image_list)
@@ -57,57 +53,22 @@ class EvalDataset(Dataset):
             ground_truth = np.array(Image.open(gt_path).convert('L'))
             prediction = np.array(Image.open(pred_path).convert('L'))
 
+        # Resize masks of image size not matching
+        prediction = self._resize_mask(prediction, image)
+        ground_truth = self._resize_mask(ground_truth, image)
+
         metadata = {'id': Path(img_path).stem, 'path': img_path, 'shape': tuple(image.shape[:2])}
 
         return (image, ground_truth, prediction, metadata)
     
-    def check_sizes_and_resize(self):
-        segm_num = 0
-        for img_name_full in tqdm(self.image_list):
-            img_name = img_name_full[:-4]
-            img_path = os.path.join(self.image_dir, img_name_full)
-            gt_path = os.path.join(self.gt_dir, img_name + ".png")
-            pred_path = os.path.join(self.pred_dir, img_name + ".png")
+    def _resize_mask(self, mask, image):
+        # Check if sizes correspond
+        H_im, W_im = image.shape[:2]
+        H_mask, W_mask = mask.shape
 
-            image = np.array(Image.open(img_path).convert("RGB"))
-            gt = np.array(Image.open(gt_path).convert('L'))
-            pred = np.array(Image.open(pred_path).convert('L'))
-            
-            # get the number of unique labels to determine the number of segments per image - ignored in the matching with remapping
-            unique_labels = np.unique(pred)
-            # current_segm_num = np.max(unique_labels)
-            current_segm_num = len(unique_labels)
-            # current_segm_num = max(len(unique_labels), np.max(unique_labels))
-            if current_segm_num > segm_num:
-                segm_num = current_segm_num
-
-            # Check if sizes correspond
-            H_im, W_im = image.shape[:2]
-            H_gt, W_gt = gt.shape
-            H_pr, W_pr = pred.shape
-
-            # H = np.max([H_im, H_gt, H_pr])
-            # W = np.max([W_im, W_gt, W_pr])
-            H=H_im
-            W=W_im
-
-            if (H_gt!= H or W_gt!=W):
-                print("resizing GT")
-                gt_im_res = cv2.resize(gt, dsize=(W, H), interpolation=cv2.INTER_NEAREST)  # (H, W)
-                # gt_im_res[:gt.shape[0], :gt.shape[1]] = gt  # replace with the initial groundtruth version, just in case they are different
-                Image.fromarray(gt_im_res).convert('L').save(gt_path)
-        
-            if (H_pr!= H or W_pr!=W):
-                print("resizing PR")
-                pred_im_res = cv2.resize(pred, dsize=(W, H), interpolation=cv2.INTER_NEAREST)  # (H, W)
-                # pred_im_res[:pred.shape[0], :pred.shape[1]] = pred  # replace with the initial prediction version, just in case they are different
-                Image.fromarray(pred_im_res).convert('L').save(pred_path[:-4]+".png")
-        
-        self.n_clusters = segm_num
-        print(f'self.n_clusters: {self.n_clusters}')
-        self.H=H_im
-        self.W=W_im
-
+        if (H_mask!= H_im or W_mask!=W_im):
+            mask = cv2.resize(mask, dsize=(H_im, W_im), interpolation=cv2.INTER_NEAREST)  # (H, W)
+        return mask
 
 # if __name__ == '__main__':
 #     root_dir = "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/data/US_MIXED/val"
