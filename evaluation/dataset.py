@@ -37,7 +37,7 @@ class EvalDataset(Dataset):
 
         if self.transform is not None:
             image = self.transform(Image.open(img_path).convert("RGB"))
-            print(f"EvalDataset: Image after transforms: {image.size()}")
+            # print(f"EvalDataset: Image after transforms: {image.size()}")
             image = image.detach()
             if image.is_cuda:
                 image = image.cpu().numpy()
@@ -45,7 +45,7 @@ class EvalDataset(Dataset):
                 image = image.numpy()
             image = image.transpose(1, 2, 0)
             # TODO: consider denormalizing image to ensure correct plotting (see extract_crf step of pipeline)
-            print(f"EvalDataset: Image after numpy: {image.shape}")
+            # print(f"EvalDataset: Image after numpy: {image.shape}")
             ground_truth = np.array(Image.open(gt_path).convert('L'))
             prediction = np.array(Image.open(pred_path).convert('L'))
         else:
@@ -67,7 +67,7 @@ class EvalDataset(Dataset):
         H_mask, W_mask = mask.shape
 
         if (H_mask!= H_im or W_mask!=W_im):
-            mask = cv2.resize(mask, dsize=(H_im, W_im), interpolation=cv2.INTER_NEAREST)  # (H, W)
+            mask = cv2.resize(mask, dsize=(W_im, H_im), interpolation=cv2.INTER_NEAREST)  # (W, H) for cv2
         return mask
 
 # if __name__ == '__main__':

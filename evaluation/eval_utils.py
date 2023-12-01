@@ -265,7 +265,7 @@ def process_matches(matches):
 
     # Iterate over each image's matches
     for match_list in matches:
-        print(f"match_list={match_list}")
+        # print(f"match_list={match_list}")
         for pl, gt in match_list:
             gt_counts[gt][pl] += 1
 
