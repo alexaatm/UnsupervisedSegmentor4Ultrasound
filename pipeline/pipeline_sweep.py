@@ -522,20 +522,21 @@ def evaluate(cfg, dataset_dir, image_dir = "", gt_dir="", pred_dir="", tag=""):
         # Evaluate
         dataset = segm_eval.EvalDataset(dataset_dir, gt_dir, pred_dir, transform = image_transforms)
         eval_stats, matches, corrected_matches, preds = segm_eval.evaluate_dataset_with_remapping(dataset, cfg['dataset']['n_classes'], cfg['eval']['iou_thresh'], cfg['eval']['void_label'])
+        final_mapping, final_mapping_with_unmatched, consistency = segm_eval.eval_utils.process_matches(corrected_matches)
         print("eval stats:", eval_stats)
         print("matches:", matches)
     
         # log to wandb
         # wandb.log({'mIoU': eval_stats['mIoU']})
-        wandb.log({'mIoU_std': eval_stats['mIoU_std']})
-        wandb.log({'Pixel_Accuracy': eval_stats['Pixel_Accuracy']})
-        wandb.log({'Pixel_Accuracy_std': eval_stats['Pixel_Accuracy_std']})
-        wandb.log({'Dice': eval_stats['Dice']})
-        wandb.log({'Dice_std': eval_stats['Dice_std']})
-        wandb.log({'Precision': eval_stats['Precision']})
-        wandb.log({'Precision_std': eval_stats['Precision_std']})
-        wandb.log({'Recall': eval_stats['Recall']})
-        wandb.log({'Recall_std': eval_stats['Recall_std']})
+        wandb.log({f'{tag}_mIoU_std': eval_stats['mIoU_std']})
+        wandb.log({f'{tag}_Pixel_Accuracy': eval_stats['Pixel_Accuracy']})
+        wandb.log({f'{tag}_Pixel_Accuracy_std': eval_stats['Pixel_Accuracy_std']})
+        wandb.log({f'{tag}_Dice': eval_stats['Dice']})
+        wandb.log({f'{tag}_Dice_std': eval_stats['Dice_std']})
+        wandb.log({f'{tag}_Precision': eval_stats['Precision']})
+        wandb.log({f'{tag}_Precision_std': eval_stats['Precision_std']})
+        wandb.log({f'{tag}_Recall': eval_stats['Recall']})
+        wandb.log({f'{tag}_Recall_std': eval_stats['Recall_std']})
 
          # Table for logging corrected labels using wandb
         remapped_pred_table = wandb.Table(columns=['ID', 'Image'])
@@ -563,13 +564,20 @@ def evaluate(cfg, dataset_dir, image_dir = "", gt_dir="", pred_dir="", tag=""):
                 })
                 remapped_pred_table.add_data(id, mask_img)
 
-        wandb.log({"Example Images After Remapping" : remapped_pred_table})
+        wandb.log({f"{tag}_Example_Images_After_Remapping" : remapped_pred_table})
 
         # Log Jaccard index table
         class_names_all = [f'GT_class{i}' for i in range(cfg['dataset']['n_classes'])]
-        wandb.log({"jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names_all[1:])})
+        wandb.log({f"{tag}_jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names_all[1:])})
 
-        
+        # Log per dataset matching and consistency
+        wandb.log({f"{tag}_jaccard_table": wandb.Table(data=[eval_stats['jaccards_all_categs']], columns=class_names_all[1:])})
+
+        # Log final matches and their consistency
+        wandb.log({f"{tag}_final_map": wandb.Table(data=[final_mapping], columns=class_names_all)})
+        wandb.log({f"{tag}_final_map_with_unmatched": wandb.Table(data=[final_mapping_with_unmatched], columns=class_names_all)})
+        wandb.log({f"{tag}_map_consistency": wandb.Table(data=[consistency], columns=class_names_all)})
+
         return eval_stats
 
     else:
