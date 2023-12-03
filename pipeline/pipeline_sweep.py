@@ -25,6 +25,8 @@ sys.path.append(thesis_codebase_folder)
 from evaluation import segm_eval
 import numpy as np
 
+import traceback
+
 # A logger for this file
 log = logging.getLogger(__name__)
 
@@ -263,8 +265,9 @@ def pipeline(cfg):
         patch_size = cfg['spectral_clustering']['patch_size'],
         aff_sigma = cfg['spectral_clustering']['aff_sigma'],
         distance_weight1 = cfg['spectral_clustering']['distance_weight1'],
-        distance_weight2 = cfg['spectral_clustering']['distance_weight2']
-
+        distance_weight2 = cfg['spectral_clustering']['distance_weight2'],
+        image_transform_data = im_transform_data,
+        use_transform = cfg['spectral_clustering']['use_transform'],
     )
 
     # Visualize eigenvectors
@@ -477,6 +480,7 @@ def pipeline(cfg):
     # Evaluate segmentation if evaluation is on
     if cfg['pipeline_steps']['eval']:
         seg_for_eval = cfg['sweep']['seg_for_eval']
+        score = None
 
         if isinstance(seg_for_eval, list):
             # loop through the list and evaluate each type of segments acc to config
@@ -484,6 +488,7 @@ def pipeline(cfg):
                 if seg_type == "crf_segmaps":
                     log.info("EVALUATION (crf_segmaps)")
                     eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_segmaps,  tag="crf_segmaps")
+                    score = eval_results['mIoU']
                 
                 elif seg_type == "segmaps":
                     log.info("EVALUATION (segmaps)")
@@ -496,6 +501,7 @@ def pipeline(cfg):
                 elif seg_type == "crf_multi_region":
                     log.info("EVALUATION (crf_multi_region)")
                     eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_multi_region, tag="crf_multi_region")
+            
         
         elif isinstance(seg_for_eval, str): 
             # evaluate only for a single type of segments
@@ -514,11 +520,11 @@ def pipeline(cfg):
             elif seg_for_eval == "crf_multi_region":
                 log.info("EVALUATION (crf_multi_region)")
                 eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_multi_region, tag="crf_multi_region")
-            
+            score = eval_results['mIoU']
         else:
             raise ValueError(f"Unknown seg type for evalutaion: {cfg['sweep']['seg_for_eval']}")
 
-        return eval_results
+        return score
 
 # Evaluation
 def evaluate(cfg, dataset_dir, image_dir = "", gt_dir="", pred_dir="", tag=""):
@@ -551,6 +557,7 @@ def evaluate(cfg, dataset_dir, image_dir = "", gt_dir="", pred_dir="", tag=""):
     
         # log to wandb
         # wandb.log({'mIoU': eval_stats['mIoU']})
+        wandb.log({f'{tag}_mIoU': eval_stats['mIoU']})
         wandb.log({f'{tag}_mIoU_std': eval_stats['mIoU_std']})
         wandb.log({f'{tag}_Pixel_Accuracy': eval_stats['Pixel_Accuracy']})
         wandb.log({f'{tag}_Pixel_Accuracy_std': eval_stats['Pixel_Accuracy_std']})
@@ -607,9 +614,8 @@ def evaluate(cfg, dataset_dir, image_dir = "", gt_dir="", pred_dir="", tag=""):
         return    
 
 def objective(cfg):
-    eval_stats = pipeline(cfg)
-    mIoU =  eval_stats['mIoU']
-    return mIoU
+    score = pipeline(cfg)
+    return score   
 
 def main():
     run = wandb.init(name ="sweep_" + segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'),
@@ -639,9 +645,12 @@ def main():
         raise ValueError(f"Unknown seg type for evalutaion: {cfg['sweep']['seg_for_eval']}")
 
     log.info(f"MAIN: wandb.config={cfg}")
-    score = objective(cfg)
-    # log the main score 
-    wandb.log({"mIoU": score})
+    try:
+        score = objective(cfg)
+    except Exception:
+        log.info(traceback.print_exc())
+    # log the main score  - if all steps are done, it is crf_Segmaps eval, otherwise - speciffic to evaluated masks
+    wandb.log({"main_mIoU": score})
    
 import yaml
 
