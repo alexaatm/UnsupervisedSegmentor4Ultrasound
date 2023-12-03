@@ -669,13 +669,13 @@ def patchwise_affinity_pytorch(image, distance_measure, patch_size, beta=5.0, de
     patches = patches.permute(0, 2, 3, 1, 4, 5)  # B, numpatchesH, numpacthesW, C, H, W
     patches = patches.reshape(patches.size(0), -1, patches.size(-3), patches.size(-2), patches.size(-1))
     patches = patches.view(-1, patches.size(-3), patches.size(-2), patches.size(-1))  # B * total_numpatches, C, H, W
-    print(f'reshaped patches.shape = {patches.shape}')
+    # print(f'reshaped patches.shape = {patches.shape}')
 
     n_patches = patches.size(0) #Npatches is the 0 dimension (we know B=1)
-    print(f'num_patches = {n_patches}')
+    # print(f'num_patches = {n_patches}')
 
     # batchsize
-    print(f'batch_size = {batch_size}')
+    # print(f'batch_size = {batch_size}')
     # MI = mi.MutualInformation(num_bins=256, sigma=0.1, normalize=True).to(device)
 
     pairwise_sims_all = []
@@ -699,9 +699,11 @@ def patchwise_affinity_pytorch(image, distance_measure, patch_size, beta=5.0, de
 
             # compute distances between patches in a single batch
             pairwise_sims_batch = distance_measure(input1_batch, input2_batch)
+            # print(f'DEBUG: aff_pytorch: pairwise_sims_batch.shape={pairwise_sims_batch.shape}')
             pairwise_sims_single_patch.append(pairwise_sims_batch)
 
         # put together results from all batches (comparisons for a single patch)
+        # print(f'DEBUG: aff_pytorch: pairwise_sims_single_patch len={len(pairwise_sims_single_patch)}')
         pairwise_sims_single_patch = torch.cat(pairwise_sims_single_patch, dim=0)
         # print(f'pairwise_sims_single_patch.shape={pairwise_sims_single_patch.shape}')
         pairwise_sims_all.append(pairwise_sims_single_patch)
@@ -721,7 +723,7 @@ def patchwise_affinity_pytorch(image, distance_measure, patch_size, beta=5.0, de
     # Fill the diagonal with appropriate values
     diag_values = distance_measure(patches, patches).view(-1)
     pairwise_sims_all_padded[range(n_patches), range(n_patches)] = diag_values
-    print(diag_values)
+    # print(diag_values)
     # print(f'after adding diagnoal pairwise_sims_all_padded.shape={pairwise_sims_all_padded.shape}')
 
     # Calculate the affinity matrix using the Gaussian Kernel
