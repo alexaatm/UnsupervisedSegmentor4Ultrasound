@@ -187,7 +187,9 @@ def _extract_eig(
     patch_size: int = 8,
     aff_sigma: float = 0.01,
     distance_weight1: Optional[float] = None,
-    distance_weight2: Optional[float] = None
+    distance_weight2: Optional[float] = None,
+    image_transform_data: Optional[Tuple[transforms.Compose, Dict]] = None,
+    use_transform: bool = False,
 ):
     index, features_file = inp
 
@@ -300,6 +302,35 @@ def _extract_eig(
             image_gr_uint=np.array(image_lr_raw.convert('L'))
             image_lr=np.array(image_lr_raw.convert('RGB')) / 255.
 
+            if use_transform:
+                # get the image transform
+                tr, tr_dict = image_transform_data
+                image_tr = tr(image_lr_raw.convert("RGB"))  # PIL Image: (H_patch, W_patch, 3)
+                image_tr = image_tr.permute(1, 2, 0)
+                # denormalize image to compare intensities (values need to be in range [0, 255])
+                if 'norm' in tr_dict:
+                    if 'mean' in tr_dict['norm']:
+                        mean = tr_dict['norm']['mean']
+                        if 'std' in tr_dict['norm']:
+                            std = tr_dict['norm']['std']
+                            image_tr = image_tr * std + mean
+                image_tr = image_tr.detach()
+                if image_tr.is_cuda:
+                    image_tr = image_tr.cpu().numpy()
+                else:
+                    image_tr = image_tr.numpy()
+                # bring to range 0..255 like PIL images are
+                image_tr = (image_tr * 255).astype(np.uint8)
+
+                image_gr=image_tr[0, :, :] / 255. #1 channel, greyscale
+                image_gr_uint=image_tr
+                image_lr=image_tr / 255. #3 channels, RGB
+            else:
+                image_gr=np.array(image_lr_raw.convert('L')) / 255.
+                image_gr_uint=np.array(image_lr_raw.convert('L'))
+                image_lr=np.array(image_lr_raw.convert('RGB')) / 255.
+
+
             print(f"DEBUG2: extract.py : _extract_eig: image_raw.shape={image_raw.size}, (image_lr.shape)={(image_lr.shape)}")
 
 
@@ -365,7 +396,7 @@ def _extract_eig(
 
         if C_mi > 0:
             # Mutual Information distance based patch-wise affinity matrix
-            W_mi = utils.patchwise_affinity_pytorch(image_lr_raw, distance_measure=utils.mi_distance, patch_size=patch_size, beta=aff_sigma)
+            W_mi = utils.patchwise_affinity_pytorch(image_gr_uint, distance_measure=utils.mi_distance, patch_size=patch_size, beta=aff_sigma)
             if (W_mi.shape != (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr)):
                 W_mi = utils.interpolate_2Darray(W_mi, (H_pad_lr*W_pad_lr, H_pad_lr*W_pad_lr))
         else:
@@ -464,7 +495,9 @@ def extract_eigs(
     patch_size: int = 8,
     aff_sigma: float = 0.01,
     distance_weight1: Optional[float] = None,
-    distance_weight2: Optional[float] = None
+    distance_weight2: Optional[float] = None,
+    image_transform_data: Optional[Tuple[transforms.Compose, Dict]] = None,
+    use_transform: bool = False,
 ):
     """
     Extracts eigenvalues from features.
@@ -484,7 +517,9 @@ def extract_eigs(
                  C_ssd_knn=C_ssd_knn, C_dino=C_dino, max_knn_neigbors=max_knn_neigbors,
                  C_var_knn=C_var_knn, C_pos_knn=C_pos_knn, C_ssd=C_ssd, C_ncc=C_ncc,C_lncc=C_lncc,C_ssim=C_ssim,C_mi=C_mi,C_sam=C_sam,
                  patch_size=patch_size, aff_sigma=aff_sigma,
-                 distance_weight1=distance_weight1,distance_weight2=distance_weight2)
+                 distance_weight1=distance_weight1,distance_weight2=distance_weight2,
+                 image_transform_data=image_transform_data,
+                 use_transform=use_transform)
     print(kwargs)
     fn = partial(_extract_eig, **kwargs)
     inputs = list(enumerate(sorted(Path(features_dir).iterdir())))
@@ -765,6 +800,14 @@ def extract_bbox_features(
 
     # Transforms
     tr, tr_dict = image_transform_data
+    # extract mean and std if applied
+    mean = None
+    std = None
+    if 'norm' in tr_dict:
+        if 'mean' in tr_dict['norm']:
+            mean = tr_dict['norm']['mean']
+            if 'std' in tr_dict['norm']:
+                std = tr_dict['norm']['std']
 
     # Loop over boxes
     for bbox_dict in tqdm(bbox_list):
@@ -774,7 +817,8 @@ def extract_bbox_features(
         # Load image as tensor
         image_filename = str(Path(images_root) / f'{image_id}.png')
         # Apply same transform as for step 1 (extracting features)
-        image = tr(Image.open(image_filename).convert('RGB'))  # (3, H, W)
+        image_pil = Image.open(image_filename).convert('RGB')
+        image = tr(image_pil)  # (3, H, W)
         image = image.unsqueeze(0).to(device)  # (1, 3, H, W)
         # Use image encoding
         pos_x, pos_y = utils.positional_encoding_image(image)
@@ -805,10 +849,15 @@ def extract_bbox_features(
 
             # save image crops
             output_file_crop = str(Path(output_dir_crops) / f'{image_id}_segment{i}.png')
-            image_crop_np = image_crop.cpu().numpy()
-            image_crop_np_sq = image_crop_np.squeeze(0)
-            image_crop_np_uint = (image_crop_np_sq*255).astype(np.uint8).transpose(1, 2, 0)
-            Image.fromarray(image_crop_np_uint).convert('RGB').save(output_file_crop)
+            # image_crop = image_crop.squeeze(0)
+            # image_crop = image_crop.permute(1, 2, 0)
+            # if mean is not None and std is not None:
+            #     image_crop = image_crop * std + mean
+            # image_crop_np = image_crop.detach().cpu().numpy()
+            # image_crop_np_sq = image_crop_np.squeeze(0)
+            # image_crop_np_uint = (image_crop_np_sq*255).astype(np.uint8)
+            # Image.fromarray(image_crop_np_uint).convert('L').save(output_file_crop)
+
         bbox_dict['features'] = torch.stack(features_crops, dim=0)
     
     # Save
@@ -861,7 +910,7 @@ def extract_bbox_clusters(
     # Cluster: K-Means
     if clustering == "kmeans":
         print(f'Computing K-Means clustering with {num_clusters} clusters')
-        kmeans = MiniBatchKMeans(n_clusters=num_clusters, batch_size=4096, max_iter=5000, random_state=seed)
+        kmeans = MiniBatchKMeans(n_clusters=num_clusters, batch_size=4096, max_iter=5000, random_state=seed, n_init = 10)
         clusters = kmeans.fit_predict(all_features_norm_numpy)
     elif clustering == "spectral_net":
         print(f'Computing clusters using a SpectralNet model with {num_clusters} clusters')
