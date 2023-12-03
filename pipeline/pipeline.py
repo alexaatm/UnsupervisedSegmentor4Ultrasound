@@ -218,7 +218,9 @@ def pipeline(cfg: DictConfig) -> None:
         patch_size = cfg.spectral_clustering.patch_size,
         aff_sigma = cfg.spectral_clustering.aff_sigma,
         distance_weight1 = cfg.spectral_clustering.distance_weight1,
-        distance_weight2 = cfg.spectral_clustering.distance_weight2
+        distance_weight2 = cfg.spectral_clustering.distance_weight2,
+        image_transform_data = im_transform_data,
+        use_transform = cfg.spectral_clustering.use_transform,
     )
 
     # Visualize eigenvectors
