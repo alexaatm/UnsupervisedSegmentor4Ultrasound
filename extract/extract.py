@@ -64,6 +64,11 @@ def extract_features(
     else:
         model, val_transform, patch_size,  num_heads = utils.get_model_from_checkpoint(model_name, model_checkpoint, just_backbone=True)
     
+    if "reg" in model_name:
+        num_reg_tokens = 4 #see ref https://github.com/facebookresearch/dinov2/blob/main/MODEL_CARD.md
+    else:
+        num_reg_tokens = 0
+    
     # Add hook
     print('Adding a hook...')
     if 'dino' in model_name or 'mocov3' in model_name:
@@ -122,7 +127,9 @@ def extract_features(
         B, C, H, W = images.shape
         H_patch, W_patch = H // P, W // P
         H_pad, W_pad = H_patch * P, W_patch * P
-        T = H_patch * W_patch + 1  # number of tokens, add 1 for [CLS]
+        T = H_patch * W_patch + 1 + num_reg_tokens # number of tokens, add 1 for [CLS] + register tokens if dinov2 with registers is used
+        T_noreg = H_patch * W_patch + 1 # number of tokens without registers
+    
         # images = F.interpolate(images, size=(H_pad, W_pad), mode='bilinear')  # resize image
         images = images[:, :, :H_pad, :W_pad]
         images = images.to(accelerator.device)
@@ -134,9 +141,13 @@ def extract_features(
                     # accelerator.unwrap_model(model).get_intermediate_layers(images)[0].squeeze(0)
                     model.get_intermediate_layers(images)[0].squeeze(0)
                 # output_dict['out'] = out
-                output_qkv = feat_out["qkv"].reshape(B, T, 3, num_heads, -1 // num_heads).permute(2, 0, 3, 1, 4)
+                output_qkv_full = feat_out["qkv"].reshape(B, T, 3, num_heads, -1 // num_heads)
+                #skip the register tokens, as done in ref: https://github.com/facebookresearch/dinov2/blob/df7265ce09efa7553a537606565217e42cefea32/notebooks/attention.ipynb, 
+                output_qkv = torch.cat([output_qkv_full[:, :1, :, : , :], output_qkv_full[:, 1 + num_reg_tokens:, :, :]], dim=1)
+                output_qkv = output_qkv.permute(2, 0, 3, 1, 4) 
+                # output_qkv = feat_out["qkv"].reshape(B, T, 3, num_heads, -1 // num_heads).permute(2, 0, 3, 1, 4)  #TODO: chekc this: https://gitlab.com/ziegleto-machine-learning/dino/-/tree/main/
                 # output_dict['q'] = output_qkv[0].transpose(1, 2).reshape(B, T, -1)[:, 1:, :]
-                output_dict['k'] = output_qkv[1].transpose(1, 2).reshape(B, T, -1)[:, 1:, :]
+                output_dict['k'] = output_qkv[1].transpose(1, 2).reshape(B, T_noreg, -1)[:, 1:, :]
                 # output_dict['v'] = output_qkv[2].transpose(1, 2).reshape(B, T, -1)[:, 1:, :]
             else:
                 raise ValueError(model_name)
