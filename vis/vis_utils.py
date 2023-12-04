@@ -183,9 +183,13 @@ def plot_dino_attn_maps(
     
     # Get the model
     if model_checkpoint=="":
-        model, val_transform, patch_size, num_heads = utils.get_model(model_name)
+        model, val_transform, patch_size, nh = utils.get_model(model_name)
     else:
-        model, val_transform, patch_size,  num_heads = utils.get_model_from_checkpoint(model_name, model_checkpoint, just_backbone=True)
+        model, val_transform, patch_size,  nh = utils.get_model_from_checkpoint(model_name, model_checkpoint, just_backbone=True)
+
+    # disable grad
+    for p in model.parameters():
+        p.requires_grad = False
 
     # put model to cuda device to
     model = model.to('cuda')
@@ -210,7 +214,7 @@ def plot_dino_attn_maps(
 
         # Apply transform
         sample = transform(sample)
-
+        print(f'sample.shape={sample.shape}')
 
         # Plot
         w = sample.shape[1] - sample.shape[1] % patch_size
@@ -224,10 +228,19 @@ def plot_dino_attn_maps(
 
         # get self-attention
         attentions = model.get_last_selfattention(sample)
-        nh = attentions.shape[1] # number of head
+        print(f'attentions.shape={attentions.shape}')
 
         # we keep only the output patch attention
-        attentions = attentions[0, :, 0, 1:].reshape(nh, -1)
+        if 'dinov2' in model_name:
+            # in dinov2, attentions return tensor with 3 dimensions, if xformers is enabled (make sure export XFORMERS_DISABLED=True)
+            # If xformers is disabled, the commented code below is not needed
+            # attentions = torch.unsqueeze(attentions, 1)
+            # attentions.fill_(nh)
+            # print(f'attentions.shape={attentions.shape}')
+            if 'reg' in model_name:
+                attentions = attentions[0, :, 0, 1+4:].reshape(nh, -1)
+        else:
+            attentions = attentions[0, :, 0, 1:].reshape(nh, -1)
 
         # we keep only a certain percentage of the mass
         val, idx = torch.sort(attentions)

@@ -19,6 +19,10 @@ import pytorch_lightning as pl
 
 from extract import MutualInformation as mi
 
+from dino2_models.dinov2_with_attention_extraction.dinov2.models import  vision_transformer as vits
+# from models.dinov2.vision_transformer import DinoVisionTransformer
+
+
 MI = mi.MutualInformation(num_bins=256, sigma=0.1, normalize=True).to('cuda')
 
 class ImagesDataset(Dataset):
@@ -114,6 +118,19 @@ def get_model(name: str):
         val_transform = get_transform(name)
         patch_size = model.patch_embed.patch_size[0]
         num_heads = model.blocks[0].attn.num_heads
+        embed_dim = model.embed_dim
+
+        # use modified version of a model to get selfattention (function not present in the official release)
+        # TODO - load state dictionary from dinov2 checkpoint correctly, otherwise - change dinov2 model youself based on https://github.com/facebookresearch/dinov2/commit/df7265ce09efa7553a537606565217e42cefea32
+        # modifiedDino = vits.DinoVisionTransformer(
+        #     num_register_tokens = 4, 
+        #     embed_dim = embed_dim, 
+        #     patch_size=patch_size,
+        #     num_heads=num_heads)
+        # modifiedDino.load_state_dict(model.state_dict()) #TODO - solve this step
+        # modifiedDino.fc = torch.nn.Identity()
+        # model = modifiedDino
+
     elif 'dino_' in name:
         model = torch.hub.load('facebookresearch/dino:main', name)
         model.fc = torch.nn.Identity()
