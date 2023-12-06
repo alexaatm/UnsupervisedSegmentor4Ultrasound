@@ -290,7 +290,7 @@ def plot_dino_attn_maps(
         fig.tight_layout()
 
         # Save the plot
-        output_filename = os.path.join(output_dir, f"{image_id}_dino_attn_maps.png")
+        output_filename = os.path.join(output_dir, f"{image_id}_{model_name}_attn_maps.png")
         fig.savefig(output_filename)
 
         # Close plot
