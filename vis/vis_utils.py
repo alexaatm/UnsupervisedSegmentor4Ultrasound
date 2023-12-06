@@ -232,15 +232,11 @@ def plot_dino_attn_maps(
         sample = sample.to('cuda')
 
         # get self-attention
-        # with autocast():
-        print("memory before getting attn:", torch.cuda.memory_allocated())
-        with torch.no_grad():
-            torch.cuda.empty_cache()
-            attentions = model.get_last_selfattention(sample)
-        print("memory after getting attn:", torch.cuda.memory_allocated())
+        with torch.cuda.amp.autocast():
+            with torch.no_grad():
+                torch.cuda.empty_cache()
+                attentions = model.get_last_selfattention(sample)
             
-        # print(f'attentions.shape={attentions.shape}')
-
         # we keep only the output patch attention
         if 'dinov2' in model_name:
             # in dinov2, attentions return tensor with 3 dimensions, if xformers is enabled (make sure export XFORMERS_DISABLED=True)
@@ -250,6 +246,8 @@ def plot_dino_attn_maps(
             # print(f'attentions.shape={attentions.shape}')
             if 'reg' in model_name:
                 attentions = attentions[0, :, 0, 1+4:].reshape(nh, -1)
+            else: 
+                attentions = attentions[0, :, 0, 1:].reshape(nh, -1)
         else:
             attentions = attentions[0, :, 0, 1:].reshape(nh, -1)
 
@@ -263,7 +261,6 @@ def plot_dino_attn_maps(
         idx2 = torch.argsort(idx)
         for head in range(nh):
             th_attn[head] = th_attn[head][idx2[head]]
-            
         th_attn = th_attn.reshape(nh, w_featmap, h_featmap).float()
 
         # interpolate
@@ -312,6 +309,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # Print GPU memory summary
+    print(torch.cuda.memory_summary())  
 
     # Call the function with command-line arguments
     plot_dino_attn_maps(images_list=args.images_list, 
