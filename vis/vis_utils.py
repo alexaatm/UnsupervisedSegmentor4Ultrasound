@@ -13,6 +13,10 @@ from extract import extract_utils as utils
 from torchvision import transforms
 from torch import nn
 
+torch.cuda.empty_cache()
+from torch.cuda.amp import autocast
+
+import argparse
 
 def plot_segmentation(
     images_list: str,
@@ -167,11 +171,12 @@ def plot_eigenvectors(
 def plot_dino_attn_maps(
     images_list: str,
     images_root: str,
-    model_checkpoint: str,
     model_name: str,
+    model_checkpoint: str = "",
     output_dir: str = "./output_plots/dino_attn_maps"
 ):
     utils.make_output_dir(output_dir, check_if_empty=False)
+
 
     # Inputs
     image_paths = []
@@ -182,7 +187,7 @@ def plot_dino_attn_maps(
 
     
     # Get the model
-    if model_checkpoint=="":
+    if model_checkpoint=="" or model_checkpoint==None:
         model, val_transform, patch_size, nh = utils.get_model(model_name)
     else:
         model, val_transform, patch_size,  nh = utils.get_model_from_checkpoint(model_name, model_checkpoint, just_backbone=True)
@@ -214,12 +219,12 @@ def plot_dino_attn_maps(
 
         # Apply transform
         sample = transform(sample)
-        print(f'sample.shape={sample.shape}')
+        # print(f'sample.shape={sample.shape}')
 
         # Plot
         w = sample.shape[1] - sample.shape[1] % patch_size
         h = sample.shape[2] - sample.shape[2] % patch_size
-        sample = sample[:, :h, :w].unsqueeze(0)
+        sample = sample[:, :w, :h].unsqueeze(0)
         w_featmap = sample.shape[-2] // patch_size
         h_featmap = sample.shape[-1] // patch_size
 
@@ -227,8 +232,14 @@ def plot_dino_attn_maps(
         sample = sample.to('cuda')
 
         # get self-attention
-        attentions = model.get_last_selfattention(sample)
-        print(f'attentions.shape={attentions.shape}')
+        # with autocast():
+        print("memory before getting attn:", torch.cuda.memory_allocated())
+        with torch.no_grad():
+            torch.cuda.empty_cache()
+            attentions = model.get_last_selfattention(sample)
+        print("memory after getting attn:", torch.cuda.memory_allocated())
+            
+        # print(f'attentions.shape={attentions.shape}')
 
         # we keep only the output patch attention
         if 'dinov2' in model_name:
@@ -285,4 +296,27 @@ def plot_dino_attn_maps(
         output_filename = os.path.join(output_dir, f"{image_id}_dino_attn_maps.png")
         fig.savefig(output_filename)
 
+        # Close plot
+        plt.close()
+
     print(f"Plots saved in the output directory: {output_dir}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Plot DINO Attention Maps')
+    parser.add_argument('--images_list', type=str, required=True, help='Path to the file containing the list of image filenames')
+    parser.add_argument('--images_root', type=str, required=True, help='Root directory of the images')
+    parser.add_argument('--model_checkpoint', type=str, required=False, help='Path to the DINO model checkpoint')
+    parser.add_argument('--model_name', type=str, required=True, help='Name of the DINO model')
+    parser.add_argument('--output_dir', type=str, default='./output_plots/dino_attn_maps', help='Output directory for saving plots')
+
+    args = parser.parse_args()
+
+
+    # Call the function with command-line arguments
+    plot_dino_attn_maps(images_list=args.images_list, 
+                        images_root=args.images_root, 
+                        model_checkpoint=args.model_checkpoint,
+                        model_name=args.model_name,
+                        output_dir=args.output_dir)
+
