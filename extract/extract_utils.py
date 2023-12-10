@@ -22,8 +22,8 @@ from extract import MutualInformation as mi
 from dino2_models.dinov2_with_attention_extraction.dinov2.models import  vision_transformer as vits
 # from models.dinov2.vision_transformer import DinoVisionTransformer
 
-
-MI = mi.MutualInformation(num_bins=256, sigma=0.1, normalize=True).to('cuda')
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+MI = mi.MutualInformation(num_bins=256, sigma=0.1, normalize=True).to(DEVICE)
 
 class ImagesDataset(Dataset):
     """A very simple dataset for loading images."""
@@ -661,7 +661,7 @@ def mi_distance(im1, im2):
     return 1 - MI(im1, im2)
 
 
-def patchwise_affinity_pytorch(image, distance_measure, patch_size, beta=5.0, device='cuda', batch_size = 1024):
+def patchwise_affinity_pytorch(image, distance_measure, patch_size, beta=5.0, device='cuda', batch_size = 8192):
     """
     Computes an affinity matrix for patches of a single image using a pytorch implementation of MI metric.
 
