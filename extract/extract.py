@@ -15,9 +15,13 @@ from sklearn.decomposition import PCA
 from torchvision.utils import draw_bounding_boxes
 from tqdm import tqdm
 from torchvision import transforms
-from spectralnet import SpectralNet
 from sklearn.cluster import OPTICS
 from sklearn.cluster import SpectralClustering
+
+try:
+    from spectralnet import SpectralNet
+except ImportError:
+    print(f'DEBUG: failed to import spectralnet. Check for your pytorch version compatibility.')
 
 # import extract_utils as utils
 from extract import extract_utils as utils
@@ -333,8 +337,8 @@ def _extract_eig(
                 # bring to range 0..255 like PIL images are
                 image_tr = (image_tr * 255).astype(np.uint8)
 
-                image_gr=image_tr[0, :, :] / 255. #1 channel, greyscale
-                image_gr_uint=image_tr
+                image_gr=image_tr[:, :, 0] / 255. #1 channel, greyscale
+                image_gr_uint=image_tr [:, :, 0] #1 channel, greyscale
                 image_lr=image_tr / 255. #3 channels, RGB
             else:
                 image_gr=np.array(image_lr_raw.convert('L')) / 255.
@@ -342,7 +346,10 @@ def _extract_eig(
                 image_lr=np.array(image_lr_raw.convert('RGB')) / 255.
 
 
-            print(f"DEBUG2: extract.py : _extract_eig: image_raw.shape={image_raw.size}, (image_lr.shape)={(image_lr.shape)}")
+            print(f"DEBUG2: extract.py : _extract_eig: image_raw.shape={image_raw.size}, "
+                  f"image_gr_uint.shape={image_gr_uint.shape}, "
+                  f"image_lr.shape={image_lr.shape}, "
+                  )
 
 
 
@@ -848,6 +855,7 @@ def extract_bbox_features(
             mask = torch.from_numpy(binary_masks[i]).unsqueeze(0).unsqueeze(0).float().to(device)  # (1, 1, H, W)
             mask = mask.expand(-1, 3, -1, -1) # (1, 3, H, W)
 
+            print(f'DEBUG: image.shape={image.shape}, image_crop.shape={image_crop.shape}')
             # extract features
             with torch.no_grad():
                 features_crop = model(image_crop).squeeze().cpu()
