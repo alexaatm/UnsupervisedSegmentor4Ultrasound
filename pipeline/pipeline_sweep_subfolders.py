@@ -30,6 +30,9 @@ import traceback
 # A logger for this file
 log = logging.getLogger(__name__)
 
+import torch
+torch.cuda.empty_cache()
+
 # Pipeline for deep spectral segmentation steps
 def pipeline(cfg, subroot = "main"):
     # cfg - wandb config
@@ -634,6 +637,7 @@ def objective(cfg):
             for key in ['multi_region', 'crf_multi_region', 'segmaps', 'crf_segmaps']:
                 if scores[key] is not None:
                     scores[key]= np.mean(scores[key])
+                    scores[f'{key}_std']= np.std(scores[key])
     else:
         scores = {'multi_region': [], 'crf_multi_region': [], 'segmaps': [], 'crf_segmaps': []}
         score = pipeline(cfg)
@@ -679,13 +683,17 @@ def main():
         scores = objective(cfg)
     except Exception:
         log.info(traceback.print_exc())
+        # return
+        # wandb.finish()
     
 
     # log the main scores
-    for key in ['multi_region', 'crf_multi_region', 'segmaps', 'crf_segmaps']:
-        if key in scores:
-            wandb.log({f"main_mIoU_{key}": scores[key]})
-   
+    # for key in ['multi_region', 'crf_multi_region', 'segmaps', 'crf_segmaps']:
+    #     if key in scores:
+    for key in scores:
+        wandb.log({f"main_mIoU_{key}": scores[key]})
+    wandb.finish()
+
 import yaml
 
 def yaml_to_nested_dict(yaml_data):
@@ -746,7 +754,10 @@ def run_sweep(cfg: DictConfig) -> None:
     print(sweep_configuration)
 
     # Start the sweep
-    sweep_id = wandb.sweep(sweep=sweep_configuration, project=cfg['wandb']['setup']['project'])
+    if cfg['sweep']['sweep_id'] is not None:
+        sweep_id = f"alexaatm/pipeline_eval/{cfg['sweep']['sweep_id']}"
+    else:
+        sweep_id = wandb.sweep(sweep=sweep_configuration, project=cfg['wandb']['setup']['project'])
     wandb.agent(sweep_id, function=main, count = cfg['sweep']['count'])
 
 if __name__ == "__main__":
