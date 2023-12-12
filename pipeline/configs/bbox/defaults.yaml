@@ -15,3 +15,4 @@ should_use_siamese: null
 should_use_ae: null
 is_sparse_graph: null
 spectral_n_nbg: null
+feat_comb_method: sum

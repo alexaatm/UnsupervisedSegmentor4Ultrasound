@@ -388,6 +388,7 @@ def pipeline(cfg, subroot = "main"):
                 output_dir_crops = output_bbox_crops,
                 C_pos = cfg['bbox']['C_pos'],
                 C_mask = cfg['bbox']['C_mask'],
+                feat_comb_method = cfg['bbox']['feat_comb_method']
             )
 
 

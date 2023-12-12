@@ -787,6 +787,7 @@ def extract_bbox_features(
     image_transform_data: Optional[Tuple[transforms.Compose, Dict]] = None,
     C_pos: float = 0.0,
     C_mask: float = 0.0,
+    feat_comb_method: str = "sum"
 ):
     """
     Example:
@@ -837,6 +838,7 @@ def extract_bbox_features(
         # Apply same transform as for step 1 (extracting features)
         image_pil = Image.open(image_filename).convert('RGB')
         image = tr(image_pil)  # (3, H, W)
+        print(f'DEBUG bbox featues: image.shape={image.shape}')
         image = image.unsqueeze(0).to(device)  # (1, 3, H, W)
         # Use image encoding
         pos_x, pos_y = utils.positional_encoding_image(image)
@@ -855,6 +857,7 @@ def extract_bbox_features(
             mask = torch.from_numpy(binary_masks[i]).unsqueeze(0).unsqueeze(0).float().to(device)  # (1, 1, H, W)
             mask = mask.expand(-1, 3, -1, -1) # (1, 3, H, W)
 
+            # TODO: idea: mask out the image_Crop uwing the mask?
             print(f'DEBUG: image.shape={image.shape}, image_crop.shape={image_crop.shape}')
             # extract features
             with torch.no_grad():
@@ -863,7 +866,10 @@ def extract_bbox_features(
                 features_pos_y = model(pos_y_crop).squeeze().cpu()
                 features_mask = model(mask).squeeze().cpu()
                 # combine different features
-                features = features_crop + C_pos * features_pos_x + C_pos * features_pos_y + C_mask * features_mask
+                if feat_comb_method=="sum":
+                    features = features_crop + C_pos * features_pos_x + C_pos * features_pos_y + C_mask * features_mask
+                elif feat_comb_method=="concat":
+                    features = torch.cat([features_crop, C_pos * features_pos_x, C_pos * features_pos_y, C_mask * features_mask])
             features_crops.append(features)
 
             # save image crops
