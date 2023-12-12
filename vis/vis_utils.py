@@ -166,6 +166,9 @@ def plot_eigenvectors(
         output_filename = os.path.join(output_dir, f"{image_id}_eigenvectors.png")
         plt.savefig(output_filename)
 
+        # Close plot
+        plt.close()
+
     print(f"Plots saved in the output directory: {output_dir}")
 
 def plot_dino_attn_maps(
