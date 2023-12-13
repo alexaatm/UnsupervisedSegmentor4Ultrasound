@@ -787,7 +787,8 @@ def extract_bbox_features(
     image_transform_data: Optional[Tuple[transforms.Compose, Dict]] = None,
     C_pos: float = 0.0,
     C_mask: float = 0.0,
-    feat_comb_method: str = "sum"
+    feat_comb_method: str = "sum",
+    apply_mask: bool = False
 ):
     """
     Example:
@@ -850,14 +851,20 @@ def extract_bbox_features(
         binary_masks = bbox_dict['binary_masks']
         features_crops = []
         for i, (xmin, ymin, xmax, ymax) in enumerate(bboxes):
-            # crop image according to bounding box
-            image_crop = image[:, :, ymin:ymax, xmin:xmax]
-            pos_x_crop = pos_x[:, :, ymin:ymax, xmin:xmax]
-            pos_y_crop = pos_y[:, :, ymin:ymax, xmin:xmax]
+            # prepare segment mask so it also has 3 channels like the image
             mask = torch.from_numpy(binary_masks[i]).unsqueeze(0).unsqueeze(0).float().to(device)  # (1, 1, H, W)
             mask = mask.expand(-1, 3, -1, -1) # (1, 3, H, W)
 
-            # TODO: idea: mask out the image_Crop uwing the mask?
+            # apply segment mask to the image before cropping it:
+            if apply_mask:
+                image_masked = image * mask
+                image_crop = image_masked[:, :, ymin:ymax, xmin:xmax]
+            else:
+                image_crop = image[:, :, ymin:ymax, xmin:xmax]
+            
+            pos_x_crop = pos_x[:, :, ymin:ymax, xmin:xmax]
+            pos_y_crop = pos_y[:, :, ymin:ymax, xmin:xmax]
+
             print(f'DEBUG: image.shape={image.shape}, image_crop.shape={image_crop.shape}')
             # extract features
             with torch.no_grad():
