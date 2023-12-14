@@ -998,3 +998,28 @@ def positional_encoding_image(image):
     pos_enc_w_repeated = torch.tensor(pos_enc_w_repeated, dtype=torch.float32).permute(2, 1, 0) #(1, H, W)
 
     return   (pos_enc_h_repeated, pos_enc_w_repeated)  
+
+def pad_image_tensor(image_tensor, target_size):
+    _, _, height, width = image_tensor.size()
+
+    # Calculate the required padding to make sure it's at least equal to the kernel size
+    pad_height = max(0, target_size[0] - height)
+    pad_width = max(0, target_size[1] - width)
+
+    # Make sure the padded size is at least equal to the kernel size
+    pad_height = max(pad_height, target_size[0])
+    pad_width = max(pad_width, target_size[1])
+    
+    # Pad the image tensor
+    padded_image_tensor = torch.nn.functional.pad(image_tensor, (0, pad_width, 0, pad_height), mode='constant', value=0)
+
+    return padded_image_tensor
+
+def check_gpu_memory():
+    if torch.cuda.is_available():
+        print("GPU is available.")
+        device = torch.device("cuda")
+    else:
+        device = torch.device('cpu')
+    # Get GPU memory statistics
+    print(torch.cuda.memory_summary(device=device, abbreviated=False))

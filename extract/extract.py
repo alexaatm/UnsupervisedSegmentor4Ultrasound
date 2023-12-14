@@ -168,8 +168,13 @@ def extract_features(
         # Save
         accelerator.save(output_dict, str(output_file))
         accelerator.wait_for_everyone()
+
+    
     
     print(f'Saved features to {output_dir}')
+
+    print(f'DEBUG: feature extraction: check memory')
+    utils.check_gpu_memory()
 
     # return found transform to not recalulate it every time, and not to pass its parameters to every function
     return transform, tr_dict
@@ -803,6 +808,9 @@ def extract_bbox_features(
     utils.make_output_dir(str(Path(output_file).parent), check_if_empty=False)
     utils.make_output_dir(output_dir_crops)
 
+    print(f'DEBUG: bbox feature extraction: check memory')
+    utils.check_gpu_memory()
+
     # Load bounding boxes
     bbox_list = torch.load(bbox_file)
     total_num_boxes = sum(len(d['bboxes']) for d in bbox_list)
@@ -817,6 +825,12 @@ def extract_bbox_features(
     model, val_transform, patch_size, num_heads = utils.get_model(model_name_lower)
     model.eval()
     model = model.to(device)
+
+    # for mmeory effciency
+    model = model.half()
+    torch.cuda.empty_cache()
+    print(f'DEBUG: bbox feature extraction: check memory')
+    utils.check_gpu_memory()
 
     # Transforms
     tr, tr_dict = image_transform_data
@@ -841,6 +855,11 @@ def extract_bbox_features(
         image = tr(image_pil)  # (3, H, W)
         print(f'DEBUG bbox featues: image.shape={image.shape}')
         image = image.unsqueeze(0).to(device)  # (1, 3, H, W)
+
+        # for memory efficiency
+        image = image.half()
+
+
         # Use image encoding
         pos_x, pos_y = utils.positional_encoding_image(image)
         pos_x = pos_x.unsqueeze(0).to(device)  # (1, 1, H, W)
@@ -861,9 +880,28 @@ def extract_bbox_features(
                 image_crop = image_masked[:, :, ymin:ymax, xmin:xmax]
             else:
                 image_crop = image[:, :, ymin:ymax, xmin:xmax]
-            
+
             pos_x_crop = pos_x[:, :, ymin:ymax, xmin:xmax]
             pos_y_crop = pos_y[:, :, ymin:ymax, xmin:xmax]
+            
+            # A hack to solve small crop size error
+            #  torch/nn/modules/conv.py", line 456, in _conv_forward
+            #  eturn F.conv2d(input, weight, bias, self.stride,
+            #         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            # RuntimeError: Calculated padded input size per channel: (0 x 388). Kernel size: (8 x 8). Kernel size can't be greater than actual input size
+
+            _, _, height, width = image_crop.size()
+            if height < 8 or width < 8:
+                image_crop = utils.pad_image_tensor(image_crop, (8,8))
+                pos_x_crop = utils.pad_image_tensor(pos_x_crop, (8,8))
+                pos_y_crop = utils.pad_image_tensor(pos_y_crop, (8,8))
+
+
+            # for memory efficiency
+            image_crop = image_crop.half()
+            pos_x_crop = pos_x_crop.half()
+            pos_y_crop = pos_y_crop.half()
+            mask = mask.half()
 
             print(f'DEBUG: image.shape={image.shape}, image_crop.shape={image_crop.shape}')
             # extract features
@@ -871,7 +909,12 @@ def extract_bbox_features(
                 features_crop = model(image_crop).squeeze().cpu()
                 features_pos_x = model(pos_x_crop).squeeze().cpu()
                 features_pos_y = model(pos_y_crop).squeeze().cpu()
-                features_mask = model(mask).squeeze().cpu()
+
+                # for memory efficiency:
+                if C_mask==0:
+                    features_mask = 0
+                else:
+                    features_mask = model(mask).squeeze().cpu()
                 # combine different features
                 if feat_comb_method=="sum":
                     features = features_crop + C_pos * features_pos_x + C_pos * features_pos_y + C_mask * features_mask
@@ -879,8 +922,17 @@ def extract_bbox_features(
                     features = torch.cat([features_crop, C_pos * features_pos_x, C_pos * features_pos_y, C_mask * features_mask])
             features_crops.append(features)
 
+            # for memory efficiency
+            del features_crop
+            del features_pos_x
+            del features_pos_y
+            del features_mask
+            torch.cuda.empty_cache()
+
+
+
             # save image crops
-            output_file_crop = str(Path(output_dir_crops) / f'{image_id}_segment{i}.png')
+            # output_file_crop = str(Path(output_dir_crops) / f'{image_id}_segment{i}.png')
             # image_crop = image_crop.squeeze(0)
             # image_crop = image_crop.permute(1, 2, 0)
             # if mean is not None and std is not None:
