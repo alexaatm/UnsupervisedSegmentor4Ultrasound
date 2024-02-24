@@ -18,15 +18,15 @@ config:
       C_dino:
         values: [1.0]
       C_ssd_knn:
-        values: [0.0, 1.0]
+        values: [0.0, 0.5, 1.0]
       max_knn_neigbors:
         values: [80]
       C_var_knn:
         values: [0.0]
       C_pos_knn:
-        values: [0.0, 0.5]
+        values: [0.0, 0.5, 1.0]
       C_ssd:
-        values: [0.0, 1.0]
+        values: [0.0, 0.5, 1.0]
       C_ncc:
         values: [0.0]
       C_lncc:
@@ -34,11 +34,11 @@ config:
       C_ssim:
         values: [0.0]
       C_mi:
-        values: [0.0, 1.0]
+        values: [0.0, 0.5, 1.0]
       C_sam:
         values: [0.0]
       patch_size:
-        values: [16, 8]
+        values: [8]
       aff_sigma:
         values: [6.5]
         # values: [5.0, 6.0, 6.5, 7.0, 7.5, 8.0]

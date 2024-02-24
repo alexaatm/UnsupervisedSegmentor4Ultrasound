@@ -1,7 +1,0 @@
-name: us_mixed_train
-dataset_root: US_MIXED/train
-input_size: 512
-images_root: images
-list: lists/images.txt
-gt_dir: null
-features_dir: null

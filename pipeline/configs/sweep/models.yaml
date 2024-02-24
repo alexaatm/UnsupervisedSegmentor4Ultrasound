@@ -1,5 +1,5 @@
-name: model_sweep
-seg_for_eval: crf_segmaps
+name: models
+seg_for_eval: ['segmaps', 'multi_region']
 method: grid
 count: 
 config:
@@ -9,7 +9,6 @@ config:
         values: [True]
       eigen:
         values: [True]
-
   model:
     parameters:
       name:
@@ -22,3 +21,4 @@ config:
           - dinov2_vitb14_reg
       checkpoint:
         values: [""]  # Add your list of checkpoint paths here
+        # "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/self-training/outputs/models/2023-11-11-train_dinoLightningModule/21-17-15-us_mixed_train/epoch=28-step=2059-train_loss=0.34-val_loss=0.28.ckpt"

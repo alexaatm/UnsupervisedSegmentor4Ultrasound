@@ -1,4 +1,0 @@
-name: mutinfo_train_mini
-input_size: 256
-images_root: images
-list: lists/images.txt

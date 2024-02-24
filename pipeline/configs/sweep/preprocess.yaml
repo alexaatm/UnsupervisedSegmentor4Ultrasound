@@ -1,7 +1,7 @@
 name: preprocess_sweep
 seg_for_eval: multi_region
 method: grid
-count: null
+count: 96
 config:
   norm:
     values: ["none", 'custom', 'imagenet', 'custom_global']
@@ -28,6 +28,6 @@ config:
       crf_multi_region:
         values: [False]
   segments_num:
-    values: [14]
+    values: [28]
   clusters_num:
-    values: [6]
+    values: [7]

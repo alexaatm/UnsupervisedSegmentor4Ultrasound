@@ -6,6 +6,8 @@ downsample_factor: null
 # bbox features
 C_pos: 0.0
 C_mask: 0.0
+apply_mask: False
+feat_comb_method: "sum"
 # bbox clustering:
 num_clusters: 20
 seed: 1
@@ -15,4 +17,3 @@ should_use_siamese: null
 should_use_ae: null
 is_sparse_graph: null
 spectral_n_nbg: null
-feat_comb_method: sum

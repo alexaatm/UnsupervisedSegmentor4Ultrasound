@@ -1,5 +1,5 @@
-name: segments_clusters_carotids_sweep
-seg_for_eval: crf_segmaps
+name: segments_clusters_carotids
+seg_for_eval: ['segmaps']
 method: bayes
 count: 20
 config:
