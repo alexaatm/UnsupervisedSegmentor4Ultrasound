@@ -915,11 +915,14 @@ def extract_bbox_features(
                     features_mask = 0
                 else:
                     features_mask = model(mask).squeeze().cpu()
+
+                # print(f'DEBUG: features_crop.shape={features_crop.shape}, features_pos_x.shape={features_pos_x.shape}, features_pos_y.shape={features_pos_y.shape}, type(features_mask)={type(features_mask)}') 
                 # combine different features
                 if feat_comb_method=="sum":
                     features = features_crop + C_pos * features_pos_x + C_pos * features_pos_y + C_mask * features_mask
                 elif feat_comb_method=="concat":
                     features = torch.cat([features_crop, C_pos * features_pos_x, C_pos * features_pos_y, C_mask * features_mask])
+                # features = features_crop
             features_crops.append(features)
 
             # for memory efficiency
@@ -942,6 +945,8 @@ def extract_bbox_features(
             # image_crop_np_uint = (image_crop_np_sq*255).astype(np.uint8)
             # Image.fromarray(image_crop_np_uint).convert('L').save(output_file_crop)
 
+        if features.numel() == 0:
+            continue 
         bbox_dict['features'] = torch.stack(features_crops, dim=0)
     
     # Save
