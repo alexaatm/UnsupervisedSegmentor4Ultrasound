@@ -1,0 +1,41 @@
+# @package _global_
+hydra:
+  run:
+    dir: ./outputs/${name}/${now:%Y-%m-%d--%H-%M-%S}
+
+name: "debug"
+seed: 1
+job_type: 'train'
+fp16: False
+cpu: False
+wandb: True
+wandb_kwargs:
+  project: dsp-selftraining
+
+data:
+  num_classes: 6
+  dataset: liver_mixed_val_mini
+  train_dataset:
+    root_dir: /home/guests/oleksandra_tmenova/test/project/thesis-codebase/data/LIVER_MIXED/val_mini
+    gt_dir: null
+    pred_dir: 
+    image_dir: /home/guests/oleksandra_tmenova/test/project/thesis-codebase/data/LIVER_MIXED/val_mini/images
+  val_dataset:
+    root_dir: /home/guests/oleksandra_tmenova/test/project/thesis-codebase/data/LIVER_MIXED/val_mini
+    gt_dir: /home/guests/oleksandra_tmenova/test/project/thesis-codebase/data/LIVER_MIXED/val_mini/labels
+    pred_dir: 
+    image_dir: /home/guests/oleksandra_tmenova/test/project/thesis-codebase/data/LIVER_MIXED/val_mini/images
+  loader:
+    batch_size: 144
+    num_workers: 8
+    pin_memory: False
+  transform:
+    resize_size: 256
+    crop_size: 224
+    img_mean: [0.485, 0.456, 0.406]
+    img_std: [0.229, 0.224, 0.225]
+
+segments_dir: /home/guests/oleksandra_tmenova/test/project/thesis-codebase/deep-spectral-segmentation/outputs/liver_mixed_val_mini/exp_baseline/2023-11-27/15-26-14/baseline/seg15_clust6_norm-imagenet_prepr-None_dino1_clusterkmeans_time2023-11-27_15-26-22/semantic_segmentations/laplacian/crf_segmaps
+
+logging:
+  print_freq: 50
