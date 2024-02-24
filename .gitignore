@@ -147,3 +147,6 @@ MNIST
 pipeline/outputs/
 pipeline/configs/wandb/server.yaml
 .polyaxon/
+outputs/
+results/
+pipeline/configs/
