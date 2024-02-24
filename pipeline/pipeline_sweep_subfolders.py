@@ -141,8 +141,12 @@ def pipeline(cfg, subroot = "main"):
         output_feat_dir = os.path.join(dataset_dir, cfg['dataset']['features_dir'])
     else:
         output_feat_dir = os.path.join(path_to_save_data, 'features', cfg['model']['name'])
+    # Set default output directories
+    if cfg['dataset']['eigenseg_dir'] is not None:
+        output_multi_region_seg = os.path.join(dataset_dir, cfg['dataset']['eigenseg_dir'])
+    else:
+        output_multi_region_seg = os.path.join(path_to_save_data, 'multi_region_segmentation', cfg['spectral_clustering']['which_matrix'])
     output_eig_dir = os.path.join(path_to_save_data, 'eig', cfg['spectral_clustering']['which_matrix'])
-    output_multi_region_seg = os.path.join(path_to_save_data, 'multi_region_segmentation', cfg['spectral_clustering']['which_matrix'])
     output_bbox = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg['spectral_clustering']['which_matrix'], 'bboxes.pth')
     output_bbox_features = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg['spectral_clustering']['which_matrix'], 'bbox_features.pth')
     output_bbox_crops = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg['spectral_clustering']['which_matrix'], 'bbox_crops')
@@ -388,7 +392,380 @@ def pipeline(cfg, subroot = "main"):
                 output_dir_crops = output_bbox_crops,
                 C_pos = cfg['bbox']['C_pos'],
                 C_mask = cfg['bbox']['C_mask'],
-                feat_comb_method = cfg['bbox']['feat_comb_method']
+                feat_comb_method = cfg['bbox']['feat_comb_method'],
+                apply_mask = cfg['bbox']['apply_mask']
+            )
+
+
+            # Extract clusters
+            log.info("STEP 6/8: extract clusters ")
+
+            if not cfg['pipeline_steps']['clusters']:
+                log.info("Step was not selected")
+                # exit()
+            else:
+                extract.extract_bbox_clusters(
+                    bbox_features_file = output_bbox_features,
+                    output_file = output_bbox_clusters,
+                    num_clusters = cfg['bbox']['num_clusters'],
+                    seed = cfg['bbox']['seed'],
+                    pca_dim = cfg['bbox']['pca_dim'],
+                    clustering = cfg['bbox']['clustering'],
+                    should_use_siamese = cfg['bbox']['should_use_siamese'],
+                    should_use_ae = cfg['bbox']['should_use_ae'],
+                    is_sparse_graph = cfg['bbox']['is_sparse_graph'],
+                    spectral_n_nbg = cfg['bbox']['spectral_n_nbg']
+                )
+
+
+                # Create semantic segmentations
+                log.info("STEP 7/8: create semantic segmentation ")
+
+                if not cfg['pipeline_steps']['sem_segm']:
+                    log.info("Step was not selected")
+                    # exit()
+                else:
+                    extract.extract_semantic_segmentations(
+                        segmentations_dir = output_multi_region_seg,
+                        bbox_clusters_file = output_bbox_clusters,
+                        output_dir = output_segmaps
+                    )
+
+                    # Visualize segmentations
+                    if cfg['vis']['segmaps']:
+                        log.info("Plot semantic segmentations")
+                        output_segm_plots = os.path.join(path_to_save_data, 'plots', 'segmaps')
+                        vis_utils.plot_segmentation(
+                            images_list = images_list,
+                            images_root = images_root,
+                            segmentations_dir = output_segmaps,
+                            bbox_file = None,
+                            output_dir = output_segm_plots
+                        )
+
+                    # Create crf segmentations (optional)
+                    log.info("STEP 8/8 [optional]: create CRF semantic segmentation ")
+
+                    if not cfg['pipeline_steps']['crf_segm']:
+                        log.info("Step was not selected")
+                        exit()
+
+                    extract.extract_crf_segmentations(
+                        images_list = images_list,
+                        images_root = images_root,
+                        segmentations_dir = output_segmaps if cfg['pipeline_steps']['sem_segm'] else output_multi_region_seg,
+                        output_dir = output_crf_segmaps,
+                        features_dir = output_feat_dir,
+                        image_transform_data = im_transform_data,
+                        num_classes =  cfg['crf']['num_classes'],
+                        downsample_factor = cfg['crf']['downsample_factor'],
+                        multiprocessing = cfg['crf']['multiprocessing'],
+                        # CRF parameters
+                        w1 = cfg['crf']['w1'],
+                        alpha = cfg['crf']['alpha'],
+                        beta = cfg['crf']['beta'],
+                        w2 = cfg['crf']['w2'],
+                        gamma = cfg['crf']['gamma'],
+                        it= cfg['crf']['it']
+                    )
+
+                    # Visualize final crf segmentations
+                    if cfg['vis']['crf_segmaps']:
+                        log.info("Plot crf semantic segmentations")
+                        output_segm_plots = os.path.join(path_to_save_data, 'plots', 'crf_segmaps')
+                        vis_utils.plot_segmentation(
+                            images_list = images_list,
+                            images_root = images_root,
+                            segmentations_dir = output_crf_segmaps,
+                            bbox_file = None,
+                            output_dir = output_segm_plots
+                        )
+
+    # Evaluate segmentation if evaluation is on
+    score = None
+    if cfg['pipeline_steps']['eval']:
+        seg_for_eval = cfg['sweep']['seg_for_eval']
+        score = {} 
+
+        if isinstance(seg_for_eval, list):
+            # loop through the list and evaluate each type of segments acc to config
+            for seg_type in seg_for_eval:
+                if seg_type == "crf_segmaps":
+                    log.info("EVALUATION (crf_segmaps)")
+                    eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_segmaps,  tag="crf_segmaps")
+                    score['crf_segmaps'] = eval_results['mIoU']
+                
+                elif seg_type == "segmaps":
+                    log.info("EVALUATION (segmaps)")
+                    eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_segmaps,  tag="segmaps")
+                    score['segmaps'] = eval_results['mIoU']
+
+                elif seg_type == "multi_region":
+                    log.info("EVALUATION (multi_region)")
+                    eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_multi_region_seg, tag="multi_region")
+                    score['multi_region'] = eval_results['mIoU']
+
+                elif seg_type == "crf_multi_region":
+                    log.info("EVALUATION (crf_multi_region)")
+                    eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_multi_region, tag="crf_multi_region")
+                    score['crf_multi_region'] = eval_results['mIoU']
+
+        elif isinstance(seg_for_eval, str): 
+            # evaluate only for a single type of segments
+            if seg_for_eval == "crf_segmaps":
+                log.info("EVALUATION (crf_segmaps)")
+                eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_segmaps,  tag="crf_segmaps")
+            
+            elif seg_for_eval == "segmaps":
+                log.info("EVALUATION (segmaps)")
+                eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_segmaps,  tag="segmaps")
+            
+            elif seg_for_eval == "multi_region":
+                log.info("EVALUATION (multi_region)")
+                eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_multi_region_seg, tag="multi_region")
+            
+            elif seg_for_eval == "crf_multi_region":
+                log.info("EVALUATION (crf_multi_region)")
+                eval_results = evaluate(cfg, dataset_dir=dataset_dir, image_dir = images_root, gt_dir=gt_dir, pred_dir=output_crf_multi_region, tag="crf_multi_region")
+            score[seg_for_eval] = eval_results['mIoU']
+        else:
+            raise ValueError(f"Unknown seg type for evalutaion: {cfg['sweep']['seg_for_eval']}")
+
+        return score
+
+
+def pipeline_2ndStep(cfg, subroot = "main"):
+     # cfg - wandb config
+    log.info("Starting the pipeline (ONLY THE 2ND STEP)...")
+
+    # Set the sweep parameters that have to be the same
+    log.info("STEP 0: SWEEP configiration")
+    cfg['spectral_clustering']['K'] = cfg['segments_num']
+    cfg['multi_region_segmentation']['non_adaptive_num_segments'] = cfg['segments_num']
+    cfg['bbox']['num_clusters'] = cfg['clusters_num']
+    cfg['crf']['num_classes'] = cfg['clusters_num']
+
+    assert(cfg['multi_region_segmentation']['non_adaptive_num_segments'] == cfg['spectral_clustering']['K'])
+    assert(cfg['crf']['num_classes'] == cfg['bbox']['num_clusters'])
+
+    log.info(f"cfg['segments_num']={cfg['segments_num']}")
+    log.info(f"cfg['clusters_num']={cfg['clusters_num']}")
+    log.info(f"cfg['multi_region_segmentation']['non_adaptive_num_segments']={cfg['multi_region_segmentation']['non_adaptive_num_segments']}")
+    log.info(f"cfg['spectral_clustering']['K']={cfg['spectral_clustering']['K']}")
+    log.info(f"cfg['crf']['num_classes']={cfg['crf']['num_classes']}")
+    log.info(f"cfg['bbox']['num_clusters']={cfg['bbox']['num_clusters']}")
+
+
+    # Set the directories
+    if cfg['wandb']['mode']=='server':
+        # use polyaxon paths
+        main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
+        path_to_save_data = os.path.join(get_outputs_path(), cfg['dataset']['dataset_root'], subroot)
+    else:
+        # use default local data
+        main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
+
+        if cfg['custom_path_to_save_data']!="":
+            path_to_save_data = cfg['custom_path_to_save_data']
+        else:
+            print(f"DEBUG: wandb tag: {cfg['wandb']['tag']}")
+            if ('Aff' in cfg['wandb']['tag'] or 'aff' in cfg['wandb']['tag']):
+                custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
+                            f"_clust{cfg['clusters_num']}"
+                            f"_norm-{cfg['norm']}"
+                            f"_prepr-{cfg['preprocessed_data']}"
+                            f"_dino{cfg['spectral_clustering']['C_dino']}"
+                            f"_ssdknn{cfg['spectral_clustering']['C_ssd_knn']}"
+                            f"_var{cfg['spectral_clustering']['C_var_knn']}"
+                            f"_pos{cfg['spectral_clustering']['C_pos_knn']}"
+                            f"_nn{cfg['spectral_clustering']['max_knn_neigbors']}"
+                            f"_ssd{cfg['spectral_clustering']['C_ssd']}"
+                            f"_ncc{cfg['spectral_clustering']['C_ncc']}"
+                            f"_lncc{cfg['spectral_clustering']['C_lncc']}"
+                            f"_ssim{cfg['spectral_clustering']['C_ssim']}"
+                            f"_mi{cfg['spectral_clustering']['C_mi']}"
+                            f"_sam{cfg['spectral_clustering']['C_sam']}"
+                            f"_p{cfg['spectral_clustering']['patch_size']}"
+                            f"_sigma{cfg['spectral_clustering']['aff_sigma']}"
+                            f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                            )
+            elif ('crf' in cfg['wandb']['tag']):
+                print("DEBUG: 'crf' is in tag!!")
+                custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
+                            f"_clust{cfg['clusters_num']}"
+                            f"_norm-{cfg['norm']}"
+                            f"_prepr-{cfg['preprocessed_data']}"
+                            f"_dino{cfg['spectral_clustering']['C_dino']}"
+                            f"_ssdknn{cfg['spectral_clustering']['C_ssd_knn']}"
+                            f"_CRF_alpha{cfg['crf']['alpha']}"
+                            f"_beta{cfg['crf']['beta']}"
+                            f"_gamma{cfg['crf']['gamma']}"
+                            f"_it{cfg['crf']['it']}"
+                            f"_w1{cfg['crf']['w1']}"
+                            f"_w2{cfg['crf']['w2']}"
+                            f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"                         
+                            )
+            else:
+                custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
+                            f"_clust{cfg['clusters_num']}"
+                            f"_norm-{cfg['norm']}"
+                            f"_prepr-{cfg['preprocessed_data']}"
+                            f"_dino{cfg['spectral_clustering']['C_dino']}"
+                            f"_cluster{cfg['bbox']['clustering']}"
+                            f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                            )
+            path_to_save_data = os.path.join(os.getcwd(), cfg['dataset']['dataset_root'], subroot, custom_path)
+
+    # Directories
+    if cfg['dataset']['dataset_root'] is not None and subroot!="main":
+        dataset_dir = os.path.join(main_data_dir, cfg['dataset']['dataset_root'], subroot)
+    elif cfg['dataset']['dataset_root'] is not None and subroot=="main":
+        dataset_dir = os.path.join(main_data_dir, cfg['dataset']['dataset_root'])
+    else:
+        dataset_dir = os.path.join(main_data_dir, cfg['dataset']['name'])
+
+    images_list = os.path.join(dataset_dir, cfg['dataset']['list'])
+    # images_list = os.path.join(dataset_dir, 'lists', 'images.txt')
+    if cfg['dataset']['gt_dir'] is not None:
+        gt_dir = os.path.join(dataset_dir,cfg['dataset']['gt_dir'])
+    if cfg['preprocessed_data']=="mixed":
+        images_root = os.path.join(dataset_dir, cfg['dataset']['preprocessed_dir'])
+    elif cfg['preprocessed_data']=="derained":
+        images_root = os.path.join(dataset_dir, cfg['dataset']['derained_dir'])
+    else:
+        images_root = os.path.join(dataset_dir, cfg['dataset']['images_root'])
+
+
+    # Set default output directories
+    if cfg['dataset']['features_dir'] is not None:
+        output_feat_dir = os.path.join(dataset_dir, cfg['dataset']['features_dir'])
+    else:
+        output_feat_dir = os.path.join(path_to_save_data, 'features', cfg['model']['name'])
+    # Set default output directories
+    if cfg['dataset']['eigenseg_dir'] is not None:
+        output_multi_region_seg = os.path.join(dataset_dir, cfg['dataset']['eigenseg_dir'])
+    else:
+        output_multi_region_seg = os.path.join(path_to_save_data, 'multi_region_segmentation', cfg['spectral_clustering']['which_matrix'])
+    output_eig_dir = os.path.join(path_to_save_data, 'eig', cfg['spectral_clustering']['which_matrix'])
+    output_bbox = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg['spectral_clustering']['which_matrix'], 'bboxes.pth')
+    output_bbox_features = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg['spectral_clustering']['which_matrix'], 'bbox_features.pth')
+    output_bbox_crops = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg['spectral_clustering']['which_matrix'], 'bbox_crops')
+    output_bbox_clusters = os.path.join(path_to_save_data, 'multi_region_bboxes', cfg['spectral_clustering']['which_matrix'], 'bbox_clusters.pth')
+    output_segmaps = os.path.join(path_to_save_data, 'semantic_segmentations', cfg['spectral_clustering']['which_matrix'], 'segmaps')
+    output_crf_segmaps = os.path.join(path_to_save_data, 'semantic_segmentations', cfg['spectral_clustering']['which_matrix'], 'crf_segmaps')
+    output_crf_multi_region = os.path.join(path_to_save_data, 'semantic_segmentations', cfg['spectral_clustering']['which_matrix'], 'crf_multi_region')
+
+
+
+    # Get the features in case are not provided
+    
+    # Extract Features
+    log.info("STEP 1/8: extract features")
+
+    if not cfg['pipeline_steps']['dino_features']:
+        log.info("Step was not selected")
+        if cfg['spectral_clustering']['C_dino'] > 0:
+            log.info("cfg['spectral_clustering']['C_dino']=",cfg['spectral_clustering']['C_dino'])
+            log.info("Dino features were selected. Set cfg['pipeline_steps']['dino_features'] to True")
+            exit()
+    else:
+        im_transform_data = extract.extract_features(
+            images_list = images_list,
+            images_root = images_root,
+            output_dir = output_feat_dir,
+            model_name = cfg['model']['name'],
+            batch_size = cfg['loader']['batch_size'],
+            model_checkpoint=cfg['model']['checkpoint'],
+            only_dict = True if cfg['spectral_clustering']['C_dino'] == 0.0 else False,
+            norm = cfg['norm'],
+            inv = cfg['inv'],
+            gauss_blur = cfg['gauss_blur'],
+            gauss_teta = cfg['gauss_teta'],
+            hist_eq = cfg['hist_eq'],
+        )
+
+
+
+     # Create crf segmentations (optional)
+    log.info("[optional]: create CRF semantic segmentation ")
+
+    # Improve multi-region segmentations using crf
+    if not cfg['pipeline_steps']['crf_multi_region']:
+        log.info("Step was not selected")
+        # exit()
+    else:
+        extract.extract_crf_segmentations(
+            images_list = images_list,
+            images_root = images_root,
+            segmentations_dir = output_multi_region_seg,
+            output_dir = output_crf_multi_region,
+            features_dir = output_feat_dir,
+            num_classes =  cfg['multi_region_segmentation']['non_adaptive_num_segments'], #change to num_segments
+            downsample_factor = cfg['crf']['downsample_factor'],
+            multiprocessing = cfg['crf']['multiprocessing'],
+            image_transform_data = im_transform_data,
+            # CRF parameters
+            w1 = cfg['crf']['w1'],
+            alpha = cfg['crf']['alpha'],
+            beta = cfg['crf']['beta'],
+            w2 = cfg['crf']['w2'],
+            gamma = cfg['crf']['gamma'],
+            it= cfg['crf']['it']
+        )
+
+        # Visualize final crf segmentations
+        if cfg['vis']['crf_multi_region']:
+            log.info("Plot crf multi region segmentations")
+            output_segm_plots = os.path.join(path_to_save_data, 'plots', 'crf_multi_region')
+            vis_utils.plot_segmentation(
+                images_list = images_list,
+                images_root = images_root,
+                segmentations_dir = output_crf_multi_region,
+                bbox_file = None,
+                output_dir = output_segm_plots
+            )
+
+    # Extract Features
+    log.info("STEP 2, 3 can skip, since already have per-image masks")
+
+    # Extract bounding boxes
+    log.info("STEP 4/8: extract bounding boxes ")
+
+    if not cfg['pipeline_steps']['bbox']:
+        log.info("Step was not selected")
+        # exit()
+    else:
+
+        extract.extract_bboxes(
+            features_dir = output_feat_dir,
+            segmentations_dir = output_multi_region_seg,
+            output_file = output_bbox,
+            num_erode = cfg['bbox']['num_erode'],
+            num_dilate = cfg['bbox']['num_dilate'],
+            skip_bg_index= cfg['bbox']['skip_bg_index'],
+            downsample_factor = cfg['bbox']['downsample_factor'],
+        )
+
+
+
+        # Extract bounding box features
+        log.info("STEP 5/8: extract bounding box features ")
+
+        if not cfg['pipeline_steps']['bbox_features']:
+            log.info("Step was not selected")
+            # exit()
+        else:
+            extract.extract_bbox_features(
+                images_root = images_root,
+                bbox_file = output_bbox,
+                model_name = cfg['model']['name'],
+                output_file = output_bbox_features,
+                image_transform_data = im_transform_data,
+                output_dir_crops = output_bbox_crops,
+                C_pos = cfg['bbox']['C_pos'],
+                C_mask = cfg['bbox']['C_mask'],
+                feat_comb_method = cfg['bbox']['feat_comb_method'],
+                apply_mask = cfg['bbox']['apply_mask']
             )
 
 
@@ -594,7 +971,7 @@ def evaluate(cfg, dataset_dir, image_dir = "", gt_dir="", pred_dir="", tag=""):
                 "prediction" : {"mask_data" : pred},
                 "remapped_pred" : {"mask_data" : remapped_pred},
                 })
-                remapped_pred_table.add_data(id, mask_img)
+                +6
 
         wandb.log({f"{tag}_Example_Images_After_Remapping" : remapped_pred_table})
 
@@ -625,7 +1002,10 @@ def objective(cfg):
         # scores = {}
         for subfolder in subfolders:
             log.info(f'Processing subfolder: {subfolder}')
-            subfolder_score = pipeline(cfg, subfolder)
+            if cfg['dataset']['eigenseg_dir'] is None:
+                subfolder_score = pipeline(cfg, subfolder)
+            else:
+                subfolder_score = pipeline_2ndStep(cfg, subfolder)
             if isinstance(subfolder_score, dict):
                 for key in ['multi_region', 'crf_multi_region', 'segmaps', 'crf_segmaps']:
                     if key in subfolder_score:
@@ -638,7 +1018,7 @@ def objective(cfg):
             for key in ['multi_region', 'crf_multi_region', 'segmaps', 'crf_segmaps']:
                 if scores[key] is not None:
                     scores[key]= np.mean(scores[key])
-                    scores[f'{key}_std']= np.std(scores[key])
+                    # scores[f'{key}_std']= np.std(scores[key])
     else:
         scores = {'multi_region': [], 'crf_multi_region': [], 'segmaps': [], 'crf_segmaps': []}
         score = pipeline(cfg)
