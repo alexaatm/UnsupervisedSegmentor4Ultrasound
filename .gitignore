@@ -150,3 +150,4 @@ pipeline/configs/wandb/server.yaml
 outputs/
 results/
 pipeline/configs/
+dino2_models/
