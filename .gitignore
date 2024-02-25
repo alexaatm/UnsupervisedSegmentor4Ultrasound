@@ -179,6 +179,9 @@ slurm_scripts/
 final_runs
 data_preprocessing/denoise/MPRNet/*.err
 data_preprocessing/denoise/MPRNet/*.out
+data_preprocessing/denoise/*.err
+data_preprocessing/denoise/*.out
+data_preprocessing/denoise/MPRNet
 spectral-clustering/*.png
 spectral-clustering/ann_index.ann
 self-training/tasks/configs/wandb/defaults.yaml
