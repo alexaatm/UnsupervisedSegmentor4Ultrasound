@@ -1,9 +1,0 @@
----
-setup:
-    project: self-training
-    entity: alexaatm
-    mode: online
-watch:
-    log: all
-    log_freq: 10
-mode: local
