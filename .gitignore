@@ -131,7 +131,11 @@ dmypy.json
 # sashena
 thesis_env/
 data/
+data1/
+data_old/
 self-training/outputs/
+deep-spectral-segmentation/outputs/
+deep-spectral-segmentation/results/
 .vscode/
 dino/
 notebooks/
@@ -171,3 +175,10 @@ slurm_scripts/*.out
 slurm_scripts/*.err
 slurm_scripts/*/*.out
 slurm_scripts/*/*.err
+slurm_scripts/
+final_runs
+data_preprocessing/denoise/MPRNet/*.err
+data_preprocessing/denoise/MPRNet/*.out
+spectral-clustering/*.png
+spectral-clustering/ann_index.ann
+self-training/tasks/configs/wandb/defaults.yaml
