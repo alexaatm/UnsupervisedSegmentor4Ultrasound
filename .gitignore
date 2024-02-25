@@ -182,6 +182,8 @@ data_preprocessing/denoise/MPRNet/*.out
 data_preprocessing/denoise/*.err
 data_preprocessing/denoise/*.out
 data_preprocessing/denoise/MPRNet
+data_preprocessing/denoise/MPRNet/Denoising/pretrained_models/model_denoising.pth
+data_preprocessing/denoise/MPRNet/Deraining/pretrained_models/model_deraining.pth
 spectral-clustering/*.png
 spectral-clustering/ann_index.ann
 self-training/tasks/configs/wandb/defaults.yaml
