@@ -218,6 +218,7 @@ def get_triple_input_files(path1: str, path2: str, path3: str):
     files1 = _get_files(path1)
     files2 = _get_files(path2)
     files3 = _get_files(path3)
+    print(f'files1: {len(files1)}, files2: {len(files2)}, files3: {len(files3)}')
     assert len(files1) == len(files2) == len(files3)
     return list(enumerate(zip(files1, files2, files3)))
 
