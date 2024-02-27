@@ -351,10 +351,10 @@ def _extract_eig(
                 image_lr=np.array(image_lr_raw.convert('RGB')) / 255.
 
 
-            print(f"DEBUG2: extract.py : _extract_eig: image_raw.shape={image_raw.size}, "
-                  f"image_gr_uint.shape={image_gr_uint.shape}, "
-                  f"image_lr.shape={image_lr.shape}, "
-                  )
+            # print(f"DEBUG2: extract.py : _extract_eig: image_raw.shape={image_raw.size}, "
+            #       f"image_gr_uint.shape={image_gr_uint.shape}, "
+            #       f"image_lr.shape={image_lr.shape}, "
+            #       )
 
 
 
@@ -720,7 +720,7 @@ def _extract_bbox(
 
     # Sizes
     B, C, H, W, P, H_patch, W_patch, H_pad, W_pad = utils.get_image_sizes(data_dict, downsample_factor)
-    print(f'Extract BBOX: using patch size {P}')
+    # print(f'Extract BBOX: using patch size {P}')
 
     # Get bounding boxes
     outputs = {'bboxes': [], 'bboxes_original_resolution': [], 'segment_indices': [], 'id': image_id, 
@@ -853,7 +853,7 @@ def extract_bbox_features(
         # Apply same transform as for step 1 (extracting features)
         image_pil = Image.open(image_filename).convert('RGB')
         image = tr(image_pil)  # (3, H, W)
-        print(f'DEBUG bbox featues: image.shape={image.shape}')
+        # print(f'DEBUG bbox featues: image.shape={image.shape}')
         image = image.unsqueeze(0).to(device)  # (1, 3, H, W)
 
         # for memory efficiency
@@ -903,7 +903,7 @@ def extract_bbox_features(
             pos_y_crop = pos_y_crop.half()
             mask = mask.half()
 
-            print(f'DEBUG: image.shape={image.shape}, image_crop.shape={image_crop.shape}')
+            # print(f'DEBUG: image.shape={image.shape}, image_crop.shape={image_crop.shape}')
             # extract features
             with torch.no_grad():
                 features_crop = model(image_crop).squeeze().cpu()
@@ -1094,7 +1094,6 @@ def extract_semantic_segmentations(
         Image.fromarray(semantic_segmap.astype(np.uint8)).convert('L').save(output_file)
     
     print(f'Saved features to {output_dir}')
-
 
 def _extract_crf_segmentations(
     inp: Tuple[int, Tuple[str, str]], 
