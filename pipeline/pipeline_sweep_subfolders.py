@@ -142,7 +142,7 @@ def pipeline(cfg, subroot = "main"):
     else:
         output_feat_dir = os.path.join(path_to_save_data, 'features', cfg['model']['name'])
     # Set default output directories
-    if cfg['dataset']['eigenseg_dir'] is not None:
+    if cfg['dataset']['eigenseg_dir'] not in [None, ""]:
         output_multi_region_seg = os.path.join(dataset_dir, cfg['dataset']['eigenseg_dir'])
     else:
         output_multi_region_seg = os.path.join(path_to_save_data, 'multi_region_segmentation', cfg['spectral_clustering']['which_matrix'])
@@ -159,13 +159,13 @@ def pipeline(cfg, subroot = "main"):
     if cfg['precomputed']['mode'] == "precomputed":
         log.info("Some precomputed steps are provided - need to check each step")
         # check the next step only if the previous step is provided (since snext steps depends on the previous one)
-        if cfg['precomputed']['features'] != "" and cfg['dataset']['features_dir'] == "" :
+        if cfg['precomputed']['features'] != "":
             output_feat_dir = cfg['precomputed']['features']
         if cfg['precomputed']['eig'] != "":
             output_eig_dir = cfg['precomputed']['eig']
             if cfg['precomputed']['multi_region_segmentation'] != "":
                 output_multi_region_seg = cfg['precomputed']['multi_region_segmentation']
-                if cfg['precomputed']['multi_region_segmentation'] != "":
+                if cfg['precomputed']['crf_multi_region'] != "":
                     output_crf_multi_region = cfg['precomputed']['crf_multi_region']                  
                     if cfg['precomputed']['bboxes'] != "":
                         output_bbox = cfg['precomputed']['bboxes']
@@ -366,7 +366,7 @@ def pipeline(cfg, subroot = "main"):
 
         extract.extract_bboxes(
             features_dir = output_feat_dir,
-            segmentations_dir = output_multi_region_seg,
+            segmentations_dir = output_multi_region_seg if not cfg['pipeline_steps']['crf_multi_region'] else output_crf_multi_region,
             output_file = output_bbox,
             num_erode = cfg['bbox']['num_erode'],
             num_dilate = cfg['bbox']['num_dilate'],
@@ -959,6 +959,8 @@ def evaluate(cfg, dataset_dir, image_dir = "", gt_dir="", pred_dir="", tag=""):
         else:
             inds_to_vis = [-1] #no images will be sampled
 
+        log.info(f'Images to log: {inds_to_vis}')
+
         # Go through dataset and log data
         for i, (sample, iou_m, match, remapped_pred) in enumerate(zip(dataset, eval_stats['IoU_matrix'], corrected_matches, preds)):
             im, target, pred, metadata = sample
@@ -971,7 +973,7 @@ def evaluate(cfg, dataset_dir, image_dir = "", gt_dir="", pred_dir="", tag=""):
                 "prediction" : {"mask_data" : pred},
                 "remapped_pred" : {"mask_data" : remapped_pred},
                 })
-                +6
+                remapped_pred_table.add_data(id, mask_img)
 
         wandb.log({f"{tag}_Example_Images_After_Remapping" : remapped_pred_table})
 
@@ -1002,7 +1004,7 @@ def objective(cfg):
         # scores = {}
         for subfolder in subfolders:
             log.info(f'Processing subfolder: {subfolder}')
-            if cfg['dataset']['eigenseg_dir'] is None:
+            if cfg['dataset']['eigenseg_dir'] is None or cfg['dataset']['eigenseg_dir']=="":
                 subfolder_score = pipeline(cfg, subfolder)
             else:
                 subfolder_score = pipeline_2ndStep(cfg, subfolder)
@@ -1071,8 +1073,10 @@ def main():
     # log the main scores
     # for key in ['multi_region', 'crf_multi_region', 'segmaps', 'crf_segmaps']:
     #     if key in scores:
-    for key in scores:
-        wandb.log({f"main_mIoU_{key}": scores[key]})
+    if cfg['pipeline_steps']['eval']:
+        if scores is not None:
+            for key in scores:
+                wandb.log({f"main_mIoU_{key}": scores[key]})
     wandb.finish()
 
 import yaml
