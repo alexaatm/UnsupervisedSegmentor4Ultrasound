@@ -151,3 +151,4 @@ outputs/
 results/
 pipeline/configs/
 dino2_models/
+paper_results/
