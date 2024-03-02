@@ -14,7 +14,7 @@ def hungarian_match(flat_preds, flat_targets, preds_k, targets_k, metric='acc', 
     num_k = preds_k
 
     # perform hungarian matching
-    print('Using iou as metric')
+    # print('Using iou as metric')
     if thresh != 0:
         results = Parallel(n_jobs=n_jobs, backend='multiprocessing')(delayed(get_iou_with_thresh)(
             flat_preds, flat_targets, c1, c2, thresh) for c2 in range(num_k) for c1 in range(num_k))
@@ -159,19 +159,19 @@ def match(pred, gt, thresh):
     """
     gt_unique = np.unique(gt)
     pred_unique = np.unique(pred)
-    print(f'GT unique labels: {gt_unique}')
-    print(f'PRED unique labels: {pred_unique}')
+    # print(f'GT unique labels: {gt_unique}')
+    # print(f'PRED unique labels: {pred_unique}')
     n_clusters = len(pred_unique)
     n_classes = len(gt_unique)
 
     if (n_clusters == n_classes):
-        print('n_clusters == n_classes: Using hungarian algorithm for matching')
+        # print('n_clusters == n_classes: Using hungarian algorithm for matching')
         match, iou_mat  = hungarian_match(pred, gt, preds_k=n_clusters, targets_k=n_classes, metric='iou', thresh=thresh)
     else:
-        print('n_clusters != n_classes: Using majority vote algorithm for matching')
+        # print('n_clusters != n_classes: Using majority vote algorithm for matching')
         match, iou_mat = majority_vote_exclusive(pred, gt, preds_k=n_clusters, targets_k=n_classes, thresh=thresh)
     
-    print(f'Optimal matching: {match}')
+    # print(f'Optimal matching: {match}')
 
     return match, iou_mat
 
