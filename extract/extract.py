@@ -726,6 +726,7 @@ def _extract_bbox(
     outputs = {'bboxes': [], 'bboxes_original_resolution': [], 'segment_indices': [], 'id': image_id, 
                'format': "(xmin, ymin, xmax, ymax)",
                'binary_masks': []}
+    # print(f'DEBUG: segment indices in current image: {np.unique(segmap).tolist()}')
     for segment_index in sorted(np.unique(segmap).tolist()):
         if (not skip_bg_index) or (segment_index > 0):  # skip 0, because 0 is the background
             
@@ -733,11 +734,11 @@ def _extract_bbox(
             binary_mask = (segmap == segment_index)
             binary_mask = utils.erode_or_dilate_mask(binary_mask, r=num_erode, erode=True)
             binary_mask = utils.erode_or_dilate_mask(binary_mask, r=num_dilate, erode=False)
-            binary_mask_matlike = (binary_mask * 255).astype(np.uint8)
-            binary_mask_rescaled = cv2.resize(
-                binary_mask_matlike, 
-                dsize=(binary_mask.shape[-1] * P, binary_mask.shape[-2] * P), 
-                interpolation=cv2.INTER_NEAREST)  # rescale to image size
+            # binary_mask_matlike = (binary_mask * 255).astype(np.uint8)
+            # binary_mask_rescaled = cv2.resize(
+                # binary_mask_matlike, 
+                # dsize=(binary_mask.shape[-1] * P, binary_mask.shape[-2] * P), 
+                # interpolation=cv2.INTER_NEAREST)  # rescale to image size
 
             # Find box
             mask = np.where(binary_mask == 1)
@@ -751,8 +752,11 @@ def _extract_bbox(
             outputs['segment_indices'].append(segment_index)
             outputs['bboxes'].append(bbox)
             outputs['bboxes_original_resolution'].append(bbox_resized)
-            outputs['binary_masks'].append(binary_mask_rescaled)
+            # outputs['binary_masks'].append(binary_mask_rescaled)
+            outputs['binary_masks'].append(binary_mask)
     
+    # print("DEBUG: about to return the outputs...")
+    # print(f"DEBUG: size of outputs: {len(outputs)}")
     return outputs
 
 
@@ -774,11 +778,13 @@ def extract_bboxes(
         --num_erode 2 --num_dilate 5 \
         --output_file "./data/VOC2012/multi_region_bboxes/fixed/bboxes_e2_d5.pth" \
     """
+    # print("DEBUG: starting extracting bboxes...")
     utils.make_output_dir(str(Path(output_file).parent), check_if_empty=False)
     fn = partial(_extract_bbox, num_erode=num_erode, num_dilate=num_dilate, skip_bg_index=skip_bg_index, 
                  downsample_factor=downsample_factor)
     inputs = utils.get_paired_input_files(features_dir, segmentations_dir)
     all_outputs = [fn(inp) for inp in tqdm(inputs, desc='Extracting bounding boxes')]
+    # print("Finished extracting bboxes, going to save now!")
     torch.save(all_outputs, output_file)
     print('Done')
 
@@ -808,8 +814,8 @@ def extract_bbox_features(
     utils.make_output_dir(str(Path(output_file).parent), check_if_empty=False)
     utils.make_output_dir(output_dir_crops)
 
-    print(f'DEBUG: bbox feature extraction: check memory')
-    utils.check_gpu_memory()
+    # print(f'DEBUG: bbox feature extraction: check memory')
+    # utils.check_gpu_memory()
 
     # Load bounding boxes
     bbox_list = torch.load(bbox_file)
@@ -829,7 +835,7 @@ def extract_bbox_features(
     # for mmeory effciency
     model = model.half()
     torch.cuda.empty_cache()
-    print(f'DEBUG: bbox feature extraction: check memory')
+    # print(f'DEBUG: bbox feature extraction: check memory')
     utils.check_gpu_memory()
 
     # Transforms
@@ -871,7 +877,13 @@ def extract_bbox_features(
         features_crops = []
         for i, (xmin, ymin, xmax, ymax) in enumerate(bboxes):
             # prepare segment mask so it also has 3 channels like the image
-            mask = torch.from_numpy(binary_masks[i]).unsqueeze(0).unsqueeze(0).float().to(device)  # (1, 1, H, W)
+            binary_mask_matlike = (binary_masks[i] * 255).astype(np.uint8)
+            binary_mask_rescaled = cv2.resize(
+                binary_mask_matlike, 
+                dsize=(binary_mask_matlike.shape[-1] * patch_size, binary_mask_matlike.shape[-2] * patch_size), 
+                interpolation=cv2.INTER_NEAREST)  # rescale to image size
+
+            mask = torch.from_numpy(binary_mask_rescaled).unsqueeze(0).unsqueeze(0).float().to(device)  # (1, 1, H, W)
             mask = mask.expand(-1, 3, -1, -1) # (1, 3, H, W)
 
             # apply segment mask to the image before cropping it:
@@ -880,6 +892,7 @@ def extract_bbox_features(
                 image_crop = image_masked[:, :, ymin:ymax, xmin:xmax]
             else:
                 image_crop = image[:, :, ymin:ymax, xmin:xmax]
+            # image_crop = image[:, :, ymin:ymax, xmin:xmax]
 
             pos_x_crop = pos_x[:, :, ymin:ymax, xmin:xmax]
             pos_y_crop = pos_y[:, :, ymin:ymax, xmin:xmax]
@@ -912,7 +925,7 @@ def extract_bbox_features(
 
                 # for memory efficiency:
                 if C_mask==0:
-                    features_mask = 0
+                    features_mask = torch.Tensor(0)
                 else:
                     features_mask = model(mask).squeeze().cpu()
 
@@ -1084,10 +1097,12 @@ def extract_semantic_segmentations(
         if not len(bbox_dict['segment_indices']) == len(bbox_dict['clusters'].tolist()):
             import pdb
             pdb.set_trace()
+        # print(f"DEBUG: bbox_dict['segment_indices']={bbox_dict['segment_indices']}")
         semantic_map = dict(zip(bbox_dict['segment_indices'], bbox_dict['clusters'].tolist()))
         assert 0 not in semantic_map, semantic_map
         semantic_map[0] = 0  # background region remains zero
         # Perform mapping
+        # print(f"DEBUG:{semantic_map}")
         semantic_segmap = np.vectorize(semantic_map.__getitem__)(segmap)
         # Save
         output_file = str(Path(output_dir) / f'{image_id}.png')
@@ -1145,7 +1160,7 @@ def _extract_crf_segmentations(
     # Sizes
     data_dict = torch.load(feature_path, map_location='cpu')
     P = data_dict['patch_size'] if downsample_factor is None else downsample_factor
-    print(f'CRF: using patch size {P}')
+    # print(f'CRF: using patch size {P}')
     H, W = image.shape[:2]
     H_patch, W_patch = H // P, W // P
     H_pad, W_pad = H_patch * P, W_patch * P
