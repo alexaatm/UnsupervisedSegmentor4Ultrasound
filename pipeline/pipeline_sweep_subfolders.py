@@ -137,7 +137,7 @@ def pipeline(cfg, subroot = "main"):
 
 
     # Set default output directories
-    if cfg['dataset']['features_dir'] is not None:
+    if cfg['dataset']['features_dir'] not in [None, ""]:
         output_feat_dir = os.path.join(dataset_dir, cfg['dataset']['features_dir'])
     else:
         output_feat_dir = os.path.join(path_to_save_data, 'features', cfg['model']['name'])
@@ -366,7 +366,7 @@ def pipeline(cfg, subroot = "main"):
 
         extract.extract_bboxes(
             features_dir = output_feat_dir,
-            segmentations_dir = output_multi_region_seg if not cfg['pipeline_steps']['crf_multi_region'] else output_crf_multi_region,
+            segmentations_dir = output_multi_region_seg, #if not cfg['pipeline_steps']['crf_multi_region'] else output_crf_multi_region,
             output_file = output_bbox,
             num_erode = cfg['bbox']['num_erode'],
             num_dilate = cfg['bbox']['num_dilate'],
@@ -931,7 +931,7 @@ def evaluate(cfg, dataset_dir, image_dir = "", gt_dir="", pred_dir="", tag=""):
         dataset = segm_eval.EvalDataset(dataset_dir, gt_dir, pred_dir, transform = image_transforms)
         eval_stats, matches, corrected_matches, preds = segm_eval.evaluate_dataset_with_remapping(dataset, cfg['dataset']['n_classes'], cfg['eval']['iou_thresh'], cfg['eval']['void_label'])
         final_mapping, final_mapping_with_unmatched, consistency = segm_eval.eval_utils.process_matches(corrected_matches)
-        print("eval stats:", eval_stats)
+        # print("eval stats:", eval_stats)
         print("matches:", matches)
     
         # log to wandb
@@ -1035,7 +1035,7 @@ def objective(cfg):
 
 def main():
     run = wandb.init(name ="sweep_" + segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'),
-               project="pipeline_eval",
+               project="paper",
                save_code=True,
                tags=['sweep', 'eval_per_image', "deep_spectral"])
             #    tags=['sweep', 'eval_per_image', "deep_spectral", 'sweep_clustering', 'crf_segmaps'])
@@ -1062,6 +1062,7 @@ def main():
 
     log.info(f"MAIN: wandb.config={cfg}")
 
+    scores = None
     try:
         scores = objective(cfg)
     except Exception:
@@ -1081,7 +1082,7 @@ def main():
 
 import yaml
 
-def yaml_to_nested_dict(yaml_data):
+def yaml_to_nested_dict(yaml_data, key_word = "value"):
     def recurse(data):
         if isinstance(data, dict):
             nested_dict = {}
@@ -1089,10 +1090,10 @@ def yaml_to_nested_dict(yaml_data):
                 if isinstance(value, dict):
                     nested_dict[key] = {'parameters': recurse(value)}
                 else:
-                    nested_dict[key] = {'value': value}
+                    nested_dict[key] = {key_word: value}
             return nested_dict
         elif isinstance(data, list):
-            return [{'parameters': recurse(item)} if isinstance(item, dict) else {'value': item} for item in data]
+            return [{'parameters': recurse(item)} if isinstance(item, dict) else {key_word: item} for item in data]
         else:
             return data
     return recurse(yaml_data)
@@ -1111,11 +1112,17 @@ def run_sweep(cfg: DictConfig) -> None:
     cfg = OmegaConf.to_container(cfg, resolve=True)
     yaml_config = OmegaConf.to_yaml(cfg)
     yaml_data = yaml.safe_load(yaml_config)
-    parameters_dict=yaml_to_nested_dict(yaml_data)
+    parameters_dict=yaml_to_nested_dict(yaml_data, key_word = "value")
 
     # add parameters for the sweep
     sweep_dict = cfg['sweep']['config']
     print(sweep_dict)
+
+    # transform config, if simple config provided:
+    if cfg['sweep']['simple']:
+        sweep_dict = yaml_to_nested_dict(sweep_dict, key_word = "values")
+        print("Modified config: ", sweep_dict)
+
 
     # ref: https://colab.research.google.com/github/wandb/examples/blob/master/colabs/pytorch/Organizing_Hyperparameter_Sweeps_in_PyTorch_with_W%26B.ipynb#scrollTo=guKch4YoOcfz
     for key, value in sweep_dict.items():
