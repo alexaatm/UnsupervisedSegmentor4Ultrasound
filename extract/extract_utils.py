@@ -678,7 +678,7 @@ def patchwise_affinity_pytorch(image, distance_measure, patch_size, beta=5.0, de
     """
     # Convert the image to a PyTorch tensor and move it to the specified device
     image_tensor = transforms.ToTensor()(image).unsqueeze(dim=0).to(device)
-    print(f'image_tensor.shape = {image_tensor.shape}')
+    # print(f'image_tensor.shape = {image_tensor.shape}')
 
     # Extract patches using PyTorch functions
     # unfold(dimension, size, step), we need dim 2 and 3, since 0 is batch, 1 is channel
