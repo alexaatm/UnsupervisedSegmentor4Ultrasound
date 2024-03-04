@@ -325,7 +325,7 @@ def boundary_recall_with_distance(gt_boundary, pred_boundary, d=0):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2*d+1, 2*d+1))
     dilated_pred_boundary = cv2.dilate(pred_boundary.astype(np.uint8), kernel)
     
-    # Calculate true positives, false positives, false negatives
+    # Calculate true positives, false negatives
     tp = np.sum(gt_boundary & dilated_pred_boundary)
     fn = np.sum(gt_boundary & ~dilated_pred_boundary)
     
@@ -347,11 +347,11 @@ def boundary_precision_with_distance(gt_boundary, pred_boundary, d=0):
 
     # Dilate the boundary maps to include neighboring pixels within distance d
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2*d+1, 2*d+1))
-    dilated_pred_boundary = cv2.dilate(pred_boundary.astype(np.uint8), kernel)
-    
-    # Calculate true positives, false positives, false negatives
-    tp = np.sum(gt_boundary & dilated_pred_boundary)
-    fp = np.sum(~gt_boundary & dilated_pred_boundary)
+    dilated_gt_boundary = cv2.dilate(gt_boundary.astype(np.uint8), kernel)
+
+    # Calculate true positives, false positives
+    tp = np.sum(dilated_gt_boundary & pred_boundary)
+    fp = np.sum(~dilated_gt_boundary & pred_boundary)
     
     # Compute boundary recall
     if tp + fp == 0:
@@ -359,7 +359,8 @@ def boundary_precision_with_distance(gt_boundary, pred_boundary, d=0):
     else:
         precision = tp / (tp + fp)
     
-    return precision
+    return precision, dilated_gt_boundary, pred_boundary
+
 
 import numpy as np
 from skimage import measure
