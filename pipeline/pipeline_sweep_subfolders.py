@@ -930,22 +930,29 @@ def evaluate(cfg, dataset_dir, image_dir = "", gt_dir="", pred_dir="", tag=""):
         # Evaluate
         dataset = segm_eval.EvalDataset(dataset_dir, gt_dir, pred_dir, transform = image_transforms)
         eval_stats, matches, corrected_matches, preds = segm_eval.evaluate_dataset_with_remapping(dataset, cfg['dataset']['n_classes'], cfg['eval']['iou_thresh'], cfg['eval']['void_label'])
-        final_mapping, final_mapping_with_unmatched, consistency = segm_eval.eval_utils.process_matches(corrected_matches)
+        final_mapping, final_mapping_with_unmatched, consistency, avg_consistency = segm_eval.eval_utils.process_matches(corrected_matches)
         # print("eval stats:", eval_stats)
         print("matches:", matches)
     
         # log to wandb
         # wandb.log({'mIoU': eval_stats['mIoU']})
-        wandb.log({f'{tag}_mIoU': eval_stats['mIoU']})
-        wandb.log({f'{tag}_mIoU_std': eval_stats['mIoU_std']})
-        wandb.log({f'{tag}_Pixel_Accuracy': eval_stats['Pixel_Accuracy']})
-        wandb.log({f'{tag}_Pixel_Accuracy_std': eval_stats['Pixel_Accuracy_std']})
-        wandb.log({f'{tag}_Dice': eval_stats['Dice']})
-        wandb.log({f'{tag}_Dice_std': eval_stats['Dice_std']})
-        wandb.log({f'{tag}_Precision': eval_stats['Precision']})
-        wandb.log({f'{tag}_Precision_std': eval_stats['Precision_std']})
-        wandb.log({f'{tag}_Recall': eval_stats['Recall']})
-        wandb.log({f'{tag}_Recall_std': eval_stats['Recall_std']})
+        for stat in eval_stats:
+            # log everything except for matrices
+            if "IoU_matrix" not in stat:
+                wandb.log({f'{tag}_{stat}': eval_stats[stat]})
+
+        # wandb.log({f'{tag}_mIoU': eval_stats['mIoU']})
+        # wandb.log({f'{tag}_mIoU_std': eval_stats['mIoU_std']})
+        # wandb.log({f'{tag}_Pixel_Accuracy': eval_stats['Pixel_Accuracy']})
+        # wandb.log({f'{tag}_Pixel_Accuracy_std': eval_stats['Pixel_Accuracy_std']})
+        # wandb.log({f'{tag}_Dice': eval_stats['Dice']})
+        # wandb.log({f'{tag}_Dice_std': eval_stats['Dice_std']})
+        # wandb.log({f'{tag}_Precision': eval_stats['Precision']})
+        # wandb.log({f'{tag}_Precision_std': eval_stats['Precision_std']})
+        # wandb.log({f'{tag}_Recall': eval_stats['Recall']})
+        # wandb.log({f'{tag}_Recall_std': eval_stats['Recall_std']})
+        # wandb.log({f'{tag}_Boundary_Recall': eval_stats['Boundary_Recall']})
+        # wandb.log({f'{tag}_Boundary_Recall_std': eval_stats['Boundary_Recall_std']})
 
          # Table for logging corrected labels using wandb
         remapped_pred_table = wandb.Table(columns=['ID', 'Image'])
@@ -953,11 +960,10 @@ def evaluate(cfg, dataset_dir, image_dir = "", gt_dir="", pred_dir="", tag=""):
         # Visualize some image evaluation samples
         segm_eval.random.seed(1) 
         if cfg['eval']['vis_rand_k'] > len(dataset): # a safeguard for a case when more samples are asked than is in dataset
-            inds_to_vis = [0]
-        elif cfg['eval']['vis_rand_k'] > 0:
-            inds_to_vis = segm_eval.random.sample(range(len(dataset)), cfg['eval']['vis_rand_k'])
+            inds_to_vis = segm_eval.random.sample(range(len(dataset)), min(40, len(dataset)))
         else:
-            inds_to_vis = [-1] #no images will be sampled
+            inds_to_vis = segm_eval.random.sample(range(len(dataset)), min(40, cfg['eval']['vis_rand_k']))
+            # inds_to_vis = [-1] #no images will be sampled
 
         log.info(f'Images to log: {inds_to_vis}')
 
@@ -988,6 +994,7 @@ def evaluate(cfg, dataset_dir, image_dir = "", gt_dir="", pred_dir="", tag=""):
         wandb.log({f"{tag}_final_map": wandb.Table(data=[final_mapping], columns=class_names_all)})
         wandb.log({f"{tag}_final_map_with_unmatched": wandb.Table(data=[final_mapping_with_unmatched], columns=class_names_all)})
         wandb.log({f"{tag}_map_consistency": wandb.Table(data=[consistency], columns=class_names_all)})
+        wandb.log({f"{tag}_avg_consistency": avg_consistency})
 
         return eval_stats
 
