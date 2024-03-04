@@ -59,7 +59,11 @@ def evaluate_dataset_with_remapping(dataset, n_classes, thresh = 0.0, void_label
     dice_all = [] 
     precision_all = []
     recall_all = [] 
-
+    boundary_recall_d0_all = []
+    boundary_recall_d3_all = [] 
+    undersegm_error_all = []
+    boundary_precision_d0_all = []
+    boundary_precision_d3_all = [] 
 
     for i in trange(len(dataset), desc='Iterating predictions'):
         image, gt, pred, metadata = dataset[i]
@@ -93,6 +97,17 @@ def evaluate_dataset_with_remapping(dataset, n_classes, thresh = 0.0, void_label
         dice_image_all_categs = [0] * n_classes
         precision_image_all_categs = [0] * n_classes
         recall_image_all_categs = [0] * n_classes
+        undersegm_error_all_categs = [0] * n_classes
+
+        # extract boundaries 
+        tmp_boundary_gt = eval_utils.create_boundary_image_full(gt)
+        tmp_boundary_pred = eval_utils.create_boundary_image_full(reordered_pred)
+        # Calculate Boundary Recall
+        boundary_recall_d0 = eval_utils.boundary_recall_with_distance(tmp_boundary_gt, tmp_boundary_pred, d = 0)
+        boundary_recall_d3 = eval_utils.boundary_recall_with_distance(tmp_boundary_gt, tmp_boundary_pred, d = 3)
+        # Calculate Boundarz Precision
+        boundary_precision_d0 = eval_utils.boundary_precision_with_distance(tmp_boundary_gt, tmp_boundary_pred, d = 0)
+        boundary_precision_d3 = eval_utils.boundary_precision_with_distance(tmp_boundary_gt, tmp_boundary_pred, d = 3)
 
         # TP, FP, and FN evaluation, accumulated for ALL images
         for i_part in range(0, n_classes):
@@ -104,6 +119,7 @@ def evaluate_dataset_with_remapping(dataset, n_classes, thresh = 0.0, void_label
             # extract binary masks for the current category
             tmp_gt = (gt == label_i) #get class i mask from ground truth
             tmp_pred = (reordered_pred == label_i) #get class i mask from predictions
+
             # just for the current image
             tp_image[i_part] += np.sum(tmp_gt & tmp_pred)
             fp_image[i_part] += np.sum(~tmp_gt & tmp_pred)
@@ -121,12 +137,14 @@ def evaluate_dataset_with_remapping(dataset, n_classes, thresh = 0.0, void_label
             dice_image_all_categs[i_part] = float(2 * tp_image[i_part]) / max(float(2 * tp_image[i_part] + fp_image[i_part] + fn_image[i_part]), 1e-8)
             precision_image_all_categs[i_part] = float(tp_image[i_part]) / max(float(tp_image[i_part] + fp_image[i_part]), 1e-8)
             recall_image_all_categs[i_part] = float(tp_image[i_part]) / max(float(tp_image[i_part] + fn_image[i_part]), 1e-8)
+            undersegm_error_all_categs[i_part] = eval_utils.undersegmnetation_error(tmp_gt, reordered_pred)
 
         miou_image = np.mean(jac_image_all_categs)
         pix_acc_image = np.mean(pix_acc_image_all_categs)
         dice_image = np.mean(dice_image_all_categs)
         precision_image = np.mean(precision_image_all_categs)
         recall_image = np.mean(recall_image_all_categs)
+        undersegm_error_image = np.mean(undersegm_error_all_categs)
 
         miou_all.append(miou_image)
         pix_acc_all.append(pix_acc_image)
@@ -134,6 +152,11 @@ def evaluate_dataset_with_remapping(dataset, n_classes, thresh = 0.0, void_label
         precision_all.append(precision_image)
         recall_all.append(recall_image)
         jac_all.append(jac_image_all_categs)
+        boundary_recall_d0_all.append(boundary_recall_d0)
+        boundary_recall_d3_all.append(boundary_recall_d3)
+        undersegm_error_all.append(undersegm_error_image)
+        boundary_precision_d0_all.append(boundary_precision_d0)
+        boundary_precision_d3_all.append(boundary_precision_d3)
 
 
     # Log results
@@ -141,6 +164,7 @@ def evaluate_dataset_with_remapping(dataset, n_classes, thresh = 0.0, void_label
     eval_result['jaccards_all_categs'] = np.mean(jac_all, axis = 0)
     eval_result['mIoU'] = np.mean(miou_all)
     eval_result['mIoU_std'] = np.std(miou_all)
+    eval_result['IoU_matrix'] = iou_matrices
 
     eval_result['Pixel_Accuracy'] = np.mean(pix_acc_all)
     eval_result['Pixel_Accuracy_std'] = np.std(pix_acc_all)
@@ -154,7 +178,20 @@ def evaluate_dataset_with_remapping(dataset, n_classes, thresh = 0.0, void_label
     eval_result['Recall'] = np.mean(recall_all)
     eval_result['Recall_std'] = np.std(recall_all)
 
-    eval_result['IoU_matrix'] = iou_matrices
+    eval_result['Boundary_Recall_d0'] = np.mean(boundary_recall_d0_all)
+    eval_result['Boundary_Recall_d0_std'] = np.std(boundary_recall_d0_all)
+    eval_result['Boundary_Recall_d3'] = np.mean(boundary_recall_d3_all)
+    eval_result['Boundary_Recall_d3_std'] = np.std(boundary_recall_d3_all)
+
+    eval_result['Boundary_Precision_d0'] = np.mean(boundary_precision_d0_all)
+    eval_result['Boundary_Precision_d0_std'] = np.std(boundary_precision_d0_all)
+    eval_result['Boundary_Precision_d3'] = np.mean(boundary_precision_d3_all)
+    eval_result['Boundary_Precision_d3_std'] = np.std(boundary_precision_d3_all)
+
+    eval_result['Undersegmentation_Error'] = np.mean(undersegm_error_all)
+    eval_result['Undersegmentation_Error_std'] = np.std(undersegm_error_all)
+
+    
     print('Evaluation of semantic segmentation ')
     
     return eval_result, matches, corrected_matches, remapped_preds
