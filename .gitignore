@@ -187,3 +187,6 @@ data_preprocessing/denoise/MPRNet/Deraining/pretrained_models/model_deraining.pt
 spectral-clustering/*.png
 spectral-clustering/ann_index.ann
 self-training/tasks/configs/wandb/defaults.yaml
+slurm/
+sota/*.err
+sota/*.out
