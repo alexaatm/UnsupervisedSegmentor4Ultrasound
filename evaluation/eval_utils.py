@@ -307,4 +307,55 @@ def process_matches(matches):
     fin_map = [pl for gt, pl in final_mapping.items()]
     fin_map_with_unmatched = [pl for gt, pl in final_mapping_with_unmatched.items()]
     consistency_map = [percentage for gt, percentage in mapping_consistency.items()]
-    return (fin_map, fin_map_with_unmatched, consistency_map)
+    avg_consistency = sum(consistency_map) / len(consistency_map)
+    return (fin_map, fin_map_with_unmatched, consistency_map), avg_consistency
+
+
+import numpy as np
+import cv2
+
+def boundary_recall_with_distance(gt_boundary, pred_boundary, d=0):
+    """
+    Calculate Boundary Recall
+    Ref. for the formula:
+    https://www.tu-chemnitz.de/etit/proaut/publications/neubert_protzel_superpixel.pdf
+    """
+
+    # Dilate the boundary maps to include neighboring pixels within distance d
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2*d+1, 2*d+1))
+    dilated_pred_boundary = cv2.dilate(pred_boundary.astype(np.uint8), kernel)
+    
+    # Calculate true positives, false positives, false negatives
+    tp = np.sum(gt_boundary & dilated_pred_boundary)
+    fp = np.sum(~gt_boundary & dilated_pred_boundary)
+    fn = np.sum(gt_boundary & ~dilated_pred_boundary)
+    
+    # Compute boundary recall
+    if tp + fn == 0:
+        recall = 0.0
+    else:
+        recall = tp / (tp + fn)
+    
+    # return (recall, gt_boundary, dilated_pred_boundary)
+    return recall
+
+
+import numpy as np
+from skimage import measure
+
+# Function to create boundary image from binary mask using scikit-image
+def create_boundary_image_full(labelmap):
+    boundary_image = np.zeros_like(labelmap, dtype=np.uint8)
+
+    for i in np.unique(labelmap):
+        # find all contours of segments with label i
+        binary_image = (labelmap == i)
+        contours = measure.find_contours(binary_image, 0.5)
+
+        # Draw contours on the boundary image
+        for contour in contours:
+            contour = np.round(contour).astype(int)  # Convert to integer coordinates
+            for point in contour:
+                boundary_image[point[0], point[1]] = 1
+    
+    return boundary_image
