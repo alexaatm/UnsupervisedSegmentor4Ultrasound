@@ -308,7 +308,7 @@ def process_matches(matches):
     fin_map_with_unmatched = [pl for gt, pl in final_mapping_with_unmatched.items()]
     consistency_map = [percentage for gt, percentage in mapping_consistency.items()]
     avg_consistency = sum(consistency_map) / len(consistency_map)
-    return (fin_map, fin_map_with_unmatched, consistency_map), avg_consistency
+    return (fin_map, fin_map_with_unmatched, consistency_map, avg_consistency)
 
 
 import numpy as np
@@ -327,7 +327,6 @@ def boundary_recall_with_distance(gt_boundary, pred_boundary, d=0):
     
     # Calculate true positives, false positives, false negatives
     tp = np.sum(gt_boundary & dilated_pred_boundary)
-    fp = np.sum(~gt_boundary & dilated_pred_boundary)
     fn = np.sum(gt_boundary & ~dilated_pred_boundary)
     
     # Compute boundary recall
@@ -359,3 +358,37 @@ def create_boundary_image_full(labelmap):
                 boundary_image[point[0], point[1]] = 1
     
     return boundary_image
+
+
+def undersegmnetation_error(gt, pred_labelmap):
+    """
+    Calculate Undersegmentation Error
+    Ref. for the formula:
+    https://www.tu-chemnitz.de/etit/proaut/publications/neubert_protzel_superpixel.pdf
+    """
+
+    def check_intersection(gt, pred):
+        # Check if there is any overlap between the two segments
+        return np.any(np.logical_and(gt, pred))
+    
+    def count_pixels_in(gt, pred):
+        # Count the number of pixels in the intersection
+        return np.sum(np.logical_and(gt, pred))
+    
+    def count_pixels_out(gt, pred):
+        # Count the number of pixels outside the intersection
+        return np.sum(np.logical_and(np.logical_not(gt), pred))
+    
+    error = 0
+
+    for i in np.unique(pred_labelmap):
+        pred = (pred_labelmap == i)
+        if check_intersection(gt, pred):
+            p_in = count_pixels_in(gt, pred)
+            p_out = count_pixels_out(gt, pred)
+            error += min(p_in, p_out)
+
+    n_gt = np.sum(gt)
+    error =  error / n_gt
+
+    return error
