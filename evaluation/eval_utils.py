@@ -338,6 +338,28 @@ def boundary_recall_with_distance(gt_boundary, pred_boundary, d=0):
     # return (recall, gt_boundary, dilated_pred_boundary)
     return recall
 
+def boundary_precision_with_distance(gt_boundary, pred_boundary, d=0):
+    """
+    Calculate Boundary Precision
+    Ref. for the formula:
+    https://www.tu-chemnitz.de/etit/proaut/publications/neubert_protzel_superpixel.pdf
+    """
+
+    # Dilate the boundary maps to include neighboring pixels within distance d
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2*d+1, 2*d+1))
+    dilated_pred_boundary = cv2.dilate(pred_boundary.astype(np.uint8), kernel)
+    
+    # Calculate true positives, false positives, false negatives
+    tp = np.sum(gt_boundary & dilated_pred_boundary)
+    fp = np.sum(~gt_boundary & dilated_pred_boundary)
+    
+    # Compute boundary recall
+    if tp + fp == 0:
+        precision = 0.0
+    else:
+        precision = tp / (tp + fp)
+    
+    return precision
 
 import numpy as np
 from skimage import measure
