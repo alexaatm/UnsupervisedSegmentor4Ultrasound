@@ -4,8 +4,6 @@ import os
 import logging
 import wandb
 
-from polyaxon_client.tracking import Experiment, get_data_paths, get_outputs_path
-
 from extract import extract
 from extract import extract_utils as utils
 from vis import vis_utils
@@ -33,36 +31,32 @@ def pipeline(cfg: DictConfig) -> None:
     log.info("Starting the pipeline...")
 
     # Set the directories
-    if cfg.wandb.mode=='server':
-        # use polyaxon paths
-        main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
-        path_to_save_data = os.path.join(get_outputs_path(), cfg.dataset.name)
-    else:
-        # use default local data
-        main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
+    
+    # use default local data
+    main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
 
-        if cfg.custom_path_to_save_data!="":
-            path_to_save_data = cfg.custom_path_to_save_data
-        else:
-            custom_path=(f"seg{cfg.segments_num}"
-                         f"_clust{cfg.clusters_num}"
-                         f"_norm-{cfg.norm}"
-                         f"_prepr-{cfg.preprocessed_data}"
-                         f"_dino{cfg.spectral_clustering.C_dino}"
-                         f"_ssdknn{cfg.spectral_clustering.C_ssd_knn}"
-                         f"_var{cfg.spectral_clustering.C_var_knn}"
-                         f"_pos{cfg.spectral_clustering.C_pos_knn}"
-                         f"_nn{cfg.spectral_clustering.max_knn_neigbors}"
-                         f"_ssd{cfg.spectral_clustering.C_ssd}"
-                         f"_ncc{cfg.spectral_clustering.C_ncc}"
-                         f"_lncc{cfg.spectral_clustering.C_lncc}"
-                         f"_ssim{cfg.spectral_clustering.C_ssim}"
-                         f"_mi{cfg.spectral_clustering.C_mi}"
-                         f"_sam{cfg.spectral_clustering.C_sam}"
-                         f"_p{cfg.spectral_clustering.patch_size}"
-                         f"_sigma{cfg.spectral_clustering.aff_sigma}"
-                         )
-            path_to_save_data = os.path.join(os.getcwd(),custom_path)
+    if cfg.custom_path_to_save_data!="":
+        path_to_save_data = cfg.custom_path_to_save_data
+    else:
+        custom_path=(f"seg{cfg.segments_num}"
+                        f"_clust{cfg.clusters_num}"
+                        f"_norm-{cfg.norm}"
+                        f"_prepr-{cfg.preprocessed_data}"
+                        f"_dino{cfg.spectral_clustering.C_dino}"
+                        f"_ssdknn{cfg.spectral_clustering.C_ssd_knn}"
+                        f"_var{cfg.spectral_clustering.C_var_knn}"
+                        f"_pos{cfg.spectral_clustering.C_pos_knn}"
+                        f"_nn{cfg.spectral_clustering.max_knn_neigbors}"
+                        f"_ssd{cfg.spectral_clustering.C_ssd}"
+                        f"_ncc{cfg.spectral_clustering.C_ncc}"
+                        f"_lncc{cfg.spectral_clustering.C_lncc}"
+                        f"_ssim{cfg.spectral_clustering.C_ssim}"
+                        f"_mi{cfg.spectral_clustering.C_mi}"
+                        f"_sam{cfg.spectral_clustering.C_sam}"
+                        f"_p{cfg.spectral_clustering.patch_size}"
+                        f"_sigma{cfg.spectral_clustering.aff_sigma}"
+                        )
+        path_to_save_data = os.path.join(os.getcwd(),custom_path)
 
 
     # Directories
@@ -639,19 +633,13 @@ def evaluate(cfg: DictConfig, dataset_dir, gt_dir="", pred_dir="", tag=""):
 def eval_pipeline(cfg: DictConfig) -> None:
     log.info("Starting the evaluation-only pipeline...")
 
-    # Set the directories
-    if cfg.wandb.mode=='server':
-        # use polyaxon paths
-        main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
-        path_to_save_data = os.path.join(get_outputs_path(), cfg.dataset.name)
-    else:
-        # use default local data
-        main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
+    # Set the directories - use default local data
+    main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
 
-        if cfg.custom_path_to_save_data!="":
-            path_to_save_data = cfg.custom_path_to_save_data
-        else:
-            path_to_save_data = os.path.join(os.getcwd())
+    if cfg.custom_path_to_save_data!="":
+        path_to_save_data = cfg.custom_path_to_save_data
+    else:
+        path_to_save_data = os.path.join(os.getcwd())
 
 
     # Directories
@@ -691,14 +679,8 @@ def vis_pipeline(cfg: DictConfig) -> None:
     log.info("Starting the visualisaion...")
 
     # Set the directories
-    if cfg.wandb.mode=='server':
-        # use polyaxon paths
-        main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
-        path_to_save_data = os.path.join(get_outputs_path(), cfg.dataset.name)
-    else:
-        # use default local data
-        main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
-        path_to_save_data = os.path.join(os.getcwd())
+    main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
+    path_to_save_data = os.path.join(os.getcwd())
 
 
     # Directories

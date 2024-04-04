@@ -4,8 +4,6 @@ import os
 import logging
 import wandb
 
-from polyaxon_client.tracking import Experiment, get_data_paths, get_outputs_path
-
 from extract import extract
 from extract import extract_utils as utils
 from vis import vis_utils
@@ -57,64 +55,58 @@ def pipeline(cfg, subroot = "main"):
 
 
     # Set the directories
-    if cfg['wandb']['mode']=='server':
-        # use polyaxon paths
-        main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
-        path_to_save_data = os.path.join(get_outputs_path(), cfg['dataset']['dataset_root'], subroot)
-    else:
-        # use default local data
-        main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
+    main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
 
-        if cfg['custom_path_to_save_data']!="":
-            path_to_save_data = cfg['custom_path_to_save_data']
+    if cfg['custom_path_to_save_data']!="":
+        path_to_save_data = cfg['custom_path_to_save_data']
+    else:
+        print(f"DEBUG: wandb tag: {cfg['wandb']['tag']}")
+        if ('Aff' in cfg['wandb']['tag'] or 'aff' in cfg['wandb']['tag']):
+            custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
+                        f"_clust{cfg['clusters_num']}"
+                        f"_norm-{cfg['norm']}"
+                        f"_prepr-{cfg['preprocessed_data']}"
+                        f"_dino{cfg['spectral_clustering']['C_dino']}"
+                        f"_ssdknn{cfg['spectral_clustering']['C_ssd_knn']}"
+                        f"_var{cfg['spectral_clustering']['C_var_knn']}"
+                        f"_pos{cfg['spectral_clustering']['C_pos_knn']}"
+                        f"_nn{cfg['spectral_clustering']['max_knn_neigbors']}"
+                        f"_ssd{cfg['spectral_clustering']['C_ssd']}"
+                        f"_ncc{cfg['spectral_clustering']['C_ncc']}"
+                        f"_lncc{cfg['spectral_clustering']['C_lncc']}"
+                        f"_ssim{cfg['spectral_clustering']['C_ssim']}"
+                        f"_mi{cfg['spectral_clustering']['C_mi']}"
+                        f"_sam{cfg['spectral_clustering']['C_sam']}"
+                        f"_p{cfg['spectral_clustering']['patch_size']}"
+                        f"_sigma{cfg['spectral_clustering']['aff_sigma']}"
+                        f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                        )
+        elif ('crf' in cfg['wandb']['tag']):
+            print("DEBUG: 'crf' is in tag!!")
+            custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
+                        f"_clust{cfg['clusters_num']}"
+                        f"_norm-{cfg['norm']}"
+                        f"_prepr-{cfg['preprocessed_data']}"
+                        f"_dino{cfg['spectral_clustering']['C_dino']}"
+                        f"_ssdknn{cfg['spectral_clustering']['C_ssd_knn']}"
+                        f"_CRF_alpha{cfg['crf']['alpha']}"
+                        f"_beta{cfg['crf']['beta']}"
+                        f"_gamma{cfg['crf']['gamma']}"
+                        f"_it{cfg['crf']['it']}"
+                        f"_w1{cfg['crf']['w1']}"
+                        f"_w2{cfg['crf']['w2']}"
+                        f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"                         
+                        )
         else:
-            print(f"DEBUG: wandb tag: {cfg['wandb']['tag']}")
-            if ('Aff' in cfg['wandb']['tag'] or 'aff' in cfg['wandb']['tag']):
-                custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
-                            f"_clust{cfg['clusters_num']}"
-                            f"_norm-{cfg['norm']}"
-                            f"_prepr-{cfg['preprocessed_data']}"
-                            f"_dino{cfg['spectral_clustering']['C_dino']}"
-                            f"_ssdknn{cfg['spectral_clustering']['C_ssd_knn']}"
-                            f"_var{cfg['spectral_clustering']['C_var_knn']}"
-                            f"_pos{cfg['spectral_clustering']['C_pos_knn']}"
-                            f"_nn{cfg['spectral_clustering']['max_knn_neigbors']}"
-                            f"_ssd{cfg['spectral_clustering']['C_ssd']}"
-                            f"_ncc{cfg['spectral_clustering']['C_ncc']}"
-                            f"_lncc{cfg['spectral_clustering']['C_lncc']}"
-                            f"_ssim{cfg['spectral_clustering']['C_ssim']}"
-                            f"_mi{cfg['spectral_clustering']['C_mi']}"
-                            f"_sam{cfg['spectral_clustering']['C_sam']}"
-                            f"_p{cfg['spectral_clustering']['patch_size']}"
-                            f"_sigma{cfg['spectral_clustering']['aff_sigma']}"
-                            f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                            )
-            elif ('crf' in cfg['wandb']['tag']):
-                print("DEBUG: 'crf' is in tag!!")
-                custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
-                            f"_clust{cfg['clusters_num']}"
-                            f"_norm-{cfg['norm']}"
-                            f"_prepr-{cfg['preprocessed_data']}"
-                            f"_dino{cfg['spectral_clustering']['C_dino']}"
-                            f"_ssdknn{cfg['spectral_clustering']['C_ssd_knn']}"
-                            f"_CRF_alpha{cfg['crf']['alpha']}"
-                            f"_beta{cfg['crf']['beta']}"
-                            f"_gamma{cfg['crf']['gamma']}"
-                            f"_it{cfg['crf']['it']}"
-                            f"_w1{cfg['crf']['w1']}"
-                            f"_w2{cfg['crf']['w2']}"
-                            f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"                         
-                            )
-            else:
-                custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
-                            f"_clust{cfg['clusters_num']}"
-                            f"_norm-{cfg['norm']}"
-                            f"_prepr-{cfg['preprocessed_data']}"
-                            f"_dino{cfg['spectral_clustering']['C_dino']}"
-                            f"_cluster{cfg['bbox']['clustering']}"
-                            f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                            )
-            path_to_save_data = os.path.join(os.getcwd(), cfg['dataset']['dataset_root'], subroot, custom_path)
+            custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
+                        f"_clust{cfg['clusters_num']}"
+                        f"_norm-{cfg['norm']}"
+                        f"_prepr-{cfg['preprocessed_data']}"
+                        f"_dino{cfg['spectral_clustering']['C_dino']}"
+                        f"_cluster{cfg['bbox']['clustering']}"
+                        f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                        )
+        path_to_save_data = os.path.join(os.getcwd(), cfg['dataset']['dataset_root'], subroot, custom_path)
 
     # Directories
     if cfg['dataset']['dataset_root'] is not None and subroot!="main":
@@ -557,64 +549,58 @@ def pipeline_2ndStep(cfg, subroot = "main"):
 
 
     # Set the directories
-    if cfg['wandb']['mode']=='server':
-        # use polyaxon paths
-        main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
-        path_to_save_data = os.path.join(get_outputs_path(), cfg['dataset']['dataset_root'], subroot)
-    else:
-        # use default local data
         main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
 
-        if cfg['custom_path_to_save_data']!="":
-            path_to_save_data = cfg['custom_path_to_save_data']
+    if cfg['custom_path_to_save_data']!="":
+        path_to_save_data = cfg['custom_path_to_save_data']
+    else:
+        print(f"DEBUG: wandb tag: {cfg['wandb']['tag']}")
+        if ('Aff' in cfg['wandb']['tag'] or 'aff' in cfg['wandb']['tag']):
+            custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
+                        f"_clust{cfg['clusters_num']}"
+                        f"_norm-{cfg['norm']}"
+                        f"_prepr-{cfg['preprocessed_data']}"
+                        f"_dino{cfg['spectral_clustering']['C_dino']}"
+                        f"_ssdknn{cfg['spectral_clustering']['C_ssd_knn']}"
+                        f"_var{cfg['spectral_clustering']['C_var_knn']}"
+                        f"_pos{cfg['spectral_clustering']['C_pos_knn']}"
+                        f"_nn{cfg['spectral_clustering']['max_knn_neigbors']}"
+                        f"_ssd{cfg['spectral_clustering']['C_ssd']}"
+                        f"_ncc{cfg['spectral_clustering']['C_ncc']}"
+                        f"_lncc{cfg['spectral_clustering']['C_lncc']}"
+                        f"_ssim{cfg['spectral_clustering']['C_ssim']}"
+                        f"_mi{cfg['spectral_clustering']['C_mi']}"
+                        f"_sam{cfg['spectral_clustering']['C_sam']}"
+                        f"_p{cfg['spectral_clustering']['patch_size']}"
+                        f"_sigma{cfg['spectral_clustering']['aff_sigma']}"
+                        f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                        )
+        elif ('crf' in cfg['wandb']['tag']):
+            print("DEBUG: 'crf' is in tag!!")
+            custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
+                        f"_clust{cfg['clusters_num']}"
+                        f"_norm-{cfg['norm']}"
+                        f"_prepr-{cfg['preprocessed_data']}"
+                        f"_dino{cfg['spectral_clustering']['C_dino']}"
+                        f"_ssdknn{cfg['spectral_clustering']['C_ssd_knn']}"
+                        f"_CRF_alpha{cfg['crf']['alpha']}"
+                        f"_beta{cfg['crf']['beta']}"
+                        f"_gamma{cfg['crf']['gamma']}"
+                        f"_it{cfg['crf']['it']}"
+                        f"_w1{cfg['crf']['w1']}"
+                        f"_w2{cfg['crf']['w2']}"
+                        f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"                         
+                        )
         else:
-            print(f"DEBUG: wandb tag: {cfg['wandb']['tag']}")
-            if ('Aff' in cfg['wandb']['tag'] or 'aff' in cfg['wandb']['tag']):
-                custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
-                            f"_clust{cfg['clusters_num']}"
-                            f"_norm-{cfg['norm']}"
-                            f"_prepr-{cfg['preprocessed_data']}"
-                            f"_dino{cfg['spectral_clustering']['C_dino']}"
-                            f"_ssdknn{cfg['spectral_clustering']['C_ssd_knn']}"
-                            f"_var{cfg['spectral_clustering']['C_var_knn']}"
-                            f"_pos{cfg['spectral_clustering']['C_pos_knn']}"
-                            f"_nn{cfg['spectral_clustering']['max_knn_neigbors']}"
-                            f"_ssd{cfg['spectral_clustering']['C_ssd']}"
-                            f"_ncc{cfg['spectral_clustering']['C_ncc']}"
-                            f"_lncc{cfg['spectral_clustering']['C_lncc']}"
-                            f"_ssim{cfg['spectral_clustering']['C_ssim']}"
-                            f"_mi{cfg['spectral_clustering']['C_mi']}"
-                            f"_sam{cfg['spectral_clustering']['C_sam']}"
-                            f"_p{cfg['spectral_clustering']['patch_size']}"
-                            f"_sigma{cfg['spectral_clustering']['aff_sigma']}"
-                            f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                            )
-            elif ('crf' in cfg['wandb']['tag']):
-                print("DEBUG: 'crf' is in tag!!")
-                custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
-                            f"_clust{cfg['clusters_num']}"
-                            f"_norm-{cfg['norm']}"
-                            f"_prepr-{cfg['preprocessed_data']}"
-                            f"_dino{cfg['spectral_clustering']['C_dino']}"
-                            f"_ssdknn{cfg['spectral_clustering']['C_ssd_knn']}"
-                            f"_CRF_alpha{cfg['crf']['alpha']}"
-                            f"_beta{cfg['crf']['beta']}"
-                            f"_gamma{cfg['crf']['gamma']}"
-                            f"_it{cfg['crf']['it']}"
-                            f"_w1{cfg['crf']['w1']}"
-                            f"_w2{cfg['crf']['w2']}"
-                            f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"                         
-                            )
-            else:
-                custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
-                            f"_clust{cfg['clusters_num']}"
-                            f"_norm-{cfg['norm']}"
-                            f"_prepr-{cfg['preprocessed_data']}"
-                            f"_dino{cfg['spectral_clustering']['C_dino']}"
-                            f"_cluster{cfg['bbox']['clustering']}"
-                            f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-                            )
-            path_to_save_data = os.path.join(os.getcwd(), cfg['dataset']['dataset_root'], subroot, custom_path)
+            custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
+                        f"_clust{cfg['clusters_num']}"
+                        f"_norm-{cfg['norm']}"
+                        f"_prepr-{cfg['preprocessed_data']}"
+                        f"_dino{cfg['spectral_clustering']['C_dino']}"
+                        f"_cluster{cfg['bbox']['clustering']}"
+                        f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+                        )
+        path_to_save_data = os.path.join(os.getcwd(), cfg['dataset']['dataset_root'], subroot, custom_path)
 
     # Directories
     if cfg['dataset']['dataset_root'] is not None and subroot!="main":
