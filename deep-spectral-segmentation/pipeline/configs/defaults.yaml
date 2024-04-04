@@ -1,0 +1,50 @@
+defaults:
+  - dataset: liver2_mini
+  - wandb: defaults
+  - hydra: defaults
+  - loader: defaults
+  - model: dino_vits8
+  - spectral_clustering: defaults
+  - multi_region_segmentation: defaults
+  - bbox: defaults
+  - precomputed: defaults
+  - crf: defaults
+  - vis: defaults
+  - pipeline_steps: defaults 
+  - eval: defaults
+  - sweep: defaults
+  - _self_
+
+hydra:
+  run:
+    # dir: ./results/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ./paper_results/${dataset.name}/exp_${wandb.tag}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+custom_path_to_save_data: ""
+
+only_vis: False
+only_eval: False
+
+# data preprocessing -> TODO: move to a spearate config dir
+preprocessed_data: null
+norm: imagenet
+inv: False
+hist_eq: False
+gauss_blur: False
+gauss_teta: 0.05
+
+
+segments_num: 15
+clusters_num: 15
+
+spectral_clustering:
+  K: ${segments_num}
+
+multi_region_segmentation:
+  non_adaptive_num_segments: ${segments_num}
+
+bbox:
+  num_clusters: ${clusters_num}
+
+crf:
+  num_classes: ${clusters_num}

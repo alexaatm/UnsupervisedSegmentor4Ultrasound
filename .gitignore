@@ -162,7 +162,6 @@ slurm_scripts/*.err
 slurm_scripts/logs
 evaluation/__pycache__/
 evaluation/outputs/
-configs/
 evaluation/demo_*
 cutler_env/
 evaluation/eval_analysis/artifacts

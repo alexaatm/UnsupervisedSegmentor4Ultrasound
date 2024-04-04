@@ -1,0 +1,9 @@
+mode: precomputed
+features: "/outputs/oleksandra_tmenova/SegmPipelineUS/experiments/110511/liver2_mini/features/dino_vits8"
+eig: "/outputs/oleksandra_tmenova/SegmPipelineUS/experiments/110512/liver2_mini/eig/laplacian"
+multi_region_segmentation:  "/outputs/oleksandra_tmenova/SegmPipelineUS/experiments/110512/liver2_mini/multi_region_segmentation/laplacian"
+bboxes:  "/outputs/oleksandra_tmenova/SegmPipelineUS/experiments/110512/liver2_mini/multi_region_bboxes/laplacian/bboxes.pth"
+bbox_features: "/outputs/oleksandra_tmenova/SegmPipelineUS/experiments/110687/liver2_mini/multi_region_bboxes/laplacian/bbox_features.pth"
+bbox_clusters: " /outputs/oleksandra_tmenova/SegmPipelineUS/experiments/110690/liver2_mini/multi_region_bboxes/laplacian/bbox_clusters.pth"
+segmaps: "/outputs/oleksandra_tmenova/SegmPipelineUS/experiments/110691/liver2_mini/semantic_segmentations/patches/laplacian/segmaps"
+crf_segmaps: "/outputs/oleksandra_tmenova/SegmPipelineUS/experiments/110727/liver2_mini/semantic_segmentations/patches/laplacian/crf_segmaps"

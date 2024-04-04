@@ -1,0 +1,10 @@
+num_classes: 3
+downsample_factor: null
+multiprocessing: 0
+# CRF parameters
+w1: 10    # weight of bilateral term  # default: 10.0,
+alpha: 80    # spatial std  # default: 80,  
+beta: 13    # rgb  std  # default: 13,  
+w2: 3     # weight of spatial term  # default: 3.0, 
+gamma: 3     # spatial std  # default: 3,   
+it: 5.0   # iteration  # default: 5.0, 

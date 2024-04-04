@@ -1,0 +1,10 @@
+mode: from_scratch
+features: ""
+eig: ""
+multi_region_segmentation: ""
+bboxes: ""
+bbox_features: ""
+bbox_clusters: ""
+segmaps: ""
+crf_segmaps: ""
+crf_multi_region: ""
