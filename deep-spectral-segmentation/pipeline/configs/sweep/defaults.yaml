@@ -7,7 +7,11 @@ sweep_id: null
 config:
     # generic
     segments_num: [15]
-    clusters_num: [15]
+    clusters_num: [10]
+    multi_region_segmentation:
+      non_adaptive_num_segments: [15]
+    bbox:
+      num_clusters: [10]
 
     # preprocessing
     norm: ["imagenet"]
@@ -17,6 +21,7 @@ config:
 
     # affinities
     spectral_clustering:
+        K: [15]
         C_dino: [1.0]
         C_ssd: [0.0]
         C_mi: [0.0]
@@ -24,7 +29,7 @@ config:
 
     # postprocessing (CRF)
     crf:
-        num_classes: [6]
+        num_classes: [10]
         w1: [15]
         alpha: [7]
         beta: [10]

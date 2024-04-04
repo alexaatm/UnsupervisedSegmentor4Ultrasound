@@ -173,8 +173,8 @@ def extract_features(
     
     print(f'Saved features to {output_dir}')
 
-    print(f'DEBUG: feature extraction: check memory')
-    utils.check_gpu_memory()
+    # print(f'DEBUG: feature extraction: check memory')
+    # utils.check_gpu_memory()
 
     # return found transform to not recalulate it every time, and not to pass its parameters to every function
     return transform, tr_dict
@@ -836,7 +836,7 @@ def extract_bbox_features(
     model = model.half()
     torch.cuda.empty_cache()
     # print(f'DEBUG: bbox feature extraction: check memory')
-    utils.check_gpu_memory()
+    # utils.check_gpu_memory()
 
     # Transforms
     tr, tr_dict = image_transform_data

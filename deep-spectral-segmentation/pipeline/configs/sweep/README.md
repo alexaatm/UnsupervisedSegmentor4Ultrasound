@@ -34,5 +34,6 @@ config:
         it: [10]
 
     # pipeline configs
-    
+    pipeline_steps:
+        
 ```
