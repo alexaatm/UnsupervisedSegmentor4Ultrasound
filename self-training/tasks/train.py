@@ -20,7 +20,6 @@ import os
 import logging
 import wandb
 
-from polyaxon_client.tracking import Experiment, get_data_paths, get_outputs_path
 import shutil
 
 import numpy as np
@@ -140,18 +139,10 @@ def train_dinoLightningModule(cfg: DictConfig) -> None:
         ]
     )
 
-    if cfg.wandb.mode=='server':
-        # use polyaxon paths
-        main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
-        train_dataset = datasets.PatchDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=transform)
-        val_dataset = datasets.PatchDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), transform=transform)
-        path_to_save_ckpt = get_outputs_path()
-        
-    else:
-        # use default local data 
-        train_dataset = datasets.PatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=transform)
-        val_dataset = datasets.PatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=transform)
-        path_to_save_ckpt = os.getcwd()
+    # use default local data 
+    train_dataset = datasets.PatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=transform)
+    val_dataset = datasets.PatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=transform)
+    path_to_save_ckpt = os.getcwd()
 
     log.info(f"Path to save chekpoints: {path_to_save_ckpt}")
     
@@ -350,17 +341,10 @@ def train_simclr(cfg: DictConfig) -> None:
 
     # data
     resize = transforms.Resize(cfg.dataset.input_size)
-    if cfg.wandb.mode=='server':
-        # use polyaxon paths
-        main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
-        train_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), transform=resize)
-        val_dataset = LightlyDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), transform=resize)
-        path_to_save_ckpt = get_outputs_path()
-    else:
-        # use default local data 
-        train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=resize)
-        val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=resize)
-        path_to_save_ckpt = os.getcwd()
+    # use default local data 
+    train_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path),transform=resize)
+    val_dataset = LightlyDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path),transform=resize)
+    path_to_save_ckpt = os.getcwd()
 
 
     collate_fn = SimCLRCollateFunction(
@@ -456,26 +440,15 @@ def train_triplet(cfg: DictConfig) -> None:
 
     # data
     # resize = transforms.Resize(cfg.dataset.input_size)
-    if cfg.wandb.mode=='server':
-        # use polyaxon paths
-        main_data_dir = os.path.join(get_data_paths()['data1'], '3D_US_vis', 'datasets')
-        if cfg.loader.mode=="patch":
-            train_dataset = datasets.TripletPatchDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path))
-            val_dataset = datasets.TripletPatchDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path))
-        else:
-            train_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_train_path), mode = cfg.dataset.triplet_mode)
-            val_dataset = datasets.TripletDataset(os.path.join(main_data_dir, cfg.dataset.rel_val_path), mode = cfg.dataset.triplet_mode)
-        path_to_save_ckpt = get_outputs_path()
+        # use default local data 
+    if cfg.loader.mode=="patch":
+        train_dataset = datasets.TripletPatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
+        val_dataset = datasets.TripletPatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
     else:
-         # use default local data 
-        if cfg.loader.mode=="patch":
-            train_dataset = datasets.TripletPatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path))
-            val_dataset = datasets.TripletPatchDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path))
-        else:
-            train_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path), mode = cfg.dataset.triplet_mode)
-            val_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path), modoe = cfg.dataset.triplet_mode)
-        path_to_save_ckpt = os.getcwd()
-    
+        train_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.path), mode = cfg.dataset.triplet_mode)
+        val_dataset = datasets.TripletDataset(os.path.join(hydra.utils.get_original_cwd(),cfg.dataset.val_path), modoe = cfg.dataset.triplet_mode)
+    path_to_save_ckpt = os.getcwd()
+
     print(f'Train dataset sample={train_dataset[0]}')
     # data processing
     normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
@@ -631,12 +604,6 @@ def run_experiment(cfg: DictConfig) -> None:
         train_triplet(cfg)
     else:
         raise ValueError(f'No experiment called: {cfg.experiment.name}')
-    
-
-    if cfg.wandb.mode=='server':
-        # take care to copy outputs to polyaxon storage (NAS), because files on node where the code is will be deleted
-        utils.copytree(os.getcwd(), get_outputs_path())
-
 
     wandb.finish()
 

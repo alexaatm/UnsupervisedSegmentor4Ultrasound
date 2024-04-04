@@ -9,7 +9,6 @@ Pillow
 matplotlib
 tqdm
 accelerate
-polyaxon_client==0.6.1
 torchsummary
 torchinfo
 opencv-python-headless
