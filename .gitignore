@@ -189,3 +189,4 @@ self-training/tasks/configs/wandb/defaults.yaml
 slurm/
 sota/*.err
 sota/*.out
+deep-spectral-segmentation/dino2_models/dinov2_with_attention_extraction/
