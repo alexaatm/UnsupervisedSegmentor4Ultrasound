@@ -1,0 +1,6 @@
+eigen: True
+crf_segmaps: True
+dino_attn_maps: True
+multiregion_segmaps: True
+segmaps: True
+crf_multi_region: True
