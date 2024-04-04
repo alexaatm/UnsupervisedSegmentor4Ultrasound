@@ -189,4 +189,4 @@ slurm/
 sota/*.err
 sota/*.out
 deep-spectral-segmentation/dino2_models/dinov2_with_attention_extraction/
-data/THYROID_test9
+data/THYROID
