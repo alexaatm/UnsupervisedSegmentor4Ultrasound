@@ -1,6 +1,3 @@
-[submodule "deep-spectral-segmentation"]
-	path = deep-spectral-segmentation
-	url = git@github.com:alexaatm/deep-spectral-segmentation.git
 [submodule "CutLER"]
     path = CutLER
     url = git@github.com:alexaatm/CutLER.git
