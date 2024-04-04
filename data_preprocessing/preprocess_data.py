@@ -71,13 +71,7 @@ if __name__ == "__main__":
         EqualizeClahe(grid_size = (2,2)),
         # K.filters.MedianBlur((5,5)),
     )
-
-    # folders_to_process = [
-    # "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/data/CAROTID_MIXED/val_mini",
-    # "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/data/CAROTID_MUTINFO/val_mini",
-    # "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/data/LIVER_MIXED/val_mini",
-    # "/home/guests/oleksandra_tmenova/test/project/thesis-codebase/data/THYROID_COMPOUNDED/val_mini"
-    # ]
+    
     folders_to_process = [
         # TODO: account for passing a folder with folders, or a list of folder paths
         args.dataset_folder,
