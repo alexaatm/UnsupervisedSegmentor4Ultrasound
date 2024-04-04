@@ -549,7 +549,7 @@ def pipeline_2ndStep(cfg, subroot = "main"):
 
 
     # Set the directories
-        main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
+    main_data_dir = os.path.join(hydra.utils.get_original_cwd(), '../data')
 
     if cfg['custom_path_to_save_data']!="":
         path_to_save_data = cfg['custom_path_to_save_data']

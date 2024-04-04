@@ -17,8 +17,7 @@ defaults:
 
 hydra:
   run:
-    # dir: ./results/${now:%Y-%m-%d}/${now:%H-%M-%S}
-    dir: ./paper_results/${dataset.name}/exp_${wandb.tag}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ./results/${dataset.name}/exp_${wandb.tag}/${now:%Y-%m-%d}/${now:%H-%M-%S}
 
 custom_path_to_save_data: ""
 
