@@ -130,7 +130,6 @@ dmypy.json
 
 # sashena
 thesis_env/
-data/
 data1/
 data_old/
 self-training/outputs/
