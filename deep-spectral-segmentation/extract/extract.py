@@ -928,7 +928,7 @@ def extract_bbox_features(
 
                 # for memory efficiency:
                 if C_mask==0:
-                    features_mask = torch.Tensor(0)
+                    features_mask = torch.zeros_like(features_crop)
                 else:
                     features_mask = model(mask).squeeze().cpu()
 
