@@ -25,4 +25,4 @@ data/
 ------labels
 ```
 
-Note: names of datasets and subfolders can by any. Important is to create a corresponding config file (see deep-spectral-segmentation/pipeline/config/dataset).
+Note: names of datasets and subfolders can by any. Important is to create a corresponding config file (see config/dataset).

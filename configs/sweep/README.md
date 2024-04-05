@@ -32,8 +32,5 @@ config:
         w2: [5]
         gamma: [5]
         it: [10]
-
-    # pipeline configs
-    pipeline_steps:
         
 ```
