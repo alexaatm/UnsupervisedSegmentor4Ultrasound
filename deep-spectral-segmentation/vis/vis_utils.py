@@ -103,6 +103,8 @@ def plot_segmentation(
         axes[2].set_title('Image with Segmentation Overlay')
         axes[2].axis('off')
 
+        plt.tight_layout()
+        
         # Save the plot
         output_filename = os.path.join(output_dir, f"{image_id}.png")
         plt.savefig(output_filename)
