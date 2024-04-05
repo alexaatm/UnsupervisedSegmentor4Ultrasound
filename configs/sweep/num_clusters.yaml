@@ -1,0 +1,20 @@
+name: num_clusters
+seg_for_eval: ['crf_multi_region']
+method: grid
+count: 
+simple: True
+sweep_id: null
+config:
+    # generic
+    segments_num: [15]
+    clusters_num: [6,9,12,15]
+
+    # postprocessing (CRF)
+    crf:
+        num_classes: [10]
+        w1: [15]
+        alpha: [7]
+        beta: [10]
+        w2: [5]
+        gamma: [5]
+        it: [10]
