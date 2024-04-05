@@ -833,7 +833,8 @@ def extract_bbox_features(
     model = model.to(device)
 
     # for mmeory effciency
-    model = model.half()
+    if torch.cuda.is_available():
+        model = model.half()
     torch.cuda.empty_cache()
     # print(f'DEBUG: bbox feature extraction: check memory')
     # utils.check_gpu_memory()
@@ -863,7 +864,8 @@ def extract_bbox_features(
         image = image.unsqueeze(0).to(device)  # (1, 3, H, W)
 
         # for memory efficiency
-        image = image.half()
+        if torch.cuda.is_available():
+            image = image.half()
 
 
         # Use image encoding
@@ -911,10 +913,11 @@ def extract_bbox_features(
 
 
             # for memory efficiency
-            image_crop = image_crop.half()
-            pos_x_crop = pos_x_crop.half()
-            pos_y_crop = pos_y_crop.half()
-            mask = mask.half()
+            if torch.cuda.is_available():
+                image_crop = image_crop.half()
+                pos_x_crop = pos_x_crop.half()
+                pos_y_crop = pos_y_crop.half()
+                mask = mask.half()
 
             # print(f'DEBUG: image.shape={image.shape}, image_crop.shape={image_crop.shape}')
             # extract features
