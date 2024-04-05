@@ -100,10 +100,6 @@ def pipeline(cfg, subroot = "main"):
         else:
             custom_path=(f"{cfg['wandb']['tag']}/seg{cfg['segments_num']}"
                         f"_clust{cfg['clusters_num']}"
-                        f"_norm-{cfg['norm']}"
-                        f"_prepr-{cfg['preprocessed_data']}"
-                        f"_dino{cfg['spectral_clustering']['C_dino']}"
-                        f"_cluster{cfg['bbox']['clustering']}"
                         f"_time{segm_eval.datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
                         )
         path_to_save_data = os.path.join(os.getcwd(), cfg['dataset']['dataset_root'], subroot, custom_path)
