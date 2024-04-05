@@ -1,27 +1,27 @@
 name: defaults
-seg_for_eval: ['multi_region']
+seg_for_eval: ['crf_multi_region']
 method: grid
-count: 1
+count: 
 simple: True
 sweep_id: null
 config:
     # generic
     segments_num: [15]
-    clusters_num: [10]
+    clusters_num: [15]
     multi_region_segmentation:
-      non_adaptive_num_segments: [15]
+      non_adaptive_num_segments: [15] #same as segments_num
     bbox:
-      num_clusters: [10]
+      num_clusters: [15] #same as clusters_num
 
     # preprocessing
     norm: ["imagenet"]
     inv: [False]
-    hist_eq: [False]
+    hist_eq: [True]
     gauss_blur: [True]
 
     # affinities
     spectral_clustering:
-        K: [15]
+        K: [15] #same as segments_num
         C_dino: [1.0]
         C_ssd: [0.0]
         C_mi: [0.0]
@@ -29,7 +29,7 @@ config:
 
     # postprocessing (CRF)
     crf:
-        num_classes: [10]
+        num_classes: [15] #same as clusters_num
         w1: [15]
         alpha: [7]
         beta: [10]

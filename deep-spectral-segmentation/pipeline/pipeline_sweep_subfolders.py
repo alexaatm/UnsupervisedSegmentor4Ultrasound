@@ -1110,7 +1110,7 @@ def run_sweep(cfg: DictConfig) -> None:
     # transform config, if simple config provided:
     if cfg['sweep']['simple']:
         sweep_dict = yaml_to_nested_dict(sweep_dict, key_word = "values")
-        print("Modified config: ", sweep_dict)
+        # print("Modified config: ", sweep_dict)
 
 
     # ref: https://colab.research.google.com/github/wandb/examples/blob/master/colabs/pytorch/Organizing_Hyperparameter_Sweeps_in_PyTorch_with_W%26B.ipynb#scrollTo=guKch4YoOcfz
