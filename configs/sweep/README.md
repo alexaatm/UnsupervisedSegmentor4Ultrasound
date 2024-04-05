@@ -1,4 +1,4 @@
-Create a sweep config, if you wish to experiment with multiple settings and their combinations (list them using commas). You can use any configs from the pipeline/configs folder and specify the values, using the following structure:
+Create a sweep config, if you wish to experiment with multiple settings and their combinations (list them using commas). You can use any configs from the configs folder and specify the values, using the following structure:
 
 ```
 name: defaults

@@ -190,3 +190,6 @@ sota/*.err
 sota/*.out
 deep-spectral-segmentation/dino2_models/dinov2_with_attention_extraction/
 data/THYROID
+configs/wandb/server.yaml
+configs/wandb/defaults.yaml
+configs/dataset/thyroid.yaml

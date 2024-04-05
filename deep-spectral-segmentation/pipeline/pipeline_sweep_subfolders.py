@@ -1091,7 +1091,7 @@ def yaml_to_nested_dict(yaml_data, key_word = "value"):
             return data
     return recurse(yaml_data)
 
-@hydra.main(version_base=None, config_path="./configs", config_name="defaults")
+@hydra.main(version_base=None, config_path="../../configs", config_name="defaults")
 def run_sweep(cfg: DictConfig) -> None:
     log.info(OmegaConf.to_yaml(cfg))
     log.info("Current working directory  : {}".format(os.getcwd()))

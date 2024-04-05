@@ -769,7 +769,7 @@ def vis_pipeline(cfg: DictConfig) -> None:
             output_dir = output_segm_plots
         )
     
-@hydra.main(version_base=None, config_path="./configs", config_name="defaults")
+@hydra.main(version_base=None, config_path="../../configs", config_name="defaults")
 def run_pipeline(cfg: DictConfig) -> None:
     # print(f'cfg.wandb.mode is={cfg.wandb.mode}')
 
