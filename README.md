@@ -3,6 +3,7 @@
 
 We integrate key concepts from unsupervised deep spectral methods, which combine spectral graph theory with deep learning methods. We utilize self-supervised transformer features for spectral clustering to generate meaningful segments based on ultrasound-specific metrics and shape and positional priors, ensuring semantic consistency across the dataset.
 
+![alt text](https://github.com/alexaatm/UnsupervisedSegmentor4Ultrasound/blob/main/pipeline.png?raw=true)
 
 
 ## Installation
